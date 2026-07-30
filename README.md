@@ -1,6 +1,6 @@
 # 基于 RAG 的计算机专业学习 Agent
 
-> 项目状态：第 1 周第 1 天已完成；前后端工程骨架可以独立启动，业务功能尚未开始实现。
+> 项目状态：第 1 周第 2 天已完成；工程骨架、SQLite 数据层和首次迁移已经就绪，HTTP 业务接口尚未开始实现。
 
 ## 1. 项目简介
 
@@ -474,9 +474,9 @@ LLM_AVAILABLE_MODELS=
 EMBEDDING_MODEL=BAAI/bge-m3
 RERANKER_MODEL=BAAI/bge-reranker-v2-m3
 
-QDRANT_PATH=./data/qdrant
-DATABASE_URL=sqlite+aiosqlite:///./data/app.db
-UPLOAD_DIR=./data/uploads
+QDRANT_PATH=../data/qdrant
+DATABASE_URL=sqlite+aiosqlite:///../data/app.db
+UPLOAD_DIR=../data/uploads
 MAX_UPLOAD_MB=100
 ```
 
@@ -638,3 +638,39 @@ npm.cmd run dev -- --host 127.0.0.1
 - 后端：`http://127.0.0.1:8000/`
 - API 文档：`http://127.0.0.1:8000/docs`
 - 健康检查：`http://127.0.0.1:8000/api/health`
+
+### 19.2 第 1 周第 2 天：配置与数据库（已完成）
+
+本阶段只实现后端数据基础，没有提前创建课程 HTTP 接口或文件上传流程。
+
+已完成：
+
+- 安装 SQLAlchemy、aiosqlite 和 Alembic；
+- 建立异步 SQLite Engine、Session Factory 和 FastAPI 会话依赖；
+- 为 SQLite 连接启用外键约束；
+- 实现 `Course` 和 `Document` 数据模型；
+- 课程名称建立全局唯一约束；
+- 文档建立 `(course_id, sha256)` 复合唯一约束；
+- 文档状态限制为 `pending`、`processing`、`completed` 和 `failed`；
+- 课程删除对文档记录使用数据库级 `ON DELETE CASCADE`；
+- 实现 Course/Document Repository 和 Service 基础层；
+- 建立课程和文档的 Pydantic 输入输出结构；
+- 创建并应用首次 Alembic 迁移 `20260730_01`；
+- 将数据库、Qdrant 和上传目录统一定位到仓库根目录的 `data/`；
+- 增加课程名去空格、重复课程、文件哈希范围和级联删除测试；
+- 增加迁移升级、模型一致性和降级自动测试。
+
+应用数据库迁移：
+
+```powershell
+cd backend
+uv run alembic upgrade head
+```
+
+查看当前迁移版本：
+
+```powershell
+uv run alembic current
+```
+
+本地开发数据库位于 `data/app.db`，已被 `.gitignore` 排除，不会提交到 Git。

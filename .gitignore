@@ -32,7 +32,7 @@ data/*
 backend/data/
 
 # Local model and vector-store artifacts
-models/
+/models/
 *.db
 *.sqlite
 *.sqlite3

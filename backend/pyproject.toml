@@ -4,9 +4,12 @@ version = "0.1.0"
 description = "FastAPI backend for the RAG-based computer science learning agent"
 requires-python = ">=3.11"
 dependencies = [
+    "aiosqlite>=0.22.1",
+    "alembic>=1.18.5",
     "fastapi[standard-no-fastapi-cloud-cli]>=0.141.1",
     "orjson>=3.11.9",
     "pydantic-settings>=2.14.2",
+    "sqlalchemy>=2.0.51",
     "structlog>=26.1.0",
 ]
 

@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -23,6 +24,9 @@ class Settings(BaseSettings):
     llm_model: str = "deepseek-v4-flash"
     llm_available_models: str = "deepseek-v4-flash,deepseek-v4-pro"
 
+    database_url: str = "sqlite+aiosqlite:///../data/app.db"
+    qdrant_path: Path = Path("../data/qdrant")
+    upload_dir: Path = Path("../data/uploads")
     max_upload_mb: int = Field(default=100, gt=0)
 
     @property
