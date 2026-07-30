@@ -1,0 +1,640 @@
+# 基于 RAG 的计算机专业学习 Agent
+
+> 项目状态：第 1 周第 1 天已完成；前后端工程骨架可以独立启动，业务功能尚未开始实现。
+
+## 1. 项目简介
+
+本项目是一个面向计算机专业学生的课程学习 Agent。系统通过 RAG（Retrieval-Augmented Generation，检索增强生成）技术，将课程讲义、教材、课件和个人笔记构建为可检索知识库，并在此基础上提供：
+
+- 带资料引用的学科问答；
+- 按文档、章节或知识点生成学习总结；
+- 生成选择题、判断题、简答题和编程题；
+- 保存学习记录和生成结果；
+- 评测并优化 RAG 的检索与回答质量。
+
+第一版面向单个学生，支持多个相互隔离的课程空间，不实现账号、权限、资料共享和在线代码判题。
+
+## 2. 项目目标
+
+### 2.1 功能目标
+
+1. 支持上传 PDF、PPTX、DOCX、Markdown 和 TXT 课程资料。
+2. 自动解析、分块、向量化并建立课程知识库。
+3. 回答日常学科问题，并返回文件名、页码、幻灯片编号等引用。
+4. 在资料不足时明确拒答，避免无依据生成。
+5. 生成结构化课程总结，包括重点、难点、易错点和复习建议。
+6. 按知识点、题型、数量和难度生成考试题。
+7. 为编程题生成题意、约束、样例、参考代码、复杂度分析和测试用例设计，但不执行代码。
+8. 建立小型量化评测体系，对不同 RAG 方案进行消融实验。
+
+### 2.2 验收目标
+
+- 文档入库、问答、总结和出题四条主流程均可完整演示。
+- 检索 `Hit@5` 达到 80% 以上。
+- 改进方案相对基础 RAG 的 `Hit@5` 提升至少 10 个百分点。
+- 引用正确率达到 90% 以上。
+- 知识库外问题的正确拒答率达到 80% 以上。
+- 建立不少于 50 条的独立评测集并输出实验报告。
+
+## 3. 系统架构
+
+```mermaid
+flowchart TD
+    UI["Vue 3 前端"] -->|"REST / SSE"| API["FastAPI 后端"]
+    API --> AGENT["LangGraph Agent"]
+
+    AGENT --> ROUTER["意图识别与任务路由"]
+    ROUTER --> QA["课程问答"]
+    ROUTER --> SUMMARY["知识总结"]
+    ROUTER --> EXAM["考试出题"]
+
+    QA --> RETRIEVAL["RAG 检索管线"]
+    SUMMARY --> RETRIEVAL
+    EXAM --> RETRIEVAL
+
+    RETRIEVAL --> QDRANT["Qdrant 向量库"]
+    RETRIEVAL --> RERANKER["本地 Reranker"]
+    AGENT --> LLM["DeepSeek（OpenAI-compatible API）"]
+
+    API --> SQLITE["SQLite 元数据"]
+    API --> FILES["本地课程文件"]
+```
+
+### 3.1 技术选择
+
+| 层级 | 技术 |
+|---|---|
+| 前端 | Vue 3、TypeScript、Vite、Element Plus |
+| 后端 | Python 3.11、FastAPI、Pydantic |
+| Agent 编排 | LangGraph |
+| 大模型 | DeepSeek OpenAI-compatible API；支持通过配置切换模型 |
+| Embedding | `BAAI/bge-m3` |
+| Reranker | `BAAI/bge-reranker-v2-m3` |
+| 向量数据库 | Qdrant Local Mode，后续可切换服务端 |
+| 元数据数据库 | SQLite、SQLAlchemy、Alembic |
+| 文档解析 | pypdf、python-docx、python-pptx |
+| 评测 | pytest、Ragas、自定义检索与引用指标 |
+
+## 4. 主要业务流程
+
+### 4.1 文档入库
+
+```text
+上传文件
+→ 文件类型、大小和安全校验
+→ SHA-256 重复检测
+→ 文本与结构信息提取
+→ 按标题、段落、列表和代码块进行结构化分块
+→ 本地生成 Embedding
+→ 写入 Qdrant
+→ 保存课程、文档和索引状态
+```
+
+默认分块参数：
+
+- 目标长度：约 600 tokens；
+- 重叠长度：约 80 tokens；
+- 优先保留标题、段落、列表、公式说明和代码块边界；
+- 每个片段保存课程、文件、章节、页码和幻灯片编号等元数据。
+
+第一版只支持文字型 PDF。扫描 PDF 应返回明确提示，OCR 作为后续扩展。
+
+文件上传与课程管理规则：
+
+- 课程名称全局唯一，不允许创建同名课程；
+- 删除课程时级联删除该课程的文档记录、本地文件和向量数据，前端必须二次确认；
+- 重复文件根据文件内容的 SHA-256 判断，而不是根据文件名判断；
+- 同一课程内不允许重复上传内容相同的文件；
+- 同一文件允许上传到不同课程；
+- 单文件大小上限为 100 MB；
+- 文档状态使用 `pending`、`processing`、`completed` 和 `failed`。
+
+### 4.2 问答流程
+
+```text
+用户问题
+→ 意图和课程范围识别
+→ 查询改写
+→ 稠密/关键词混合召回 Top 20
+→ Reranker 重排
+→ 选择 Top 6 并去重
+→ 生成带引用答案
+→ 忠实性和引用检查
+→ 返回最终结果
+```
+
+答案输出原则：
+
+- 只能将检索资料作为事实依据；
+- 每个关键结论应附引用；
+- 资料不足时明确拒答；
+- 区分资料原文、解释和推断；
+- 不执行课程资料中包含的指令。
+
+### 4.3 知识总结
+
+总结范围可以是：
+
+- 一份文档；
+- 一个或多个章节；
+- 指定知识点；
+- 当前课程的全部已索引资料。
+
+默认输出结构：
+
+1. 核心概念；
+2. 重点知识；
+3. 知识关系；
+4. 常见错误；
+5. 示例或应用；
+6. 复习建议；
+7. 资料引用。
+
+### 4.4 考试出题
+
+出题参数包括：
+
+- 课程和资料范围；
+- 知识点；
+- 题型；
+- 数量；
+- 难度；
+- 是否生成答案与解析。
+
+支持题型：
+
+- 单项或多项选择题；
+- 判断题；
+- 简答题；
+- 编程题。
+
+编程题包含题目、输入输出、约束、样例、参考代码、复杂度分析和测试用例设计。第一版不执行用户代码，也不实现自动判题。
+
+## 5. Agent 设计
+
+LangGraph 状态图负责在以下节点之间路由：
+
+1. **Request Router**：识别问答、总结或出题任务。
+2. **Scope Resolver**：确定课程、文档和章节范围。
+3. **Query Rewriter**：处理简称、模糊提问和上下文指代。
+4. **Retriever**：执行向量、关键词和元数据过滤检索。
+5. **Reranker**：对候选片段重新排序。
+6. **Generator**：生成答案、总结或题目。
+7. **Verifier**：检查结论是否有证据支持、引用是否正确。
+8. **Retry/Abstain**：必要时重新检索或返回资料不足。
+9. **Persistence**：保存会话和生成结果。
+
+计划提供的 Agent 工具：
+
+- `search_course_materials`
+- `get_document_outline`
+- `summarize_materials`
+- `generate_question_set`
+- `verify_citations`
+
+## 6. 数据设计
+
+### 6.1 SQLite 实体
+
+- `Course`：课程空间。
+- `Document`：上传文件及索引状态。
+- `Conversation`：一次学习会话。
+- `Message`：用户和 Agent 消息。
+- `GeneratedArtifact`：总结、试卷等生成结果。
+- `EvaluationCase`：评测问题及标准答案。
+- `EvaluationRun`：一次实验的配置和结果。
+
+关键数据约束：
+
+- `Course.name` 建立唯一约束；
+- `Document` 在同一 `course_id` 下对 `sha256` 建立唯一约束；
+- 删除课程时级联清理课程资料；文件系统和 Qdrant 的清理采用可重试、幂等流程；
+- 文档在不同课程之间不做全局哈希去重。
+
+### 6.2 Qdrant 数据
+
+每个 Point 至少包含：
+
+```json
+{
+  "id": "chunk UUID",
+  "vector": "Embedding 向量",
+  "payload": {
+    "course_id": "课程 ID",
+    "document_id": "文档 ID",
+    "file_name": "文件名",
+    "section": "章节",
+    "page": 12,
+    "slide": null,
+    "chunk_index": 5,
+    "text": "片段正文"
+  }
+}
+```
+
+`course_id`、`document_id` 和常用章节字段应建立 Payload Index。
+
+### 6.3 存储一致性
+
+Qdrant 和 SQLite 之间没有跨数据库事务，因此写入流程应：
+
+- 先创建处于 `processing` 状态的文档记录；
+- 完成解析和向量写入后改为 `completed`；
+- 任一步骤失败时标记 `failed` 并清理已写入向量；
+- 删除文档时使用可重试、幂等的删除流程；
+- 定期检查 SQLite 文档和 Qdrant 向量是否存在孤儿数据。
+
+## 7. Qdrant 与 pgvector 的选择
+
+第一版采用 **Qdrant + SQLite**：
+
+- Qdrant Local Mode 启动成本低，适合单用户课程项目；
+- 更容易展示向量检索、Payload 过滤、重排和混合检索；
+- SQLite 无需独立数据库服务；
+- 当前机器不需要额外安装 PostgreSQL 和 Docker。
+
+如果未来增加多用户、教师权限、共享题库和复杂报表，可以迁移到 **PostgreSQL + pgvector**。该方案能把关系数据与向量放入同一事务，但安装、索引调优和数据库运维成本更高。
+
+代码中应通过 `VectorStore` 和 `MetadataRepository` 接口隔离具体数据库实现，为后续迁移保留空间。
+
+## 8. RAG 质量调优与研究方案
+
+### 8.1 研究目标
+
+研究以下因素对计算机课程 RAG 的影响：
+
+- 文档分块方式；
+- 查询改写；
+- 稠密与关键词混合检索；
+- Reranker；
+- 上下文组织；
+- 引用验证和拒答；
+- 领域 Embedding 或 Reranker 微调。
+
+### 8.2 评测数据
+
+评测集应覆盖：
+
+- 单片段直接问答；
+- 跨章节综合问题；
+- 中英文术语和缩写；
+- 比较、计算和推理问题；
+- 相似概念干扰；
+- 知识库无法回答的问题。
+
+训练集、验证集和测试集按照文档或章节划分，避免同一片段同时出现在训练和测试中。
+
+### 8.3 消融实验
+
+| 实验 | 配置 |
+|---|---|
+| E0 | 固定分块 + 稠密向量检索 |
+| E1 | E0 + 结构化分块 |
+| E2 | E1 + 查询改写 |
+| E3 | E2 + 稠密/关键词混合检索 |
+| E4 | E3 + Reranker |
+| E5 | E4 + 引用验证和拒答机制 |
+| E6 | E5 + 领域 Embedding 或 Reranker 微调 |
+
+每次实验只改变一个主要变量，并保存配置、数据集版本、检索结果、最终答案、指标、延迟、显存占用和 API 成本。
+
+### 8.4 分块实验
+
+比较：
+
+- 300 tokens、重叠 50；
+- 600 tokens、重叠 80；
+- 900 tokens、重叠 100；
+- 固定长度切分；
+- 结构化切分。
+
+### 8.5 模型微调
+
+优先尝试 Reranker 或 Embedding 微调，而不是直接微调生成模型。
+
+Embedding 训练样本：
+
+```text
+query：用户问题
+positive：能正确回答问题的片段
+hard_negative：主题相似但不能回答问题的片段
+```
+
+Reranker 数据采用 `(question, chunk, relevance_label)`，相关度建议分为：
+
+- `2`：直接支持答案；
+- `1`：相关但不足以回答；
+- `0`：无关或具有误导性。
+
+建议最低准备 300～500 个训练查询，可靠实验应达到 1000 个以上查询。困难负样本可以从基础系统的错误高分召回结果中采集。
+
+生成模型 LoRA/QLoRA 微调作为扩展实验。8GB 显存优先选择 1.5B～3B 级指令模型；该实验建议在 WSL2/Linux 环境中进行，不作为第一版交付前置条件。
+
+### 8.6 评价指标
+
+检索指标：
+
+- Recall@K
+- Hit@K
+- MRR
+- nDCG@K
+- Context Precision
+- Context Recall
+
+答案指标：
+
+- Answer Correctness
+- Faithfulness
+- Citation Precision
+- Citation Recall
+- Abstention Accuracy
+- 人工可读性和教学价值评分
+- 响应延迟、显存占用和 API 成本
+
+自动评测必须配合人工抽查，不能完全依赖 LLM-as-Judge。
+
+## 9. API 草案
+
+| 方法 | 路径 | 用途 |
+|---|---|---|
+| `POST` | `/api/courses` | 创建课程 |
+| `GET` | `/api/courses` | 查询课程 |
+| `DELETE` | `/api/courses/{id}` | 二次确认后级联删除课程、资料和向量 |
+| `POST` | `/api/courses/{id}/documents` | 上传资料 |
+| `GET` | `/api/documents/{id}/status` | 查询索引状态 |
+| `DELETE` | `/api/documents/{id}` | 删除资料和向量 |
+| `POST` | `/api/chat/stream` | SSE 流式问答，可指定已配置模型 |
+| `POST` | `/api/summaries` | 生成总结 |
+| `POST` | `/api/exams` | 生成试题 |
+| `GET` | `/api/artifacts/{id}` | 查询生成结果 |
+| `POST` | `/api/evaluations/run` | 启动评测 |
+| `GET` | `/api/evaluations/{id}` | 查询评测结果 |
+
+## 10. 前端页面
+
+1. **课程空间**：创建和选择课程。
+2. **资料管理**：上传、删除、重新索引和查看错误。
+3. **学科问答**：流式输出、引用查看和会话历史。
+4. **知识总结**：选择范围、粒度和输出结构。
+5. **智能出题**：选择题型、数量、难度和知识点。
+6. **评测面板**：展示各方案的指标和对比图表。
+
+## 11. 开发环境现状
+
+截至 2026-07-29，已检测到：
+
+| 项目 | 状态 | 处理建议 |
+|---|---|---|
+| Node.js 24.17.0 | 已安装，可用 | 无需重装 |
+| npm 11.13.0 | 已安装，可用 | 无需重装 |
+| RTX 4070 Laptop 8GB | 已安装，可用 | 无需处理 |
+| NVIDIA 驱动 596.21 | 已安装，可用 | 无需处理 |
+| Python 3.11.15 | 已通过 uv 安装并在后端固定 | 无需处理 |
+| Git 2.53.0 | Codex 内置版本可用，仓库已初始化 | 独立终端开发时可再安装 Git for Windows |
+| pnpm | 只有 Codex 内置版本 | 本项目使用 npm，无需安装 |
+| CUDA Toolkit | 目录残留，`nvcc` 不存在 | PyTorch Wheel 自带 Runtime，暂不重装 |
+| uv 0.12.0 | 已安装，可用 | 无需处理 |
+| VS Code | 未检测到 | 可安装或换用其他 IDE |
+| Docker Desktop | 未安装 | 最终容器化时再安装 |
+| PostgreSQL/pgvector | 未安装 | 当前方案不需要 |
+| Qdrant 服务 | 未安装 | Local Mode 不需要单独服务 |
+
+## 12. 计划安装的依赖
+
+以下命令是后续实施阶段的计划，当前尚未执行。
+
+### 12.1 Python 与后端
+
+```powershell
+winget install --id=astral-sh.uv -e
+uv python install 3.11
+
+uv init backend
+cd backend
+uv python pin 3.11
+
+uv add "fastapi[standard-no-fastapi-cloud-cli]" pydantic-settings
+uv add sqlalchemy aiosqlite alembic
+uv add openai httpx
+uv add langgraph langchain langchain-openai
+uv add langchain-text-splitters langchain-qdrant qdrant-client
+uv add sentence-transformers
+uv add pypdf python-docx python-pptx
+uv add orjson tenacity structlog
+uv add --dev pytest pytest-asyncio pytest-cov ruff mypy
+uv add --dev pandas scikit-learn ragas
+```
+
+如果进行权重微调，再增加：
+
+```text
+datasets
+transformers
+accelerate
+peft
+trl
+bitsandbytes
+```
+
+CUDA 版 PyTorch 应根据实施时的 NVIDIA 驱动和 PyTorch 官方安装选择器生成安装命令，不在规划阶段固定 CUDA Wheel 版本。
+
+### 12.2 Vue 前端
+
+```powershell
+npm create vue@latest frontend
+cd frontend
+npm install
+
+npm install element-plus axios pinia vue-router
+npm install markdown-it highlight.js katex dompurify
+npm install @microsoft/fetch-event-source
+npm install -D vitest playwright
+```
+
+组件冒烟测试使用 Vue 自身的 `createApp` 挂载，不引入 `@vue/test-utils`，以避免其当前传递依赖中的已知安全问题。
+
+创建项目时启用：
+
+- TypeScript
+- Vue Router
+- Pinia
+- Vitest
+- ESLint
+- Prettier
+
+## 13. 环境变量草案
+
+```dotenv
+LLM_PROVIDER=
+LLM_BASE_URL=
+LLM_API_KEY=
+LLM_MODEL=
+LLM_AVAILABLE_MODELS=
+
+EMBEDDING_MODEL=BAAI/bge-m3
+RERANKER_MODEL=BAAI/bge-reranker-v2-m3
+
+QDRANT_PATH=./data/qdrant
+DATABASE_URL=sqlite+aiosqlite:///./data/app.db
+UPLOAD_DIR=./data/uploads
+MAX_UPLOAD_MB=100
+```
+
+当前计划使用的模型配置为：
+
+```dotenv
+LLM_PROVIDER=deepseek
+LLM_BASE_URL=https://api.deepseek.com
+LLM_API_KEY=
+LLM_MODEL=deepseek-v4-flash
+LLM_AVAILABLE_MODELS=deepseek-v4-flash,deepseek-v4-pro
+```
+
+`LLM_MODEL` 表示默认模型，`LLM_AVAILABLE_MODELS` 表示允许用户切换的模型白名单。模型名称只从配置读取，不写死在业务逻辑中。前端切换模型时只能选择后端返回的可用模型，API Key 始终只保存在后端环境变量中。
+
+真实 `.env` 不得提交 Git，仓库只提供 `.env.example`。
+
+## 14. 计划目录结构
+
+```text
+.
+├── backend/
+│   ├── app/
+│   │   ├── api/
+│   │   ├── agent/
+│   │   ├── ingestion/
+│   │   ├── retrieval/
+│   │   ├── generation/
+│   │   ├── evaluation/
+│   │   ├── models/
+│   │   └── repositories/
+│   ├── tests/
+│   └── pyproject.toml
+├── frontend/
+│   ├── src/
+│   │   ├── api/
+│   │   ├── components/
+│   │   ├── stores/
+│   │   └── views/
+│   └── package.json
+├── data/
+│   ├── uploads/
+│   ├── qdrant/
+│   └── evaluations/
+├── docs/
+├── .env.example
+├── docker-compose.yml
+└── README.md
+```
+
+`data/`、`.env`、模型缓存、数据库文件和用户上传资料需要加入 `.gitignore`。
+
+## 15. 开发里程碑
+
+### 第 1 周：工程骨架
+
+- 初始化前后端项目；
+- 配置管理、SQLite 模型和 API 规范；
+- 完成课程空间、文件上传和基础测试。
+
+### 第 2 周：知识库入库
+
+- 完成五类文件解析；
+- 实现结构化分块、Embedding 和 Qdrant 入库；
+- 实现重复检测、索引状态、删除和重新索引。
+
+### 第 3 周：RAG 问答
+
+- 实现基础检索、重排和引用；
+- 加入查询改写、拒答和 SSE 流式输出；
+- 建立第一批人工评测数据。
+
+### 第 4 周：Agent、总结和出题
+
+- 完成 LangGraph 工作流；
+- 完成总结与各类试题生成；
+- 使用 Pydantic 约束生成结果。
+
+### 第 5 周：评测与调优
+
+- 完成不少于 50 条的测试集；
+- 运行基础与改进 RAG 对比实验；
+- 输出检索、忠实性、引用和拒答指标。
+
+### 第 6 周：交付与答辩
+
+- 完成端到端测试和界面优化；
+- 准备 Docker Compose；
+- 完成安装说明、实验报告、演示脚本和答辩材料。
+
+## 16. 测试计划
+
+- 文档解析：正常、空白、损坏、加密和扫描文件。
+- 检索：中文、英文、缩写、跨章节和无答案问题。
+- 问答：引用准确性、拒答、上下文污染和流式中断。
+- 出题：数量、题型、难度、答案、解析和结构校验。
+- API：大文件、重复上传、模型超时、限流和索引失败。
+- 前端：上传状态、错误提示、Markdown、公式和代码渲染。
+- 数据一致性：失败回滚、重复删除和孤儿向量清理。
+
+## 17. 安全与范围约束
+
+- 限制上传类型和大小，净化文件名并使用内部 UUID 存储。
+- 不执行上传文件、课程资料或模型生成的代码。
+- 检索到的文档内容视为不可信数据，不能覆盖系统指令。
+- API 密钥只保存在环境变量中。
+- 模型调用设置超时、有限重试和明确错误提示。
+- 第一版不包含网页抓取、代码仓库索引、OCR、视频、音频、多用户、知识图谱和代码沙箱。
+
+## 18. 参考文档
+
+- [FastAPI 官方文档](https://fastapi.tiangolo.com/)
+- [Vue 官方快速开始](https://vuejs.org/guide/quick-start.html)
+- [LangGraph 官方文档](https://docs.langchain.com/oss/python/langgraph/overview)
+- [Qdrant 官方文档](https://qdrant.tech/documentation/)
+- [pgvector 官方仓库](https://github.com/pgvector/pgvector)
+- [Sentence Transformers 文档](https://sbert.net/)
+- [uv 官方文档](https://docs.astral.sh/uv/)
+- [PyTorch 安装选择器](https://pytorch.org/get-started/locally/)
+
+## 19. 实施进度
+
+### 19.1 第 1 周第 1 天：工程初始化（已完成）
+
+本阶段只完成工程基础，没有提前实现数据库、课程管理、资料上传或 RAG。
+
+已完成：
+
+- 初始化 Git 仓库和根目录工程规范；
+- 安装 uv 0.12.0 和 Python 3.11.15；
+- 初始化 FastAPI 后端并固定 Python 版本；
+- 建立环境配置入口和 `/api/health` 健康检查；
+- 初始化 Vue 3、TypeScript、Vite、Router、Pinia、Vitest、ESLint 和 Prettier；
+- 安装计划中的前端运行依赖和 Playwright 包；
+- 建立前端基础布局、API 请求入口和第一天状态页；
+- 添加前后端最小冒烟测试；
+- 完成后端测试、Ruff、Mypy、前端测试、Lint、类型检查和生产构建；
+- 完整依赖审计结果为 0 个已知漏洞。
+
+后端启动：
+
+```powershell
+cd backend
+uv sync
+uv run fastapi dev app/main.py --host 127.0.0.1 --port 8000
+```
+
+前端启动：
+
+```powershell
+cd frontend
+npm.cmd install
+npm.cmd run dev -- --host 127.0.0.1
+```
+
+本地地址：
+
+- 前端：`http://127.0.0.1:5173/`
+- 后端：`http://127.0.0.1:8000/`
+- API 文档：`http://127.0.0.1:8000/docs`
+- 健康检查：`http://127.0.0.1:8000/api/health`
