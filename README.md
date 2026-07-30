@@ -1,6 +1,6 @@
 # 基于 RAG 的计算机专业学习 Agent
 
-> 项目状态：第 1 周第 2 天已完成；工程骨架、SQLite 数据层和首次迁移已经就绪，HTTP 业务接口尚未开始实现。
+> 项目状态：第 1 周第 3 天已完成；课程和文件 API、安全上传、内容哈希去重及级联删除已经就绪，前端业务页面尚未开始实现。
 
 ## 1. 项目简介
 
@@ -359,8 +359,11 @@ Reranker 数据采用 `(question, chunk, relevance_label)`，相关度建议分�
 |---|---|---|
 | `POST` | `/api/courses` | 创建课程 |
 | `GET` | `/api/courses` | 查询课程 |
+| `GET` | `/api/courses/{id}` | 查询课程详情 |
 | `DELETE` | `/api/courses/{id}` | 二次确认后级联删除课程、资料和向量 |
 | `POST` | `/api/courses/{id}/documents` | 上传资料 |
+| `GET` | `/api/courses/{id}/documents` | 查询课程资料 |
+| `GET` | `/api/documents/{id}` | 查询资料详情 |
 | `GET` | `/api/documents/{id}/status` | 查询索引状态 |
 | `DELETE` | `/api/documents/{id}` | 删除资料和向量 |
 | `POST` | `/api/chat/stream` | SSE 流式问答，可指定已配置模型 |
@@ -674,6 +677,38 @@ uv run alembic current
 ```
 
 本地开发数据库位于 `data/app.db`，已被 `.gitignore` 排除，不会提交到 Git。
+
+### 19.3 第 1 周第 3 天：课程与文件 API（已完成）
+
+本阶段实现后端课程和文件闭环，没有提前实现前端业务页面、文档解析或向量索引。
+
+已完成：
+
+- 建立 `/api` Router 和统一 `{data, error}` 响应结构；
+- 建立领域异常、请求校验异常和 HTTP 状态码映射；
+- 实现课程创建、列表、详情和删除接口；
+- 实现资料上传、列表、详情、状态和删除接口；
+- 配置本地 Vue 开发地址的 CORS；
+- 上传采用 1 MB 分块读取，不将整个文件一次性载入内存；
+- 单文件大小上限为 100 MB，空文件和超限文件会清理临时数据；
+- 使用 SHA-256 内容哈希实现同课程去重；
+- 允许相同内容存在于不同课程；
+- 内部文件名使用文档 UUID，原始文件名只用于展示；
+- 检查 PDF 文件头和 Office Open XML 容器结构；
+- Markdown 和 TXT 必须为 UTF-8，且不能包含空字节；
+- 文件删除先移动到临时回收区，数据库提交失败时可以恢复；
+- 课程删除同时清理数据库记录和本地课程文件目录；
+- 增加课程、上传、去重、格式、大小、文件名和级联删除 API 测试。
+
+真实资料验收结果：
+
+- PDF、PPTX、DOCX、Markdown 和 TXT 均成功上传；
+- 约 66.9 MB 的真实 PDF 在 100 MB 限制下成功上传；
+- 改名后的 PPTX 字节副本在同一课程返回 `409 CONFLICT`；
+- 同一 PPTX 上传到不同课程成功；
+- 空文件返回 `400 INVALID_INPUT`；
+- CSV 和伪装 PDF 返回 `415 UNSUPPORTED_FILE_TYPE`；
+- 验收结束后临时课程、数据库记录和上传副本均已删除。
 
 ## 20. 工程日志
 
