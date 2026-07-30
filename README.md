@@ -674,3 +674,10 @@ uv run alembic current
 ```
 
 本地开发数据库位于 `data/app.db`，已被 `.gitignore` 排除，不会提交到 Git。
+
+## 20. 工程日志
+
+详细实施记录按计划周独立保存在 `docs/engineering-logs/`：
+
+- [工程日志索引](docs/engineering-logs/README.md)
+- [第 1 周工程日志：工程骨架](docs/engineering-logs/week-01.md)
