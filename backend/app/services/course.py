@@ -3,7 +3,7 @@ from uuid import UUID
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import ConflictError, NotFoundError
+from app.core.exceptions import ConflictError, InvalidInputError, NotFoundError
 from app.models import Course
 from app.repositories import CourseRepository
 
@@ -15,11 +15,11 @@ class CourseService:
 
     async def create(self, *, name: str, description: str | None = None) -> Course:
         normalized_name = name.strip()
-        normalized_description = description.strip() if description else None
+        normalized_description = (description.strip() or None) if description else None
         if not normalized_name:
-            raise ValueError("Course name cannot be empty.")
+            raise InvalidInputError("Course name cannot be empty.")
         if len(normalized_name) > 100:
-            raise ValueError("Course name cannot exceed 100 characters.")
+            raise InvalidInputError("Course name cannot exceed 100 characters.")
         if await self.repository.get_by_name(normalized_name):
             raise ConflictError("A course with this name already exists.")
 
@@ -42,3 +42,9 @@ class CourseService:
 
     async def list(self) -> list[Course]:
         return await self.repository.list()
+
+    async def delete(self, course_id: UUID) -> Course:
+        course = await self.get(course_id)
+        await self.repository.delete(course)
+        await self.session.commit()
+        return course

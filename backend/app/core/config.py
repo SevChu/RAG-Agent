@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     app_name: str = "基于 RAG 的计算机专业学习 Agent"
     app_env: str = "development"
     debug: bool = True
+    cors_origins: str = "http://127.0.0.1:5173,http://localhost:5173"
 
     llm_provider: str = "deepseek"
     llm_base_url: str = "https://api.deepseek.com"
@@ -35,6 +36,14 @@ class Settings(BaseSettings):
             model.strip()
             for model in self.llm_available_models.split(",")
             if model.strip()
+        ]
+
+    @property
+    def allowed_cors_origins(self) -> list[str]:
+        return [
+            origin.strip()
+            for origin in self.cors_origins.split(",")
+            if origin.strip()
         ]
 
 

@@ -19,3 +19,8 @@ class DocumentRead(BaseModel):
     error_message: str | None
     created_at: datetime
     updated_at: datetime
+
+
+class DocumentDeleteResult(BaseModel):
+    id: UUID
+    deleted: bool = True

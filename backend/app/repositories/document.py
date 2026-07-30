@@ -13,6 +13,7 @@ class DocumentRepository:
     async def create(
         self,
         *,
+        document_id: UUID,
         course_id: UUID,
         original_name: str,
         stored_name: str,
@@ -22,6 +23,7 @@ class DocumentRepository:
         status: DocumentStatus = DocumentStatus.PENDING,
     ) -> Document:
         document = Document(
+            id=document_id,
             course_id=course_id,
             original_name=original_name,
             stored_name=stored_name,

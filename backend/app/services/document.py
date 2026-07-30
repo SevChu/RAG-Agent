@@ -3,7 +3,7 @@ from uuid import UUID
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import ConflictError, NotFoundError
+from app.core.exceptions import ConflictError, InvalidInputError, NotFoundError
 from app.models import Document
 from app.repositories import CourseRepository, DocumentRepository
 
@@ -17,6 +17,7 @@ class DocumentService:
     async def register(
         self,
         *,
+        document_id: UUID,
         course_id: UUID,
         original_name: str,
         stored_name: str,
@@ -27,14 +28,16 @@ class DocumentService:
         if await self.course_repository.get(course_id) is None:
             raise NotFoundError("Course not found.")
         if file_size < 0:
-            raise ValueError("File size cannot be negative.")
+            raise InvalidInputError("File size cannot be negative.")
         normalized_hash = sha256.strip().lower()
         if len(normalized_hash) != 64:
-            raise ValueError("SHA-256 must contain 64 hexadecimal characters.")
+            raise InvalidInputError("SHA-256 must contain 64 hexadecimal characters.")
         try:
             int(normalized_hash, 16)
         except ValueError as error:
-            raise ValueError("SHA-256 must contain 64 hexadecimal characters.") from error
+            raise InvalidInputError(
+                "SHA-256 must contain 64 hexadecimal characters."
+            ) from error
         if await self.repository.get_by_course_and_sha256(
             course_id=course_id,
             sha256=normalized_hash,
@@ -43,6 +46,7 @@ class DocumentService:
 
         try:
             document = await self.repository.create(
+                document_id=document_id,
                 course_id=course_id,
                 original_name=original_name,
                 stored_name=stored_name,
@@ -55,3 +59,20 @@ class DocumentService:
         except IntegrityError as error:
             await self.session.rollback()
             raise ConflictError("This file already exists in the course.") from error
+
+    async def get(self, document_id: UUID) -> Document:
+        document = await self.repository.get(document_id)
+        if document is None:
+            raise NotFoundError("Document not found.")
+        return document
+
+    async def list_for_course(self, course_id: UUID) -> list[Document]:
+        if await self.course_repository.get(course_id) is None:
+            raise NotFoundError("Course not found.")
+        return await self.repository.list_for_course(course_id)
+
+    async def delete(self, document_id: UUID) -> Document:
+        document = await self.get(document_id)
+        await self.repository.delete(document)
+        await self.session.commit()
+        return document

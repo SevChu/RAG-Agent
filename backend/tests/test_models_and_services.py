@@ -39,6 +39,7 @@ async def test_document_hash_is_unique_per_course_only(
     sha256 = "a" * 64
 
     first_document = await document_service.register(
+        document_id=uuid4(),
         course_id=first_course.id,
         original_name="lecture.pdf",
         stored_name=f"{uuid4()}.pdf",
@@ -52,6 +53,7 @@ async def test_document_hash_is_unique_per_course_only(
 
     with pytest.raises(ConflictError, match="already exists"):
         await document_service.register(
+            document_id=uuid4(),
             course_id=first_course.id,
             original_name="renamed.pdf",
             stored_name=f"{uuid4()}.pdf",
@@ -61,6 +63,7 @@ async def test_document_hash_is_unique_per_course_only(
         )
 
     second_document = await document_service.register(
+        document_id=uuid4(),
         course_id=second_course.id,
         original_name="lecture.pdf",
         stored_name=f"{uuid4()}.pdf",
@@ -79,6 +82,7 @@ async def test_deleting_course_cascades_to_document_records(
     document_service = DocumentService(db_session)
     course = await course_service.create(name="编译原理")
     await document_service.register(
+        document_id=uuid4(),
         course_id=course.id,
         original_name="chapter-1.pdf",
         stored_name=f"{uuid4()}.pdf",

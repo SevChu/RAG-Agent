@@ -17,3 +17,8 @@ class CourseRead(BaseModel):
     description: str | None
     created_at: datetime
     updated_at: datetime
+
+
+class CourseDeleteResult(BaseModel):
+    id: UUID
+    deleted: bool = True
