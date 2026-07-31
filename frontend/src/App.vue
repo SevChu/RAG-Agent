@@ -1,102 +1,121 @@
 <script setup lang="ts">
+import { onMounted, ref } from 'vue'
 import { RouterView } from 'vue-router'
+
+import AppSidebar from '@/components/AppSidebar.vue'
+
+const SIDEBAR_STORAGE_KEY = 'coursemind.sidebar-collapsed'
+const sidebarCollapsed = ref(false)
+const mobileSidebarOpen = ref(false)
+
+onMounted(() => {
+  sidebarCollapsed.value = window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === 'true'
+})
+
+function updateSidebarCollapsed(value: boolean): void {
+  sidebarCollapsed.value = value
+  window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(value))
+}
 </script>
 
 <template>
-  <div class="app-shell">
-    <header class="app-header">
-      <div class="brand">
-        <span class="brand-mark">CS</span>
-        <div>
-          <p class="brand-title">课程学习 Agent</p>
-          <p class="brand-caption">基于课程资料的智能学习工作台</p>
-        </div>
-      </div>
-      <span class="stage-badge">工程骨架</span>
-    </header>
+  <div class="app-layout" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
+    <AppSidebar
+      :collapsed="sidebarCollapsed"
+      :mobile-open="mobileSidebarOpen"
+      @update:collapsed="updateSidebarCollapsed"
+      @update:mobile-open="mobileSidebarOpen = $event"
+    />
 
-    <main class="app-content">
-      <RouterView />
-    </main>
+    <section class="workspace">
+      <header class="mobile-header">
+        <button
+          type="button"
+          class="mobile-menu-button"
+          aria-label="打开侧边栏"
+          @click="mobileSidebarOpen = true"
+        >
+          ☰
+        </button>
+        <span>CourseMind</span>
+        <span class="online-dot" aria-label="本地服务模式" />
+      </header>
+      <main class="workspace-content">
+        <RouterView />
+      </main>
+    </section>
   </div>
 </template>
 
 <style scoped>
-.app-shell {
+.app-layout {
   min-height: 100vh;
 }
 
-.app-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 72px;
-  padding: 0 32px;
-  color: #f8fafc;
-  background: #14213d;
-  box-shadow: 0 8px 24px rgb(15 23 42 / 12%);
+.workspace {
+  min-height: 100vh;
+  margin-left: var(--sidebar-width);
+  transition: margin-left 180ms ease;
 }
 
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+.sidebar-collapsed .workspace {
+  margin-left: var(--sidebar-collapsed-width);
 }
 
-.brand-mark {
-  display: grid;
-  width: 40px;
-  height: 40px;
-  place-items: center;
-  font-weight: 800;
-  color: #14213d;
-  background: #fca311;
-  border-radius: 12px;
-}
-
-.brand-title,
-.brand-caption {
-  margin: 0;
-}
-
-.brand-title {
-  font-size: 17px;
-  font-weight: 700;
-}
-
-.brand-caption {
-  margin-top: 2px;
-  font-size: 12px;
-  color: #cbd5e1;
-}
-
-.stage-badge {
-  padding: 6px 12px;
-  font-size: 12px;
-  color: #fde68a;
-  background: rgb(252 163 17 / 14%);
-  border: 1px solid rgb(252 163 17 / 35%);
-  border-radius: 999px;
-}
-
-.app-content {
-  width: min(1120px, calc(100% - 40px));
+.workspace-content {
+  width: min(1180px, calc(100% - 64px));
   margin: 0 auto;
-  padding: 56px 0;
+  padding: 38px 0 64px;
 }
 
-@media (max-width: 640px) {
-  .app-header {
-    padding: 0 20px;
+.mobile-header {
+  display: none;
+}
+
+@media (max-width: 820px) {
+  .workspace,
+  .sidebar-collapsed .workspace {
+    margin-left: 0;
   }
 
-  .brand-caption {
-    display: none;
+  .mobile-header {
+    position: sticky;
+    z-index: 10;
+    top: 0;
+    display: flex;
+    min-height: 58px;
+    padding: 0 18px;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--ink-strong);
+    background: rgb(250 253 255 / 84%);
+    border-bottom: 1px solid rgb(132 160 196 / 15%);
+    backdrop-filter: blur(18px);
   }
 
-  .app-content {
-    width: min(100% - 28px, 1120px);
-    padding: 32px 0;
+  .mobile-menu-button {
+    width: 38px;
+    height: 38px;
+    color: var(--primary-deep);
+    cursor: pointer;
+    background: var(--primary-soft);
+    border: 0;
+    border-radius: 12px;
+  }
+
+  .online-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--mint);
+    border-radius: 50%;
+    box-shadow: 0 0 0 5px rgb(63 213 173 / 12%);
+  }
+
+  .workspace-content {
+    width: min(100% - 30px, 1180px);
+    padding: 24px 0 46px;
   }
 }
 </style>
