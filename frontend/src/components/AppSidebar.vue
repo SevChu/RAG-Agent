@@ -47,12 +47,13 @@ function closeMobile(): void {
         <small>智能课程学习空间</small>
       </div>
       <button
+        v-if="!collapsed"
         type="button"
         class="icon-button collapse-button"
-        :aria-label="collapsed ? '展开侧边栏' : '收起侧边栏'"
-        @click="emit('update:collapsed', !collapsed)"
+        aria-label="收起侧边栏"
+        @click="emit('update:collapsed', true)"
       >
-        {{ collapsed ? '›' : '‹' }}
+        ‹
       </button>
       <button
         type="button"
@@ -130,6 +131,16 @@ function closeMobile(): void {
     </template>
 
     <div class="sidebar-spacer" />
+
+    <button
+      v-if="collapsed"
+      type="button"
+      class="sidebar-link sidebar-collapse-link"
+      aria-label="展开侧边栏"
+      @click="emit('update:collapsed', false)"
+    >
+      <span class="nav-icon" aria-hidden="true">›</span>
+    </button>
 
     <RouterLink
       to="/settings"
@@ -267,17 +278,6 @@ function closeMobile(): void {
   display: none;
 }
 
-.collapsed .collapse-button {
-  position: absolute;
-  top: 66px;
-  width: 24px;
-  height: 24px;
-  color: var(--primary-deep);
-  background: #fff;
-  border: 1px solid var(--line);
-  box-shadow: var(--shadow-soft);
-}
-
 .primary-navigation {
   display: grid;
   gap: 5px;
@@ -393,6 +393,18 @@ function closeMobile(): void {
   margin-top: 8px;
 }
 
+.sidebar-collapse-link {
+  margin-top: 8px;
+  color: var(--ink-muted);
+  cursor: pointer;
+  background: transparent;
+}
+
+.sidebar-collapse-link:hover {
+  color: var(--primary-deep);
+  background: rgb(234 246 255 / 72%);
+}
+
 @media (max-width: 820px) {
   .sidebar-backdrop {
     position: fixed;
@@ -441,7 +453,8 @@ function closeMobile(): void {
     padding-inline: 10px;
   }
 
-  .collapse-button {
+  .collapse-button,
+  .sidebar-collapse-link {
     display: none;
   }
 
