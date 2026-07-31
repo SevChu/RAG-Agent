@@ -109,8 +109,9 @@ npm.cmd run dev -- --host 127.0.0.1 --port 5173
 现有资料已经足够开始第 2 周，不需要用户立即补充新文件。下一阶段可以直接：
 
 1. 定义五类文档的统一解析结果；
-2. 实现 PDF、PPTX、DOCX、Markdown 和 TXT 解析；
+2. 实现 PDF、PPTX、DOCX、Markdown 和 TXT 解析，其中 PDF 采用原生文本优先、扫描页 OCR 回退；
 3. 实现结构化分块与来源元数据；
 4. 接入 Embedding 和 Qdrant Local Mode；
 5. 推进 `pending → processing → completed/failed` 状态；
-6. 增加损坏、空白、加密和扫描 PDF 等异常测试。
+6. 增加损坏、空白、加密、原生文本、纯扫描和混合型 PDF 测试；
+7. Embedding、Reranker 和 OCR 模型统一存放到用户已批准的 `D:\Agentic\data\models\`，并在相应计划日按需下载，不提前批量下载后续模型；每次下载前仍需报告具体模型、来源、大小和子目录。

@@ -1,6 +1,6 @@
 # 基于 RAG 的计算机专业学习 Agent
 
-> 项目状态：第 1 周已完成；课程与资料管理闭环已通过自动测试、真实浏览器交互和桌面/手机端响应式验收。
+> 项目状态：第 1 周已完成；第 2 周计划日 1 已完成统一解析契约及 Markdown/TXT 结构化解析。
 
 ## 1. 项目简介
 
@@ -72,7 +72,7 @@ flowchart TD
 | Reranker | `BAAI/bge-reranker-v2-m3` |
 | 向量数据库 | Qdrant Local Mode，后续可切换服务端 |
 | 元数据数据库 | SQLite、SQLAlchemy、Alembic |
-| 文档解析 | pypdf、python-docx、python-pptx |
+| 文档解析 | pypdf、python-docx、python-pptx、PaddleOCR |
 | 评测 | pytest、Ragas、自定义检索与引用指标 |
 
 ## 4. 主要业务流程
@@ -83,7 +83,8 @@ flowchart TD
 上传文件
 → 文件类型、大小和安全校验
 → SHA-256 重复检测
-→ 文本与结构信息提取
+→ 原生文本与结构信息提取
+→ 对无有效文本的 PDF 逐页执行 OCR 回退
 → 按标题、段落、列表和代码块进行结构化分块
 → 本地生成 Embedding
 → 写入 Qdrant
@@ -97,7 +98,7 @@ flowchart TD
 - 优先保留标题、段落、列表、公式说明和代码块边界；
 - 每个片段保存课程、文件、章节、页码和幻灯片编号等元数据。
 
-第一版只支持文字型 PDF。扫描 PDF 应返回明确提示，OCR 作为后续扩展。
+PDF 解析优先使用原生文本层；对无有效文本的扫描页执行本地 OCR 回退，并保留原始 PDF 页码。第一版 OCR 以中英文正文、常见代码和基础版面顺序为验收重点；复杂公式、图示语义和高度复杂表格可能需要后续专门优化。加密、损坏或无法形成有效正文的 PDF 应返回明确错误。
 
 文件上传与课程管理规则：
 
@@ -427,6 +428,8 @@ uv add langgraph langchain langchain-openai
 uv add langchain-text-splitters langchain-qdrant qdrant-client
 uv add sentence-transformers
 uv add pypdf python-docx python-pptx
+# 在模型目录获得用户明确批准后，再安装 OCR 依赖并下载模型
+uv add paddleocr
 uv add orjson tenacity structlog
 uv add --dev pytest pytest-asyncio pytest-cov ruff mypy
 uv add --dev pandas scikit-learn ragas
@@ -444,6 +447,8 @@ bitsandbytes
 ```
 
 CUDA 版 PyTorch 应根据实施时的 NVIDIA 驱动和 PyTorch 官方安装选择器生成安装命令，不在规划阶段固定 CUDA Wheel 版本。
+
+Embedding、Reranker 和 OCR 模型统一存放在用户已批准的 `D:\Agentic\data\models\` 下，不使用工具默认的用户目录缓存。模型采用按计划日即时下载：到需要使用相应模型的计划日，再向用户列明当日模型名称、来源、大小预估、子目录和预计新增占用，随后才执行该模型的下载；不得提前批量下载后续计划日模型。
 
 ### 12.2 Vue 前端
 
@@ -480,6 +485,9 @@ LLM_AVAILABLE_MODELS=
 
 EMBEDDING_MODEL=BAAI/bge-m3
 RERANKER_MODEL=BAAI/bge-reranker-v2-m3
+# 已批准的模型根目录；真实 .env 在相应计划日接入模型时再写入
+HF_HOME=../data/models/huggingface
+PADDLE_OCR_BASE_DIR=../data/models/paddleocr
 
 QDRANT_PATH=../data/qdrant
 DATABASE_URL=sqlite+aiosqlite:///../data/app.db
@@ -527,6 +535,7 @@ LLM_AVAILABLE_MODELS=deepseek-v4-flash,deepseek-v4-pro
 ├── data/
 │   ├── uploads/
 │   ├── qdrant/
+│   ├── models/
 │   └── evaluations/
 ├── docs/
 ├── .env.example
@@ -547,6 +556,7 @@ LLM_AVAILABLE_MODELS=deepseek-v4-flash,deepseek-v4-pro
 ### 第 2 周：知识库入库
 
 - 完成五类文件解析；
+- 实现 PDF 原生文本优先、扫描页 OCR 回退和页码保留；
 - 实现结构化分块、Embedding 和 Qdrant 入库；
 - 实现重复检测、索引状态、删除和重新索引。
 
@@ -576,7 +586,8 @@ LLM_AVAILABLE_MODELS=deepseek-v4-flash,deepseek-v4-pro
 
 ## 16. 测试计划
 
-- 文档解析：正常、空白、损坏、加密和扫描文件。
+- 文档解析：正常、空白、损坏、加密、原生文本 PDF、纯扫描 PDF 和混合型 PDF。
+- OCR：中文、英文、代码、基础公式、页面顺序、低质量扫描和逐页来源元数据。
 - 检索：中文、英文、缩写、跨章节和无答案问题。
 - 问答：引用准确性、拒答、上下文污染和流式中断。
 - 出题：数量、题型、难度、答案、解析和结构校验。
@@ -591,7 +602,7 @@ LLM_AVAILABLE_MODELS=deepseek-v4-flash,deepseek-v4-pro
 - 检索到的文档内容视为不可信数据，不能覆盖系统指令。
 - API 密钥只保存在环境变量中。
 - 模型调用设置超时、有限重试和明确错误提示。
-- 第一版不包含网页抓取、代码仓库索引、OCR、视频、音频、多用户、知识图谱和代码沙箱。
+- 第一版不包含网页抓取、代码仓库索引、视频、音频、多用户、知识图谱和代码沙箱；OCR 包含在内，但不承诺理解图片语义或完整还原复杂数学公式与复杂版面。
 
 ## 18. 参考文档
 
@@ -791,10 +802,47 @@ uv run alembic current
 - 手机端继续使用独立的抽屉关闭按钮，不显示桌面折叠控制；
 - 前端 Lint、Vitest、TypeScript 和生产构建通过。
 
+### 19.8 第 2 周第 1 天：解析基础与文本类文档（已完成）
+
+本阶段先固定后续五类资料共同使用的解析结果，没有提前安装 OCR、Embedding
+或 Qdrant 依赖，也没有下载任何模型。
+
+已完成：
+
+- 建立统一的 `ParsedDocument`、`ParsedBlock`、`SourceLocation` 和解析警告契约；
+- 来源位置支持原始行号，并为后续 PDF 页码和 PPTX 幻灯片编号保留统一字段；
+- 建立可扩展的解析器协议和按文件类型路由的注册表；
+- 实现 UTF-8 / UTF-8 BOM TXT 解析，按空行分段并保留原始顺序和行号；
+- 实现 Markdown 标题、段落、列表、表格和 fenced code block 解析；
+- Markdown 块保留章节层级、代码语言、原始行号和未闭合代码围栏警告；
+- 空白正文、非法 UTF-8、空字节和尚未注册的文件类型返回明确解析异常；
+- 增加只读解析检查命令，可限制输出块数，避免大文件刷屏；
+- 使用现有 Markdown 和约 796 KB TXT 真实样本完成抽查；
+- 新增 11 项解析测试，后端全量 35 项测试通过；
+- Ruff 和 Mypy strict 通过。
+
+只读检查示例：
+
+```powershell
+cd D:\Agentic\backend
+uv run python -m app.ingestion.inspect `
+  "D:\Agentic\data\test-materials\day-03\valid\数据结构\04-课程学习笔记.md" `
+  --max-blocks 20
+```
+
+本计划日明确不包含：
+
+- DOCX、PPTX 和 PDF 正文解析；
+- 扫描 PDF OCR 及 OCR 依赖/模型；
+- 文档分块、Embedding、Qdrant 和索引状态推进；
+- 上传后自动触发解析的后台任务。
+
 ## 20. 工程日志
 
 详细实施记录按计划周独立保存在 `docs/engineering-logs/`：
 
 - [工程日志索引](docs/engineering-logs/README.md)
 - [第 1 周工程日志：工程骨架](docs/engineering-logs/week-01.md)
+- [第 2 周工程日志：知识库入库](docs/engineering-logs/week-02.md)
 - [第 1 周交付说明](docs/deliverables/week-01.md)
+- [第 2 周计划日 1 验收说明](docs/deliverables/week-02-day-01.md)
