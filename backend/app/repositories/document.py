@@ -62,6 +62,12 @@ class DocumentRepository:
         )
         return list(result.scalars())
 
+    async def list_by_ids(self, document_ids: list[UUID]) -> list[Document]:
+        result = await self.session.execute(
+            select(Document).where(Document.id.in_(document_ids))
+        )
+        return list(result.scalars())
+
     async def delete(self, document: Document) -> None:
         await self.session.delete(document)
         await self.session.flush()

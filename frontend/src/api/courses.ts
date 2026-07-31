@@ -3,6 +3,7 @@ import { unwrapResponse } from './client'
 
 import type {
   ApiResponse,
+  BulkDeleteResult,
   Course,
   CourseCreatePayload,
   CourseDocument,
@@ -62,5 +63,16 @@ export async function uploadDocument(
 
 export async function removeDocument(documentId: string): Promise<DeleteResult> {
   const response = await http.delete<ApiResponse<DeleteResult>>(`/documents/${documentId}`)
+  return unwrapResponse(response.data)
+}
+
+export async function removeDocuments(
+  courseId: string,
+  documentIds: string[],
+): Promise<BulkDeleteResult> {
+  const response = await http.post<ApiResponse<BulkDeleteResult>>(
+    `/courses/${courseId}/documents/bulk-delete`,
+    { document_ids: documentIds },
+  )
   return unwrapResponse(response.data)
 }

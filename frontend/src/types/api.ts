@@ -36,6 +36,11 @@ export interface DeleteResult {
   deleted: boolean
 }
 
+export interface BulkDeleteResult {
+  deleted_ids: string[]
+  deleted_count: number
+}
+
 export interface CourseCreatePayload {
   name: string
   description?: string | null

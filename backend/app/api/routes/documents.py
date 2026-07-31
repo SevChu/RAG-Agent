@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Annotated
 from uuid import UUID, uuid4
 
@@ -6,7 +7,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
 from app.db.session import get_session
-from app.schemas import DocumentDeleteResult, DocumentRead
+from app.schemas import (
+    DocumentBulkDeleteRequest,
+    DocumentBulkDeleteResult,
+    DocumentDeleteResult,
+    DocumentRead,
+)
 from app.schemas.api import APIResponse
 from app.services import CourseService, DocumentService
 from app.services.file_storage import FileStorageService, PromotedUpload
@@ -72,6 +78,50 @@ async def list_documents(
     documents = await DocumentService(session).list_for_course(course_id)
     return APIResponse(
         data=[DocumentRead.model_validate(document) for document in documents]
+    )
+
+
+@router.post(
+    "/courses/{course_id}/documents/bulk-delete",
+    response_model=APIResponse[DocumentBulkDeleteResult],
+)
+async def bulk_delete_documents(
+    course_id: UUID,
+    payload: DocumentBulkDeleteRequest,
+    session: SessionDependency,
+    settings: SettingsDependency,
+) -> APIResponse[DocumentBulkDeleteResult]:
+    service = DocumentService(session)
+    documents = await service.get_many_for_course(
+        course_id=course_id,
+        document_ids=payload.document_ids,
+    )
+    storage = FileStorageService(
+        upload_dir=settings.upload_dir,
+        max_upload_mb=settings.max_upload_mb,
+    )
+    staged_deletions: list[tuple[Path, Path] | None] = []
+    try:
+        for document in documents:
+            staged = await storage.stage_document_deletion(
+                course_id=document.course_id,
+                stored_name=document.stored_name,
+            )
+            staged_deletions.append(staged)
+        await service.delete_many(documents)
+    except Exception:
+        for staged in reversed(staged_deletions):
+            await storage.restore_deletion(staged)
+        raise
+
+    for staged in staged_deletions:
+        await storage.complete_deletion(staged)
+    await storage.remove_empty_course_dir(course_id)
+    return APIResponse(
+        data=DocumentBulkDeleteResult(
+            deleted_ids=payload.document_ids,
+            deleted_count=len(payload.document_ids),
+        )
     )
 
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from io import BytesIO
+from uuid import uuid4
 from zipfile import ZIP_DEFLATED, ZipFile
 
 import pytest
@@ -170,6 +171,68 @@ async def test_document_queries_and_delete_remove_database_and_file(
 
     missing_response = await api_client.get(f"/api/documents/{document_id}")
     assert missing_response.status_code == 404
+
+
+async def test_bulk_delete_removes_only_selected_documents(
+    api_client: AsyncClient,
+    api_settings: Settings,
+) -> None:
+    course_id = await create_course(api_client, "批量删除")
+    document_ids: list[str] = []
+    for index in range(3):
+        response = await api_client.post(
+            f"/api/courses/{course_id}/documents",
+            files={
+                "file": (
+                    f"资料-{index}.txt",
+                    f"content-{index}".encode(),
+                    "text/plain",
+                )
+            },
+        )
+        document_ids.append(response.json()["data"]["id"])
+
+    delete_response = await api_client.post(
+        f"/api/courses/{course_id}/documents/bulk-delete",
+        json={"document_ids": document_ids[:2]},
+    )
+
+    assert delete_response.status_code == 200
+    assert delete_response.json()["data"] == {
+        "deleted_ids": document_ids[:2],
+        "deleted_count": 2,
+    }
+    remaining_response = await api_client.get(
+        f"/api/courses/{course_id}/documents"
+    )
+    assert [item["id"] for item in remaining_response.json()["data"]] == [
+        document_ids[2]
+    ]
+    stored_files = list((api_settings.upload_dir / course_id).iterdir())
+    assert len(stored_files) == 1
+    assert stored_files[0].name.startswith(document_ids[2])
+
+
+async def test_bulk_delete_rejects_invalid_selection_without_partial_deletion(
+    api_client: AsyncClient,
+    api_settings: Settings,
+) -> None:
+    course_id = await create_course(api_client, "批量删除原子性")
+    upload_response = await api_client.post(
+        f"/api/courses/{course_id}/documents",
+        files={"file": ("保留.txt", b"keep", "text/plain")},
+    )
+    document_id = upload_response.json()["data"]["id"]
+    stored_path = next((api_settings.upload_dir / course_id).iterdir())
+
+    delete_response = await api_client.post(
+        f"/api/courses/{course_id}/documents/bulk-delete",
+        json={"document_ids": [document_id, str(uuid4())]},
+    )
+
+    assert delete_response.status_code == 404
+    assert (await api_client.get(f"/api/documents/{document_id}")).status_code == 200
+    assert stored_path.is_file()
 
 
 async def test_deleting_course_removes_document_records_and_course_directory(

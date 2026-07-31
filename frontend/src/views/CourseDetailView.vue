@@ -8,7 +8,7 @@ import {
   ElSkeleton,
   ElTag,
 } from 'element-plus'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { toFriendlyApiError } from '@/api/client'
@@ -47,11 +47,25 @@ const uploadQueue = ref<UploadItem[]>([])
 const uploading = ref(false)
 const dragActive = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
+const selectedDocumentIds = ref<string[]>([])
+const bulkDeleting = ref(false)
 
 const acceptedTypesText = ACCEPTED_FILE_EXTENSIONS.map((item) => item.toUpperCase()).join(' / ')
+const allDocumentsSelected = computed(
+  () =>
+    documents.value.length > 0 && selectedDocumentIds.value.length === documents.value.length,
+)
+const someDocumentsSelected = computed(
+  () => selectedDocumentIds.value.length > 0 && !allDocumentsSelected.value,
+)
 
 onMounted(() => {
   void loadPage()
+})
+
+watch(documents, (currentDocuments) => {
+  const availableIds = new Set(currentDocuments.map((document) => document.id))
+  selectedDocumentIds.value = selectedDocumentIds.value.filter((id) => availableIds.has(id))
 })
 
 async function loadPage(): Promise<void> {
@@ -168,6 +182,44 @@ async function confirmDeleteDocument(document: CourseDocument): Promise<void> {
   }
 }
 
+function toggleAllDocuments(event: Event): void {
+  const target = event.target as HTMLInputElement
+  selectedDocumentIds.value = target.checked
+    ? documents.value.map((document) => document.id)
+    : []
+}
+
+async function confirmBulkDelete(): Promise<void> {
+  const selectedIds = [...selectedDocumentIds.value]
+  if (!selectedIds.length) {
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确定删除选中的 ${selectedIds.length} 份资料吗？删除后无法恢复。`,
+      '批量删除资料',
+      {
+        type: 'warning',
+        confirmButtonText: `删除 ${selectedIds.length} 份资料`,
+        cancelButtonText: '取消',
+        confirmButtonClass: 'danger-confirm-button',
+      },
+    )
+    bulkDeleting.value = true
+    await store.deleteDocuments(courseId.value, selectedIds)
+    selectedDocumentIds.value = []
+    ElMessage.success(`已删除 ${selectedIds.length} 份资料`)
+  } catch (error) {
+    if (error === 'cancel' || error === 'close') {
+      return
+    }
+    ElMessage.error(toFriendlyApiError(error).message)
+  } finally {
+    bulkDeleting.value = false
+  }
+}
+
 function uploadStateLabel(item: UploadItem): string {
   return {
     waiting: '等待上传',
@@ -228,15 +280,42 @@ function uploadStateLabel(item: UploadItem): string {
             <span class="soft-label">MATERIAL LIBRARY</span>
             <h2 id="materials-heading">资料库</h2>
           </div>
-          <button type="button" class="text-button" @click="store.loadDocuments(courseId)">
-            刷新状态
-          </button>
+          <div class="material-actions">
+            <span v-if="selectedDocumentIds.length" class="selected-count">
+              已选 {{ selectedDocumentIds.length }} 项
+            </span>
+            <button
+              type="button"
+              class="batch-delete-button"
+              :disabled="!selectedDocumentIds.length || bulkDeleting"
+              @click="confirmBulkDelete"
+            >
+              {{ bulkDeleting ? '正在删除…' : '批量删除' }}
+            </button>
+            <button
+              type="button"
+              class="text-button"
+              :disabled="bulkDeleting"
+              @click="store.loadDocuments(courseId)"
+            >
+              刷新状态
+            </button>
+          </div>
         </div>
 
         <div v-if="documents.length" class="material-table-wrap">
           <table class="material-table">
             <thead>
               <tr>
+                <th class="selection-cell">
+                  <input
+                    type="checkbox"
+                    :checked="allDocumentsSelected"
+                    :indeterminate="someDocumentsSelected"
+                    aria-label="选择全部资料"
+                    @change="toggleAllDocuments"
+                  />
+                </th>
                 <th>资料名称</th>
                 <th>类型</th>
                 <th>大小</th>
@@ -247,6 +326,15 @@ function uploadStateLabel(item: UploadItem): string {
             </thead>
             <tbody>
               <tr v-for="document in documents" :key="document.id">
+                <td class="selection-cell">
+                  <input
+                    v-model="selectedDocumentIds"
+                    type="checkbox"
+                    :value="document.id"
+                    :aria-label="`选择${document.original_name}`"
+                    :disabled="bulkDeleting"
+                  />
+                </td>
                 <td>
                   <div class="file-name-cell">
                     <span class="file-type-icon" aria-hidden="true">{{
@@ -471,13 +559,47 @@ function uploadStateLabel(item: UploadItem): string {
   color: var(--ink-strong);
 }
 
+.material-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.selected-count {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--primary-deep);
+}
+
+.batch-delete-button {
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--danger);
+  cursor: pointer;
+  background: rgb(255 89 122 / 7%);
+  border: 1px solid rgb(233 79 112 / 18%);
+  border-radius: 9px;
+}
+
+.batch-delete-button:hover:not(:disabled) {
+  background: rgb(255 89 122 / 12%);
+  border-color: rgb(233 79 112 / 32%);
+}
+
+.batch-delete-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
 .material-table-wrap {
   overflow-x: auto;
 }
 
 .material-table {
   width: 100%;
-  min-width: 780px;
+  min-width: 830px;
   border-collapse: collapse;
 }
 
@@ -511,6 +633,19 @@ function uploadStateLabel(item: UploadItem): string {
 
 .material-table tbody tr:last-child td {
   border-bottom: 0;
+}
+
+.selection-cell {
+  width: 44px;
+  padding-right: 4px !important;
+  text-align: center !important;
+}
+
+.selection-cell input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--primary);
+  cursor: pointer;
 }
 
 .file-name-cell {
@@ -751,6 +886,17 @@ function uploadStateLabel(item: UploadItem): string {
   .course-memory-label {
     width: fit-content;
     margin-left: 53px;
+  }
+
+  .panel-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .material-actions {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
   }
 }
 </style>

@@ -71,8 +71,35 @@ class DocumentService:
             raise NotFoundError("Course not found.")
         return await self.repository.list_for_course(course_id)
 
+    async def get_many_for_course(
+        self,
+        *,
+        course_id: UUID,
+        document_ids: list[UUID],
+    ) -> list[Document]:
+        if await self.course_repository.get(course_id) is None:
+            raise NotFoundError("Course not found.")
+        documents = await self.repository.list_by_ids(document_ids)
+        documents_by_id = {
+            document.id: document
+            for document in documents
+            if document.course_id == course_id
+        }
+        if len(documents_by_id) != len(document_ids):
+            raise NotFoundError("One or more documents were not found in the course.")
+        return [documents_by_id[document_id] for document_id in document_ids]
+
     async def delete(self, document_id: UUID) -> Document:
         document = await self.get(document_id)
         await self.repository.delete(document)
         await self.session.commit()
         return document
+
+    async def delete_many(self, documents: list[Document]) -> None:
+        try:
+            for document in documents:
+                await self.repository.delete(document)
+            await self.session.commit()
+        except Exception:
+            await self.session.rollback()
+            raise

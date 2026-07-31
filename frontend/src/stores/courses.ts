@@ -8,6 +8,7 @@ import {
   fetchDocuments,
   removeCourse as removeCourseRequest,
   removeDocument as removeDocumentRequest,
+  removeDocuments as removeDocumentsRequest,
 } from '@/api/courses'
 import type { Course, CourseCreatePayload, CourseDocument } from '@/types/api'
 
@@ -78,6 +79,14 @@ export const useCoursesStore = defineStore('courses', () => {
     )
   }
 
+  async function deleteDocuments(courseId: string, documentIds: string[]): Promise<void> {
+    await removeDocumentsRequest(courseId, documentIds)
+    const deletedIds = new Set(documentIds)
+    documentsByCourse.value[courseId] = documentsFor(courseId).filter(
+      (document) => !deletedIds.has(document.id),
+    )
+  }
+
   return {
     courses,
     courseCount,
@@ -90,5 +99,6 @@ export const useCoursesStore = defineStore('courses', () => {
     addCourse,
     deleteCourse,
     deleteDocument,
+    deleteDocuments,
   }
 })

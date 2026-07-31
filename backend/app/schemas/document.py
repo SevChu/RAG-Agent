@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models import DocumentStatus
 
@@ -24,3 +24,19 @@ class DocumentRead(BaseModel):
 class DocumentDeleteResult(BaseModel):
     id: UUID
     deleted: bool = True
+
+
+class DocumentBulkDeleteRequest(BaseModel):
+    document_ids: list[UUID] = Field(min_length=1, max_length=500)
+
+    @field_validator("document_ids")
+    @classmethod
+    def document_ids_must_be_unique(cls, value: list[UUID]) -> list[UUID]:
+        if len(value) != len(set(value)):
+            raise ValueError("Document IDs must be unique.")
+        return value
+
+
+class DocumentBulkDeleteResult(BaseModel):
+    deleted_ids: list[UUID]
+    deleted_count: int
