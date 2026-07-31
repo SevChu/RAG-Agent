@@ -54,6 +54,14 @@ function closeMobile(): void {
       >
         {{ collapsed ? '›' : '‹' }}
       </button>
+      <button
+        type="button"
+        class="icon-button mobile-close-button"
+        aria-label="关闭侧边栏"
+        @click="closeMobile"
+      >
+        ×
+      </button>
     </div>
 
     <RouterLink
@@ -255,6 +263,10 @@ function closeMobile(): void {
   font-size: 22px;
 }
 
+.mobile-close-button {
+  display: none;
+}
+
 .collapsed .collapse-button {
   position: absolute;
   top: 66px;
@@ -404,11 +416,17 @@ function closeMobile(): void {
     width: min(286px, calc(100vw - 48px));
     align-items: stretch;
     padding: 18px 14px 16px;
+    visibility: hidden;
     transform: translateX(-105%);
+    transition:
+      transform 180ms ease,
+      visibility 0s linear 180ms;
   }
 
   .app-sidebar.mobile-open {
+    visibility: visible;
     transform: translateX(0);
+    transition-delay: 0s;
   }
 
   .app-sidebar.mobile-open .brand-copy,
@@ -423,14 +441,14 @@ function closeMobile(): void {
     padding-inline: 10px;
   }
 
-  .collapsed .collapse-button {
-    position: static;
-    width: 30px;
-    height: 30px;
+  .collapse-button {
+    display: none;
+  }
+
+  .mobile-close-button {
+    display: grid;
     margin-left: auto;
-    background: transparent;
-    border: 0;
-    box-shadow: none;
+    font-size: 20px;
   }
 }
 </style>
