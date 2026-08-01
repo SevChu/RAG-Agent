@@ -837,6 +837,39 @@ uv run python -m app.ingestion.inspect `
 - 文档分块、Embedding、Qdrant 和索引状态推进；
 - 上传后自动触发解析的后台任务。
 
+### 19.9 第 2 周第 2 天：结构化分块（已完成并验收）
+
+本阶段按照原定计划实现章节感知的结构化分块，并保留同日提前完成的 DOCX/PPTX
+解析能力。没有提前安装 OCR、Embedding 或 Qdrant 依赖，也没有下载任何模型。
+
+已完成：
+
+- 建立 `DocumentChunk`、完整来源元数据、分块配置、统计和警告契约；
+- 默认使用 600 estimated tokens 目标长度和 80 estimated tokens 重叠；
+- 每个 Chunk 携带章节标题上下文，不跨章节或 PPTX 主标题合并；
+- 列表项、表格和代码块从中间不可拆分，超长受保护单元会显式告警；
+- 超长普通段落优先沿句末、换行和空白边界拆分；
+- 保存课程、文档、文件、章节、源块、行号、页码和幻灯片编号元数据；
+- 输出长度、数量、实际重叠、来源覆盖率和异常统计；
+- 只读检查命令支持 `--chunks`、600/80 覆盖和按 Chunk 序号抽查；
+- 四个真实样本的所有解析源块均被 Chunk 覆盖，未出现分块异常；
+- 新增 11 项分块测试，后端全量 55 项测试通过；
+- 使用 Python 标准库安全读取 Office Open XML 容器，无新增运行依赖；
+- 实现 DOCX 标题层级、段落、列表、表格、内容控件和图片占位解析；
+- 实现 PPTX 演示顺序、标题、段落、列表、表格和图片占位解析；
+- PPTX 每个结构块保留一基幻灯片编号和以主标题形成的章节路径；
+- 支持非标准封面形状的标题推断，并将每页主标题规范化到结果首位；
+- 拒绝损坏、缺少必要成员、畸形 XML、加密或单 XML 成员过大的 Office 文件；
+- 只读检查命令增加按结构类型和指定幻灯片过滤；
+- 新增 9 项 Office 解析测试；
+- Ruff 和 Mypy strict 通过；
+- 真实 DOCX 得到 76 个结构块和 25 个图片占位；
+- 真实 PPTX 得到 3147 个结构块，覆盖 134 页并保留 44 个图片占位；
+- 两个真实样本均无解析警告。
+
+本计划日明确不包含 PDF/OCR、图片像素文字识别、演讲者备注、复杂图表或 SmartArt
+语义、Embedding、Qdrant 和后台索引状态推进。
+
 ## 20. 工程日志
 
 详细实施记录按计划周独立保存在 `docs/engineering-logs/`：
@@ -846,3 +879,4 @@ uv run python -m app.ingestion.inspect `
 - [第 2 周工程日志：知识库入库](docs/engineering-logs/week-02.md)
 - [第 1 周交付说明](docs/deliverables/week-01.md)
 - [第 2 周计划日 1 验收说明](docs/deliverables/week-02-day-01.md)
+- [第 2 周计划日 2 验收说明](docs/deliverables/week-02-day-02.md)
