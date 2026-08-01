@@ -4,7 +4,12 @@ from pathlib import Path
 
 from app.ingestion.errors import UnsupportedParserError
 from app.ingestion.models import ParsedDocument
-from app.ingestion.parsers import MarkdownParser, PlainTextParser
+from app.ingestion.parsers import (
+    MarkdownParser,
+    PlainTextParser,
+    PowerPointParser,
+    WordDocumentParser,
+)
 from app.ingestion.parsers.base import DocumentParser
 
 
@@ -46,6 +51,13 @@ class DocumentParserRegistry:
 
 
 def build_default_registry() -> DocumentParserRegistry:
-    """Build the parsers completed on week 2, plan day 1."""
+    """Build the parsers completed through week 2, plan day 2."""
 
-    return DocumentParserRegistry((PlainTextParser(), MarkdownParser()))
+    return DocumentParserRegistry(
+        (
+            PlainTextParser(),
+            MarkdownParser(),
+            WordDocumentParser(),
+            PowerPointParser(),
+        )
+    )

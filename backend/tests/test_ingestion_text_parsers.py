@@ -155,7 +155,9 @@ def test_default_registry_routes_case_insensitively_and_rejects_future_types(
 
     result = registry.parse(text_path)
 
-    assert registry.supported_file_types == frozenset({"md", "txt"})
+    assert registry.supported_file_types == frozenset(
+        {"docx", "md", "pptx", "txt"}
+    )
     assert result.file_type == "txt"
     with pytest.raises(UnsupportedParserError, match="pdf"):
         registry.parse(tmp_path / "future.pdf")

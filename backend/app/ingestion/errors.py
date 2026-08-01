@@ -10,6 +10,10 @@ class InvalidDocumentEncodingError(IngestionError):
     """Raised when a text document is not valid UTF-8."""
 
 
+class InvalidDocumentFormatError(IngestionError):
+    """Raised when a structured document container is missing or malformed."""
+
+
 class EmptyDocumentError(IngestionError):
     """Raised when parsing produces no meaningful content."""
 

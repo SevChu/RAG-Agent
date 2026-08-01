@@ -10,6 +10,7 @@ class BlockKind(StrEnum):
     LIST = "list"
     CODE = "code"
     TABLE = "table"
+    IMAGE = "image"
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,6 +44,22 @@ class ParseWarning:
     message: str
     line_start: int | None = None
     line_end: int | None = None
+    page_number: int | None = None
+    slide_number: int | None = None
+
+    def __post_init__(self) -> None:
+        if not self.code.strip() or not self.message.strip():
+            raise ValueError("Parse warning code and message cannot be blank.")
+        for field_name in ("line_start", "line_end", "page_number", "slide_number"):
+            value = getattr(self, field_name)
+            if value is not None and value < 1:
+                raise ValueError(f"{field_name} must be positive when provided.")
+        if (
+            self.line_start is not None
+            and self.line_end is not None
+            and self.line_end < self.line_start
+        ):
+            raise ValueError("line_end cannot be before line_start.")
 
 
 @dataclass(frozen=True, slots=True)
