@@ -16,7 +16,7 @@ from pypdf.generic import (
 
 from app.ingestion.chunking import ChunkingContext, StructuredDocumentChunker
 from app.ingestion.errors import EmptyDocumentError, InvalidDocumentFormatError
-from app.ingestion.models import ExtractionMethod
+from app.ingestion.models import BlockKind, ExtractionMethod
 from app.ingestion.parsers.pdf import OcrLine, PdfParser
 
 
@@ -171,6 +171,40 @@ def test_ocr_provenance_reaches_chunk_metadata(tmp_path: Path) -> None:
     assert source.page_numbers == (1,)
     assert source.extraction_methods == (ExtractionMethod.OCR,)
     assert source.minimum_ocr_confidence == pytest.approx(0.83)
+
+
+def test_ocr_numbered_heading_creates_section_boundary_across_pages(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "scan.pdf"
+    _write_pdf(path, (None, None))
+    parser = PdfParser(
+        renderer=FakeRenderer(),
+        ocr_engine=FakeOcrEngine(
+            {
+                0: (
+                    _ocr_line("上一节结尾。", box=(50, 180, 500, 210)),
+                    _ocr_line("2. 后缀表达式", box=(90, 260, 400, 290)),
+                    _ocr_line("定义与示例。", box=(50, 320, 500, 350)),
+                ),
+                1: (_ocr_line("本节跨页继续。", box=(50, 180, 500, 210)),),
+            }
+        ),
+    )
+
+    result = parser.parse(path)
+
+    assert [block.kind for block in result.blocks] == [
+        BlockKind.PARAGRAPH,
+        BlockKind.HEADING,
+        BlockKind.PARAGRAPH,
+        BlockKind.PARAGRAPH,
+    ]
+    assert result.blocks[0].section_path == ()
+    assert all(
+        block.section_path == ("2. 后缀表达式",)
+        for block in result.blocks[1:]
+    )
 
 
 def test_partial_page_inspection_does_not_process_other_pages(tmp_path: Path) -> None:

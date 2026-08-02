@@ -177,7 +177,7 @@ class PaddleOcrEngine:
 
 class PdfParser:
     file_types = frozenset({"pdf"})
-    parser_name = "pdf-native-with-paddleocr-fallback-v1"
+    parser_name = "pdf-native-with-paddleocr-fallback-v2"
 
     def __init__(
         self,
@@ -345,7 +345,10 @@ class PdfParser:
         layout_blocks: Iterable[OcrLayoutBlock],
         page_number: int,
     ) -> None:
+        active_section = blocks[-1].section_path if blocks else ()
         for layout_block in layout_blocks:
+            if layout_block.kind is BlockKind.HEADING:
+                active_section = (layout_block.text,)
             blocks.append(
                 ParsedBlock(
                     kind=layout_block.kind,
@@ -356,6 +359,7 @@ class PdfParser:
                         extraction_method=ExtractionMethod.OCR,
                         confidence=layout_block.confidence,
                     ),
+                    section_path=active_section,
                 )
             )
 

@@ -9,7 +9,7 @@ from qdrant_client import QdrantClient, models
 
 from app.ingestion.chunking import DocumentChunk
 from app.knowledge.embedding import BGE_M3_DIMENSION
-from app.knowledge.models import VectorSearchResult
+from app.knowledge.models import VectorPointSnapshot, VectorSearchResult
 
 _POINT_NAMESPACE = UUID("ad388610-25a4-5c17-bdde-758af933bfe4")
 
@@ -177,6 +177,34 @@ class QdrantChunkStore:
             wait=True,
         )
 
+    def list_points(self, *, batch_size: int = 256) -> tuple[VectorPointSnapshot, ...]:
+        """Return payload-only snapshots for consistency checks and acceptance reports."""
+
+        if batch_size < 1:
+            raise ValueError("batch_size must be positive.")
+        if not self._client.collection_exists(self.collection_name):
+            return ()
+        snapshots: list[VectorPointSnapshot] = []
+        offset: Any | None = None
+        while True:
+            records, offset = self._client.scroll(
+                collection_name=self.collection_name,
+                limit=batch_size,
+                offset=offset,
+                with_payload=True,
+                with_vectors=False,
+            )
+            snapshots.extend(
+                VectorPointSnapshot(
+                    point_id=str(record.id),
+                    payload=dict(record.payload or {}),
+                )
+                for record in records
+            )
+            if offset is None:
+                break
+        return tuple(snapshots)
+
     def close(self) -> None:
         self._client.close()
 
@@ -205,8 +233,13 @@ class QdrantChunkStore:
             "file_type": chunk.source.file_type,
             "parser_name": chunk.source.parser_name,
             "section_path": list(chunk.source.section_path),
+            "source_block_start": chunk.source.source_block_start,
+            "source_block_end": chunk.source.source_block_end,
             "source_block_indices": list(chunk.source.source_block_indices),
+            "context_block_indices": list(chunk.source.context_block_indices),
             "block_kinds": [kind.value for kind in chunk.source.block_kinds],
+            "line_start": chunk.source.line_start,
+            "line_end": chunk.source.line_end,
             "page_numbers": list(chunk.source.page_numbers),
             "slide_numbers": list(chunk.source.slide_numbers),
             "extraction_methods": [

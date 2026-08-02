@@ -25,7 +25,7 @@ def test_plain_text_parser_preserves_paragraph_order_and_line_locations(
 
     assert result.file_name == "课程笔记.txt"
     assert result.file_type == "txt"
-    assert result.parser_name == "plain-text-v1"
+    assert result.parser_name == "plain-text-structured-v2"
     assert [block.text for block in result.blocks] == [
         "First line\nsecond line",
         "Third paragraph",
@@ -39,6 +39,54 @@ def test_plain_text_parser_preserves_paragraph_order_and_line_locations(
         for block in result.blocks
     ] == [(0, 1, 2), (1, 4, 4)]
     assert result.character_count == len("First line\nsecond lineThird paragraph")
+
+
+def test_plain_text_parser_recognizes_isolated_outline_headings(tmp_path: Path) -> None:
+    path = tmp_path / "book.txt"
+    path.write_text(
+        "\n".join(
+            [
+                "Book the First--Recalled to Life",
+                "",
+                "I",
+                "",
+                "The Period",
+                "",
+                "It was the best of times,",
+                "it was the worst of times.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = PlainTextParser().parse(path)
+
+    assert [block.kind for block in result.blocks] == [
+        BlockKind.HEADING,
+        BlockKind.HEADING,
+        BlockKind.HEADING,
+        BlockKind.PARAGRAPH,
+    ]
+    assert result.blocks[-1].section_path == (
+        "Book the First--Recalled to Life",
+        "I",
+        "The Period",
+    )
+
+
+def test_plain_text_parser_does_not_promote_numbered_prose_to_heading(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "prose.txt"
+    path.write_text(
+        "1767. I write it at stolen intervals, under every difficulty.\n",
+        encoding="utf-8",
+    )
+
+    result = PlainTextParser().parse(path)
+
+    assert len(result.blocks) == 1
+    assert result.blocks[0].kind is BlockKind.PARAGRAPH
 
 
 @pytest.mark.parametrize(

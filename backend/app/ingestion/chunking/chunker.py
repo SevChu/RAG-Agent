@@ -447,7 +447,7 @@ class StructuredDocumentChunker:
             else:
                 if not unit.allow_partial_overlap:
                     break
-                suffix = self._tokens.suffix(unit.text, remaining)
+                suffix = self._tokens.semantic_suffix(unit.text, remaining)
                 if suffix:
                     texts.insert(0, suffix)
                     block_indices[0:0] = unit.block_indices

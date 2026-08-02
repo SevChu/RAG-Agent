@@ -4,6 +4,7 @@ from app.knowledge.models import (
     EmbeddingBatch,
     EmbeddingDevice,
     IndexingResult,
+    VectorPointSnapshot,
     VectorSearchResult,
 )
 from app.knowledge.vector_store import QdrantChunkStore
@@ -16,5 +17,6 @@ __all__ = [
     "IndexingResult",
     "KnowledgeIndexer",
     "QdrantChunkStore",
+    "VectorPointSnapshot",
     "VectorSearchResult",
 ]

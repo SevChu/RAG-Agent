@@ -117,3 +117,36 @@ def test_layout_keeps_operator_heavy_if_statement_in_code_block() -> None:
     assert len(blocks) == 1
     assert blocks[0].kind is BlockKind.CODE
     assert "if (ch == '+' || ch == '-' || ch == '*')" in blocks[0].text
+
+
+def test_layout_promotes_numbered_title_to_heading_and_separates_body() -> None:
+    lines = (
+        _line("上一小节的结尾。", 100, 150, 600, 180),
+        _line("2. 后缀表达式", 140, 220, 420, 250),
+        _line("对中缀表达式的计算，需要考虑运算符优先级。", 100, 270, 850, 300),
+        _line("后缀表达式则按运算符出现顺序计算。", 100, 310, 780, 340),
+    )
+
+    blocks = OcrLayoutAnalyzer().analyze(lines, page_width=1000, page_height=1000)
+
+    assert [(block.kind, block.text) for block in blocks] == [
+        (BlockKind.PARAGRAPH, "上一小节的结尾。"),
+        (BlockKind.HEADING, "2. 后缀表达式"),
+        (
+            BlockKind.PARAGRAPH,
+            "对中缀表达式的计算，需要考虑运算符优先级。"
+            "后缀表达式则按运算符出现顺序计算。",
+        ),
+    ]
+
+
+def test_layout_does_not_treat_wrapped_operator_list_as_chinese_heading() -> None:
+    lines = (
+        _line("运算符包括+、", 100, 150, 600, 180),
+        _line("一、*、/和^，不允许有其他符号。", 100, 190, 800, 220),
+    )
+
+    blocks = OcrLayoutAnalyzer().analyze(lines, page_width=1000, page_height=1000)
+
+    assert len(blocks) == 1
+    assert blocks[0].kind is BlockKind.PARAGRAPH

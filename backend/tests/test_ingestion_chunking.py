@@ -283,3 +283,37 @@ def test_estimated_token_counter_is_deterministic_for_chinese_and_english() -> N
 
     assert counter.count("数据 structure123") == 5
     assert counter.suffix("甲乙丙丁", 2) == "丙丁"
+
+
+def test_token_split_prefers_sentence_boundaries_and_sentence_overlap() -> None:
+    counter = EstimatedTokenCounter()
+    text = (
+        "Alpha beta gamma delta. "
+        "Second sentence stays complete. "
+        "Third sentence also stays complete."
+    )
+
+    segments = counter.split(text, max_tokens=12, overlap_tokens=5)
+
+    assert len(segments) >= 2
+    assert all(segment.endswith(".") for segment, _ in segments)
+    assert segments[1][0].startswith("Second sentence")
+
+
+def test_chunk_overlap_drops_partial_sentence_when_budget_is_too_small() -> None:
+    document = _document(
+        _block(
+            0,
+            BlockKind.PARAGRAPH,
+            "First sentence ends here.",
+        ),
+        _block(1, BlockKind.PARAGRAPH, "A new paragraph starts cleanly."),
+    )
+
+    result = StructuredDocumentChunker().chunk(
+        document,
+        config=ChunkingConfig(target_tokens=14, overlap_tokens=3),
+    )
+
+    assert result.chunks[-1].text.startswith("A new paragraph")
+    assert result.chunks[-1].overlap_token_count == 0

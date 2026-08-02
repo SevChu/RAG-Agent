@@ -1,6 +1,6 @@
 # 基于 RAG 的计算机专业学习 Agent
 
-> 项目状态：第 1 周已完成；第 2 周计划日 1～4 已实现并通过用户验收。
+> 项目状态：第 1 周已完成；第 2 周计划日 1～4 已验收，计划日 5 已实现并等待最终肉眼抽查。
 
 ## 1. 项目简介
 
@@ -933,6 +933,35 @@ uv run python -m app.ingestion.inspect `
 当前后端 83 项测试、Ruff、Mypy strict，前端 8 项测试、Lint、TypeScript 和生产构建
 全部通过。详细抽查步骤见 `docs/deliverables/week-02-day-04.md`。
 
+### 19.13 第 2 周第 5 天：周级一致性与交付验收（待用户肉眼抽查）
+
+已完成：
+
+- 新增知识库一致性审计命令，同时核对 SQLite、上传原文件和 Qdrant；
+- 自动发现原文件缺失/大小不符、孤儿文件、孤儿向量、跨课程向量、未完成资料残留向量、
+  Chunk 序号断裂以及 PDF/PPTX 来源位置缺失；
+- Qdrant Payload 补齐源块起止、上下文块、行号等来源字段；
+- 审计生成 Markdown 结构抽查报告与完整 JSON 证据，并从每份资料的开头、中部和末尾
+  均匀选取 Chunk，避免只看到文件开头；
+- 使用隔离验收库完成 PDF、PPTX、TXT、MD、DOCX 五类资料真实上传、后台处理和入库；
+- PDF 使用原 355 页扫描教材中连续的第 99～105 页；验收副本从“2. 后缀表达式”标题
+  开始，避免首个 Chunk 混入上一小节残段；
+- 扫描 PDF 会保守识别独立编号标题并形成章节路径，TXT 会识别 Book/罗马数字/短标题，
+  长文本重叠不再从句中截取；
+- Markdown 验收样本从 589 字节、4 Chunk 扩充为 8,398 字节、9 Chunk，覆盖长正文、
+  多级标题、表格、列表和两个代码块；
+- 最终 5 份资料全部 `completed`，5 份原文件、5 条 SQLite 记录与 711 个 Qdrant 点一致，
+  自动审计错误 0、提醒 0；
+- 验证同课程重复 409、不支持格式 415、损坏 PDF 进入 failed 且可清理、跨课程同内容允许、
+  临时课程删除无孤儿、重新索引不叠加旧向量；
+- 正式库基线为 1 门空课程、0 资料、0 上传文件、0 向量、0 一致性错误；
+- 后端全量 94 项测试、Ruff、Mypy strict，前端 8 项测试、Lint、TypeScript、生产构建和
+  npm audit 全部通过。
+
+本计划日没有新增模型、依赖或下载，也没有读取 DeepSeek Key。用户只需按照
+`docs/deliverables/week-02-day-05.md` 抽查章节、页码/幻灯片和 Chunk 语义，并结合
+`docs/deliverables/week-02.md` 完成第二周整体结果验收。
+
 ## 20. 工程日志
 
 详细实施记录按计划周独立保存在 `docs/engineering-logs/`：
@@ -945,3 +974,5 @@ uv run python -m app.ingestion.inspect `
 - [第 2 周计划日 2 验收说明](docs/deliverables/week-02-day-02.md)
 - [第 2 周计划日 3 验收说明](docs/deliverables/week-02-day-03.md)
 - [第 2 周计划日 4 验收说明](docs/deliverables/week-02-day-04.md)
+- [第 2 周计划日 5 验收说明](docs/deliverables/week-02-day-05.md)
+- [第 2 周整体验收说明](docs/deliverables/week-02.md)

@@ -35,6 +35,12 @@ class VectorSearchResult:
 
 
 @dataclass(frozen=True, slots=True)
+class VectorPointSnapshot:
+    point_id: str
+    payload: dict[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
 class IndexingResult:
     course_id: str
     document_id: str

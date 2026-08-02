@@ -78,6 +78,11 @@ def test_store_creates_bge_collection_and_isolates_courses(tmp_path: Path) -> No
         assert [result.text for result in course_b] == ["课程 B 的栈"]
         assert all(result.course_id == "course-a" for result in course_a)
         assert all(result.course_id == "course-b" for result in course_b)
+        snapshots = store.list_points(batch_size=1)
+        assert len(snapshots) == 2
+        assert all("source_block_start" in item.payload for item in snapshots)
+        assert all("context_block_indices" in item.payload for item in snapshots)
+        assert all("line_start" in item.payload for item in snapshots)
     finally:
         store.close()
 

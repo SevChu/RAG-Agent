@@ -15,6 +15,10 @@ _CODE_START_RE = re.compile(
 _CODE_CONTINUATION_RE = re.compile(
     r"^(?://|/\*|\*|[{}];?$|\};?$|\|\||&&|[A-Za-z_]\w*(?:<[^>]+>)?\s*[:=(])"
 )
+_NUMBERED_HEADING_RE = re.compile(
+    r"^(?:\d{1,3}(?:\.\d{1,3})*\.\s+\S|"
+    r"[一二三四五六七八九十百]+、\s*[A-Za-z\u3400-\u9fff])"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -268,11 +272,7 @@ class OcrLayoutAnalyzer:
             paragraphs.append(current)
         return tuple(
             OcrLayoutBlock(
-                kind=(
-                    BlockKind.FORMULA
-                    if all(_is_formula_line(line.text) for line in paragraph)
-                    else BlockKind.PARAGRAPH
-                ),
+                kind=_paragraph_kind(paragraph),
                 text=(
                     "\n".join(line.text for line in paragraph)
                     if all(_is_formula_line(line.text) for line in paragraph)
@@ -295,6 +295,8 @@ class OcrLayoutAnalyzer:
         table_regions: tuple[_TableRegion, ...],
     ) -> bool:
         if _is_formula_line(previous.text) != _is_formula_line(current.text):
+            return True
+        if _is_numbered_heading(previous.text) or _is_numbered_heading(current.text):
             return True
         if current.top - previous.bottom > line_height * 1.35:
             return True
@@ -331,6 +333,19 @@ class OcrLayoutAnalyzer:
 
 def _is_strong_code_start(text: str) -> bool:
     return bool(_CODE_START_RE.match(text.strip()))
+
+
+def _is_numbered_heading(text: str) -> bool:
+    stripped = text.strip()
+    return len(stripped) <= 80 and bool(_NUMBERED_HEADING_RE.match(stripped))
+
+
+def _paragraph_kind(lines: list[LayoutLine]) -> BlockKind:
+    if len(lines) == 1 and _is_numbered_heading(lines[0].text):
+        return BlockKind.HEADING
+    if all(_is_formula_line(line.text) for line in lines):
+        return BlockKind.FORMULA
+    return BlockKind.PARAGRAPH
 
 
 def _is_code_line(text: str) -> bool:

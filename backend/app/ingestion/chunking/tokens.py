@@ -12,7 +12,7 @@ class _TokenSpan:
 class EstimatedTokenCounter:
     """Deterministic tokenizer-free estimate used before the embedding model exists."""
 
-    _semantic_breaks = frozenset("。！？!?；;\n")
+    _semantic_breaks = frozenset("。！？!?；;.")
 
     def count(self, text: str) -> int:
         return len(self._spans(text))
@@ -25,6 +25,26 @@ class EstimatedTokenCounter:
             return ""
         start_span = spans[max(0, len(spans) - max_tokens)]
         return text[start_span.start :].strip()
+
+    def semantic_suffix(self, text: str, max_tokens: int) -> str:
+        """Return complete trailing sentences within a maximum overlap budget."""
+        if max_tokens < 1:
+            return ""
+        spans = self._spans(text)
+        if not spans:
+            return ""
+        desired_start = max(0, len(spans) - max_tokens)
+        has_semantic_break = False
+        for index, span in enumerate(spans):
+            if text[span.end - 1] not in self._semantic_breaks:
+                continue
+            has_semantic_break = True
+            sentence_start = index + 1
+            if desired_start <= sentence_start < len(spans):
+                return text[spans[sentence_start].start :].strip()
+        if has_semantic_break:
+            return ""
+        return self.suffix(text, max_tokens)
 
     def split(
         self,
@@ -55,7 +75,13 @@ class EstimatedTokenCounter:
             if end == len(spans):
                 break
             previous_end = end
-            start = max(start + 1, end - overlap_tokens)
+            start = self._semantic_overlap_start(
+                text,
+                spans,
+                segment_start=start,
+                segment_end=end,
+                overlap_tokens=overlap_tokens,
+            )
         return tuple(segments)
 
     def _semantic_end(
@@ -71,11 +97,36 @@ class EstimatedTokenCounter:
             last_span = spans[end - 1]
             if text[last_span.end - 1] in self._semantic_breaks:
                 return end
+        for end in range(proposed_end, minimum_end, -1):
+            last_span = spans[end - 1]
             if end < len(spans):
                 gap = text[last_span.end : spans[end].start]
                 if any(character.isspace() for character in gap):
                     return end
         return proposed_end
+
+    def _semantic_overlap_start(
+        self,
+        text: str,
+        spans: tuple[_TokenSpan, ...],
+        *,
+        segment_start: int,
+        segment_end: int,
+        overlap_tokens: int,
+    ) -> int:
+        if overlap_tokens == 0:
+            return segment_end
+        desired_start = max(segment_start + 1, segment_end - overlap_tokens)
+        for index in range(desired_start - 1, segment_start - 1, -1):
+            span = spans[index]
+            if text[span.end - 1] in self._semantic_breaks:
+                sentence_start = index + 1
+                if sentence_start < segment_end:
+                    return sentence_start
+                break
+        if text[spans[segment_end - 1].end - 1] in self._semantic_breaks:
+            return segment_end
+        return desired_start
 
     @staticmethod
     def _spans(text: str) -> tuple[_TokenSpan, ...]:

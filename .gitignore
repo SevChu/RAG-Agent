@@ -30,6 +30,8 @@ Thumbs.db
 data/*
 !data/.gitkeep
 backend/data/
+/output/
+/tmp/
 
 # Local model and vector-store artifacts
 /models/
