@@ -1,8 +1,7 @@
 # 基于 RAG 的计算机专业学习 Agent
 
-> 项目状态：第 1 周已完成；第 2 周计划日 1～2 已验收；计划日 3 合并任务 A 已完成
-> PDF 原生解析、扫描页 OCR 与基础版面重建，等待用户复验，原定 Embedding/Qdrant
-> 任务随后实施。
+> 项目状态：第 1 周已完成；第 2 周计划日 1～2 与计划日 3 合并任务 A 已验收；
+> 计划日 3 合并任务 B 已完成并验收，包括 bge-m3、Qdrant、批量写入和课程隔离。
 
 ## 1. 项目简介
 
@@ -872,7 +871,7 @@ uv run python -m app.ingestion.inspect `
 本计划日明确不包含 PDF/OCR、图片像素文字识别、演讲者备注、复杂图表或 SmartArt
 语义、Embedding、Qdrant 和后台索引状态推进。
 
-### 19.10 第 2 周第 3 天合并任务 A：PDF 原生解析与扫描页 OCR（已修正，待复验）
+### 19.10 第 2 周第 3 天合并任务 A：PDF 原生解析与扫描页 OCR（已验收）
 
 已完成：
 
@@ -893,8 +892,27 @@ uv run python -m app.ingestion.inspect `
   Ruff 和 Mypy strict 全部通过。
 
 复杂多栏、跨页或合并单元格表格、复杂数学公式和图示语义仍是已知边界，不在本任务
-承诺范围内。原定计划日 3 的 Embedding 与 Qdrant 作为同日合并任务 B，在任务 A
-复验后继续实施。
+承诺范围内。任务 A 已由用户验收并提交为 `8c2bd25`。
+
+### 19.11 第 2 周第 3 天合并任务 B：Embedding 与 Qdrant（已验收）
+
+已完成：
+
+- 经下载前报告和用户批准，将固定版本 `BAAI/bge-m3` 安装到
+  `D:\Agentic\data\models\embedding\bge-m3`；
+- 仅使用 SafeTensors 主权重，模型有效文件 2,295,339,486 字节，主权重 SHA-256
+  为 `993B2248881724788DCAB8C644A91DFD63584B6E5604FF2037CB5541E1E38E7E`；
+- 安装并锁定 PyTorch 2.11.0+cu128、Sentence Transformers 5.6.1 和
+  Qdrant Client 1.18.0；不需要系统级 CUDA Toolkit；
+- 本地离线生成 1024 维归一化 Dense Embedding，GPU 不可用或运行失败时回退 CPU；
+- 在 `data/qdrant` 建立 `knowledge_chunks_v1`，使用 1024 维 Cosine 距离；
+- 支持批量向量写入、文档重新索引时替换旧 Chunk、确定性 Point ID 和完整来源负载；
+- 所有写入、搜索和文档删除均要求 `course_id`，同一内容允许写入不同课程；
+- 真实 RTX 4070 GPU、强制 CPU、真实 Markdown 四 Chunk 入库和双课程隔离均验证通过；
+- 提供 `python -m app.knowledge.inspect` 作为本地入库与检索抽查入口；
+- 新增 9 项 Embedding/Qdrant 测试，后端全量 78 项测试、Ruff、Mypy strict 和依赖锁
+  检查全部通过；
+- 本任务不读取 DeepSeek Key，也不调用 LLM。
 
 ## 20. 工程日志
 

@@ -7,7 +7,7 @@
 | 计划周 | 第 2 周 |
 | 周主题 | 知识库入库 |
 | 当前状态 | 进行中 |
-| 已完成计划日 | 计划日 1～2；计划日 3 合并任务 A 待复验 |
+| 已完成计划日 | 计划日 1～3（计划日 3 包含合并任务 A、B） |
 | 实际开始日期 | 2026-07-31 |
 | 当前分支 | `main` |
 
@@ -318,7 +318,7 @@ DOCX 的 OOXML 正文不提供稳定的物理页码，因此本日不伪造页�
 | 项目 | 内容 |
 |---|---|
 | 实际完成日期 | 2026-08-01 |
-| 状态 | 已修正，等待用户复验 |
+| 状态 | 已验收并提交 |
 | OCR 依赖 | PaddleOCR 3.7.0、PaddlePaddle 3.3.1 |
 | PDF 依赖 | pypdf 6.x、pypdfium2 5.x |
 | 模型 | PP-OCRv6 small 检测与识别模型 |
@@ -428,6 +428,99 @@ PDF 技能要求的视觉核验已执行：渲染查看第 10、50、60、100、
 
 ### 下一计划日入口
 
-本合并任务只完成解析层，不把 355 页 OCR 放进同步 HTTP 请求。用户复验任务 A 后，
-同日继续完成原定计划日 3 的 Embedding 与 Qdrant（任务 B）。下载 bge-m3 前继续执行
-模型名称、来源、大小、绝对路径和总占用审批门禁。
+本合并任务只完成解析层，不把 355 页 OCR 放进同步 HTTP 请求。任务 A 已由用户验收，
+对应提交为 `8c2bd25 feat: add PDF OCR layout reconstruction`。同日继续执行原定计划日 3
+的 Embedding 与 Qdrant（任务 B）。
+
+---
+
+## 计划日 3 合并任务 B：Embedding 与 Qdrant
+
+### 基本信息
+
+| 项目 | 内容 |
+|---|---|
+| 实际完成日期 | 2026-08-02 |
+| 状态 | 已验收并提交 |
+| Embedding | BAAI/bge-m3，1024 维 Dense Embedding |
+| 推理依赖 | PyTorch 2.11.0+cu128、Sentence Transformers 5.6.1 |
+| 向量库 | Qdrant Client 1.18.0 Local Mode |
+| Collection | `knowledge_chunks_v1`，Cosine，1024 维 |
+
+### 模型审批与安装
+
+- 下载前向用户报告模型、固定版本、官方来源、文件清单、大小、SHA-256、最终路径、
+  PyTorch CUDA 运行时和预计总占用；
+- 用户明确批准后才安装依赖并下载模型；
+- 固定版本为 `84790c1a606f60d06c6932e4ecdd174b466d84ac`；
+- 最终路径为 `D:\Agentic\data\models\embedding\bge-m3`；
+- 只下载 SafeTensors、tokenizer、Pooling 配置及 Sparse/ColBERT 小型头，不下载重复的
+  `pytorch_model.bin` 或 ONNX 权重；
+- 12 个有效文件合计 2,295,339,486 字节（约 2.138 GiB）；
+- `model.safetensors` SHA-256 为
+  `993B2248881724788DCAB8C644A91DFD63584B6E5604FF2037CB5541E1E38E7E`；
+- 模型加载固定 `local_files_only=True`，并关闭远程代码信任，运行期不联网；
+- 模型与 OCR 合计约 2.167 GiB；GPU 依赖安装后 `.venv` 约 5.184 GiB。
+
+### Embedding 与设备回退
+
+- 批量输入非空 Chunk 文本，输出 1024 维 `float32` 归一化 Dense 向量；
+- `auto` 优先选择 CUDA，显式 `cpu` 可强制 CPU；
+- CUDA 不可用时直接选择 CPU；CUDA 加载或推理出现 `RuntimeError` 时释放 GPU 模型并
+  在 CPU 上重新执行同一批次；
+- RTX 4070 Laptop 实测 3 条中英文文本成功使用 CUDA；
+- 强制 CPU 实测同一模型成功输出 1024 维向量；
+- GPU 实测中英同义句余弦相似度约 0.739，向量范数约为 1。
+
+### Qdrant Collection 与课程隔离
+
+- 正式路径 `D:\Agentic\data\qdrant` 已建立 `knowledge_chunks_v1` 空 Collection；
+- Collection 为单一 Dense Vector、1024 维、Cosine，元数据记录模型和隔离键；
+- Point ID 由 `course_id + document_id + chunk_index` 确定性生成；
+- Payload 保存课程、文档、Chunk、文件、章节、源块、页码、幻灯片、解析方式和 OCR
+  置信度；
+- 文档重新索引时，仅删除同课程同文档旧点，再按批次写入新点；
+- 写入前验证 Chunk 自带的课程/文档来源与目标完全一致，验证失败时不删除旧点；
+- 搜索入口没有无课程版本，内部始终添加 `course_id` 必选 Filter；
+- 文档删除同时使用 `course_id` 和 `document_id` Filter，不会影响其他课程的同名文档。
+
+### 真实验证
+
+- 真实 Markdown 解析为 4 个 Chunk，经 GPU bge-m3 批量向量化并写入临时 Qdrant；
+- 同一 4-Chunk 内容分别写入 `validation-course-a` 和 `validation-course-b`；
+- 临时库总计 8 点，两个课程各 4 点；课程 B 查询只返回课程 B Payload；
+- 验证完成后临时 Qdrant 已删除；正式 Collection 保持 0 点，未混入验收数据；
+- 整个过程不读取 DeepSeek Key、不调用 DeepSeek API。
+
+### 验证结果
+
+| 检查 | 结果 |
+|---|---|
+| Embedding/Qdrant 专项测试 | 9 项全部通过 |
+| 后端全量测试 | 78 项全部通过 |
+| Ruff | 通过 |
+| Mypy strict | 通过，应用与测试共 67 个源文件无问题 |
+| uv lock | 依赖解析一致，151 个包 |
+| GPU | PyTorch 2.11.0+cu128 识别 RTX 4070，真实推理通过 |
+| CPU | 强制 CPU 真实推理通过 |
+| 模型与 OCR 总量 | 2,326,825,620 字节（约 2.167 GiB） |
+| 后端虚拟环境 | 5,566,692,318 字节（约 5.184 GiB） |
+
+### 主要文件
+
+| 文件 | 用途 |
+|---|---|
+| `backend/app/knowledge/embedding.py` | 本地 bge-m3 批量向量化与 CUDA/CPU 回退 |
+| `backend/app/knowledge/vector_store.py` | Collection、批量写入和课程隔离 |
+| `backend/app/knowledge/indexing.py` | Chunk → Embedding → Qdrant 编排与课程内搜索 |
+| `backend/app/knowledge/inspect.py` | 真实文档入库和检索抽查命令 |
+| `backend/tests/test_knowledge_embedding.py` | GPU 选择和 CPU 回退确定性测试 |
+| `backend/tests/test_knowledge_vector_store.py` | 课程隔离、替换和维度验证 |
+| `backend/tests/test_knowledge_indexing.py` | 批量索引编排测试 |
+
+### 当前边界与下一入口
+
+- 本任务完成可调用的解析、分块、Embedding 和 Qdrant 层，但未把它接入上传后的后台
+  状态机；后台任务、失败重试及 SQLite 状态推进属于下一计划日；
+- 当前仅写 Dense Vector；bge-m3 的 Sparse/ColBERT 混合检索留给后续检索优化；
+- Qdrant 当前使用单机 Local Mode，后续可在不改变课程 Payload 规则的情况下切换服务端。

@@ -1,9 +1,10 @@
-# 第 2 周计划日 3 合并任务 A 验收说明：PDF 原生解析与 OCR 回退
+# 第 2 周计划日 3 验收说明：PDF/OCR、Embedding 与 Qdrant
 
 ## 交付结论
 
-本说明对应计划日 3 当日合并的 PDF/OCR 补充任务；原定计划日 3 的 Embedding 与
-Qdrant 是同日任务 B。任务 A 已完成 PDF 原生文本优先、逐页 OCR 回退、基础版面
+本说明包含同日合并的两个任务：任务 A 为 PDF/OCR 补充任务，已验收并提交；任务 B
+为原定的 Embedding 与 Qdrant，也已完成抽查并验收。任务 A 已完成 PDF 原生文本优先、
+逐页 OCR 回退、基础版面
 重建和精确页码保留。解析器不会把
 “含有任意几个字符”误判为有效文本层；页面只有达到最低有效字符数和可读字符比例
 后才走原生解析，否则以 220 DPI 渲染并调用本地 PaddleOCR。
@@ -138,3 +139,88 @@ uv run python -m app.ingestion.inspect `
 - 复杂数学公式、图示语义和图片内容理解不在本计划日承诺范围；
 - 整本 355 页扫描教材会逐页执行 CPU OCR，生产索引时应放入后续后台任务，不应阻塞
   HTTP 请求；后台状态流转不属于本计划日。
+
+---
+
+## 合并任务 B：Embedding 与 Qdrant
+
+### 交付结论
+
+- `BAAI/bge-m3` 已安装在批准路径
+  `D:\Agentic\data\models\embedding\bge-m3`；
+- 本地输出 1024 维归一化 Dense Embedding；
+- GPU 自动选择、CUDA 运行失败转 CPU、显式 CPU 三条路径已实现；
+- `D:\Agentic\data\qdrant\knowledge_chunks_v1` 已建立为 1024 维 Cosine Collection；
+- 支持批量写入、文档替换、完整来源 Payload 和课程内检索；
+- 所有向量写入、检索和删除入口均强制要求 `course_id`；
+- 无需 DeepSeek Key，也不会调用 LLM。
+
+### 建议抽查
+
+以下命令会把 4 个测试 Chunk 写入独立验收目录，不会污染正式 Collection：
+
+```powershell
+cd D:\Agentic\backend
+
+$env:HF_HUB_OFFLINE="1"
+$env:TRANSFORMERS_OFFLINE="1"
+
+& ".venv\Scripts\python.exe" -m app.knowledge.inspect `
+  "D:\Agentic\data\test-materials\day-03\valid\数据结构\04-课程学习笔记.md" `
+  --course-id "review-course" `
+  --document-id "review-note" `
+  --query "栈遵循什么访问顺序？" `
+  --model-path "D:\Agentic\data\models\embedding\bge-m3" `
+  --qdrant-path "D:\Agentic\data\local-runtime\qdrant-user-review" `
+  --device auto `
+  --limit 3
+```
+
+应看到：
+
+- `chunk_count` 为 4；
+- `vector_dimension` 为 1024；
+- 本机正常情况下 `device` 为 `cuda`，`fallback_reason` 为 `null`；
+- 返回结果的 `course_id` 全部为 `review-course`；
+- 关于“栈遵循后进先出（LIFO）”的 Chunk 应位于前列；
+- 不出现联网下载、模型缺失、DeepSeek Key 或向量维度错误。
+
+CPU 路径可将上述命令的 `--device auto` 改为 `--device cpu`。应看到 `device` 为
+`cpu`、维度仍为 1024；CPU 首次加载和推理会慢于 GPU。
+
+模型文件可以额外校验：
+
+```powershell
+Get-FileHash -Algorithm SHA256 `
+  "D:\Agentic\data\models\embedding\bge-m3\model.safetensors"
+```
+
+期望值：
+
+```text
+993B2248881724788DCAB8C644A91DFD63584B6E5604FF2037CB5541E1E38E7E
+```
+
+### 任务 B 验收标准
+
+1. GPU 抽查输出 4 个 Chunk、1024 维、`device=cuda`；
+2. 检索结果只包含命令指定的 `course_id`；
+3. “栈”查询能够优先返回包含 LIFO 的相关 Chunk；
+4. 改为 `--device cpu` 后仍能成功生成 1024 维向量；
+5. 模型路径、SHA-256 和正式 Collection 配置与本说明一致；
+6. 不下载第二份模型、不要求 DeepSeek Key、不向其他课程泄漏结果。
+
+### 自动与真实验证
+
+- 4 项 Embedding 设备/回退测试；
+- 4 项 Qdrant Collection、替换写入、课程隔离和向量维度测试；
+- 1 项 Chunk → Embedding → Qdrant 编排测试；
+- 真实 GPU 与真实 CPU 各完成一次本地模型推理；
+- 同一真实文档双课程写入后，每个课程严格各 4 点；
+- 正式 Collection 保持空库，验收数据仅进入已清理的临时目录。
+
+后端全量 78 项测试、Ruff、Mypy strict（应用与测试共 67 个源文件）和 151 包依赖锁
+检查全部通过。
+
+当前边界：任务 B 尚未接入上传后的后台状态流转，也未启用 Sparse/ColBERT 混合检索；
+这些不影响本次 Dense Embedding、Qdrant 和课程隔离验收。

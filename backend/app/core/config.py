@@ -1,5 +1,6 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -27,8 +28,12 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite+aiosqlite:///../data/app.db"
     qdrant_path: Path = Path("../data/qdrant")
+    qdrant_collection_name: str = "knowledge_chunks_v1"
     upload_dir: Path = Path("../data/uploads")
     paddle_ocr_base_dir: Path = Path("../data/models/paddleocr")
+    embedding_model_path: Path = Path("../data/models/embedding/bge-m3")
+    embedding_device: Literal["auto", "cuda", "cpu"] = "auto"
+    embedding_batch_size: int = Field(default=8, gt=0)
     max_upload_mb: int = Field(default=100, gt=0)
 
     @property
