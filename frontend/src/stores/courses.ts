@@ -9,6 +9,7 @@ import {
   removeCourse as removeCourseRequest,
   removeDocument as removeDocumentRequest,
   removeDocuments as removeDocumentsRequest,
+  reindexDocument as reindexDocumentRequest,
 } from '@/api/courses'
 import type { Course, CourseCreatePayload, CourseDocument } from '@/types/api'
 
@@ -87,6 +88,13 @@ export const useCoursesStore = defineStore('courses', () => {
     )
   }
 
+  async function reindexDocument(courseId: string, documentId: string): Promise<void> {
+    const updated = await reindexDocumentRequest(documentId)
+    documentsByCourse.value[courseId] = documentsFor(courseId).map((document) =>
+      document.id === documentId ? updated : document,
+    )
+  }
+
   return {
     courses,
     courseCount,
@@ -100,5 +108,6 @@ export const useCoursesStore = defineStore('courses', () => {
     deleteCourse,
     deleteDocument,
     deleteDocuments,
+    reindexDocument,
   }
 })

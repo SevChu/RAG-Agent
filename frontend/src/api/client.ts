@@ -60,6 +60,9 @@ function isFriendlyApiError(error: unknown): error is FriendlyApiError {
 
 function translateApiMessage(code: string, fallback: string): string {
   if (code === 'CONFLICT') {
+    if (fallback.toLowerCase().includes('waiting or being processed')) {
+      return '该资料已在等待或处理中，请勿重复提交'
+    }
     if (fallback.toLowerCase().includes('file')) {
       return '该课程中已存在内容完全相同的资料'
     }
@@ -74,6 +77,7 @@ function translateApiMessage(code: string, fallback: string): string {
     INVALID_INPUT: '文件为空、内容无效或输入信息不完整',
     NOT_FOUND: '目标内容不存在，可能已被删除',
     UNSUPPORTED_FILE_TYPE: '文件格式不受支持，或文件内容与扩展名不一致',
+    INDEX_STORAGE_ERROR: fallback,
   }
   return messages[code] ?? fallback
 }

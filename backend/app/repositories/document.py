@@ -71,3 +71,16 @@ class DocumentRepository:
     async def delete(self, document: Document) -> None:
         await self.session.delete(document)
         await self.session.flush()
+
+    async def update_status(
+        self,
+        document: Document,
+        *,
+        status: DocumentStatus,
+        error_message: str | None = None,
+    ) -> Document:
+        document.status = status
+        document.error_message = error_message
+        await self.session.flush()
+        await self.session.refresh(document)
+        return document

@@ -8,7 +8,7 @@ import {
   ElSkeleton,
   ElTag,
 } from 'element-plus'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { toFriendlyApiError } from '@/api/client'
@@ -49,6 +49,8 @@ const dragActive = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
 const selectedDocumentIds = ref<string[]>([])
 const bulkDeleting = ref(false)
+const retryingDocumentIds = ref<Set<string>>(new Set())
+let statusPollTimer: number | undefined
 
 const acceptedTypesText = ACCEPTED_FILE_EXTENSIONS.map((item) => item.toUpperCase()).join(' / ')
 const allDocumentsSelected = computed(
@@ -58,15 +60,56 @@ const allDocumentsSelected = computed(
 const someDocumentsSelected = computed(
   () => selectedDocumentIds.value.length > 0 && !allDocumentsSelected.value,
 )
+const hasActiveIndexing = computed(() =>
+  documents.value.some(
+    (document) => document.status === 'pending' || document.status === 'processing',
+  ),
+)
 
 onMounted(() => {
   void loadPage()
+})
+
+onUnmounted(() => {
+  if (statusPollTimer !== undefined) {
+    window.clearTimeout(statusPollTimer)
+  }
 })
 
 watch(documents, (currentDocuments) => {
   const availableIds = new Set(currentDocuments.map((document) => document.id))
   selectedDocumentIds.value = selectedDocumentIds.value.filter((id) => availableIds.has(id))
 })
+
+watch(
+  hasActiveIndexing,
+  (active) => {
+    if (active) {
+      scheduleStatusPoll()
+    } else if (statusPollTimer !== undefined) {
+      window.clearTimeout(statusPollTimer)
+      statusPollTimer = undefined
+    }
+  },
+  { immediate: true },
+)
+
+function scheduleStatusPoll(): void {
+  if (statusPollTimer !== undefined) {
+    return
+  }
+  statusPollTimer = window.setTimeout(async () => {
+    statusPollTimer = undefined
+    try {
+      await store.loadDocuments(courseId.value)
+    } catch {
+      // A manual refresh remains available; transient polling errors stay unobtrusive.
+    }
+    if (hasActiveIndexing.value) {
+      scheduleStatusPoll()
+    }
+  }, 2000)
+}
 
 async function loadPage(): Promise<void> {
   loading.value = true
@@ -155,8 +198,27 @@ async function startUpload(): Promise<void> {
   if (failedCount) {
     ElMessage.warning(`${failedCount} 个文件上传失败，请查看具体原因`)
   } else {
-    ElMessage.success('资料上传完成')
+    ElMessage.success('资料上传完成，正在后台加入知识库')
     uploadDialogVisible.value = false
+  }
+}
+
+async function reindexDocument(document: CourseDocument): Promise<void> {
+  if (retryingDocumentIds.value.has(document.id)) {
+    return
+  }
+  retryingDocumentIds.value = new Set(retryingDocumentIds.value).add(document.id)
+  try {
+    await store.reindexDocument(courseId.value, document.id)
+    ElMessage.success(
+      document.status === 'failed' ? '已重新开始处理，请稍候' : '已开始重新索引，请稍候',
+    )
+  } catch (error) {
+    ElMessage.error(toFriendlyApiError(error).message)
+  } finally {
+    const remaining = new Set(retryingDocumentIds.value)
+    remaining.delete(document.id)
+    retryingDocumentIds.value = remaining
   }
 }
 
@@ -342,7 +404,9 @@ function uploadStateLabel(item: UploadItem): string {
                     }}</span>
                     <div>
                       <strong>{{ document.original_name }}</strong>
-                      <small v-if="document.error_message">{{ document.error_message }}</small>
+                      <small v-if="document.error_message" class="index-error-message">
+                        <b>失败原因：</b>{{ document.error_message }}
+                      </small>
                     </div>
                   </div>
                 </td>
@@ -355,14 +419,31 @@ function uploadStateLabel(item: UploadItem): string {
                 </td>
                 <td>{{ formatDateTime(document.created_at) }}</td>
                 <td class="action-cell">
-                  <button
-                    type="button"
-                    class="delete-file-button"
-                    :aria-label="`删除${document.original_name}`"
-                    @click="confirmDeleteDocument(document)"
-                  >
-                    删除
-                  </button>
+                  <div class="row-actions">
+                    <button
+                      v-if="document.status === 'failed' || document.status === 'completed'"
+                      type="button"
+                      class="reindex-file-button"
+                      :disabled="retryingDocumentIds.has(document.id)"
+                      @click="reindexDocument(document)"
+                    >
+                      {{
+                        retryingDocumentIds.has(document.id)
+                          ? '提交中…'
+                          : document.status === 'failed'
+                            ? '重新处理'
+                            : '重新索引'
+                      }}
+                    </button>
+                    <button
+                      type="button"
+                      class="delete-file-button"
+                      :aria-label="`删除${document.original_name}`"
+                      @click="confirmDeleteDocument(document)"
+                    >
+                      删除
+                    </button>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -676,20 +757,27 @@ function uploadStateLabel(item: UploadItem): string {
 .file-name-cell strong,
 .file-name-cell small {
   display: block;
+}
+
+.file-name-cell strong {
   overflow: hidden;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-strong);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.file-name-cell strong {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--ink-strong);
+.file-name-cell .index-error-message {
+  max-width: 360px;
+  margin-top: 3px;
+  line-height: 1.5;
+  color: var(--danger);
+  white-space: normal;
 }
 
-.file-name-cell small {
-  margin-top: 3px;
-  color: var(--danger);
+.index-error-message b {
+  font-weight: 700;
 }
 
 .uppercase-cell {
@@ -698,6 +786,37 @@ function uploadStateLabel(item: UploadItem): string {
 
 .action-cell {
   text-align: right !important;
+}
+
+.row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.reindex-file-button,
+.delete-file-button {
+  white-space: nowrap;
+}
+
+.reindex-file-button {
+  padding: 6px 9px;
+  font-size: 12px;
+  color: var(--primary-deep);
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+}
+
+.reindex-file-button:hover {
+  background: var(--primary-soft);
+}
+
+.reindex-file-button:disabled {
+  cursor: wait;
+  opacity: 0.55;
 }
 
 .delete-file-button {

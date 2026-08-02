@@ -1,16 +1,30 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.errors import register_exception_handlers
 from app.api.router import api_router
 from app.core.config import get_settings
+from app.indexing import get_indexing_manager
 
 settings = get_settings()
+indexing_manager = get_indexing_manager()
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    if settings.auto_index_documents:
+        await indexing_manager.recover_incomplete()
+    yield
+    await indexing_manager.close()
 
 app = FastAPI(
     title=settings.app_name,
     version="0.1.0",
     debug=settings.debug,
+    lifespan=lifespan,
 )
 app.add_middleware(
     CORSMiddleware,

@@ -5,7 +5,9 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
+from app.core.exceptions import IndexStorageError
 from app.db.session import get_session
+from app.indexing import DocumentIndexingManager, get_indexing_manager
 from app.schemas import CourseCreate, CourseDeleteResult, CourseRead
 from app.schemas.api import APIResponse
 from app.services import CourseService
@@ -15,6 +17,10 @@ router = APIRouter(prefix="/courses", tags=["courses"])
 
 SessionDependency = Annotated[AsyncSession, Depends(get_session)]
 SettingsDependency = Annotated[Settings, Depends(get_settings)]
+IndexingDependency = Annotated[
+    DocumentIndexingManager,
+    Depends(get_indexing_manager),
+]
 
 
 @router.post(
@@ -56,6 +62,7 @@ async def delete_course(
     course_id: UUID,
     session: SessionDependency,
     settings: SettingsDependency,
+    indexing: IndexingDependency,
 ) -> APIResponse[CourseDeleteResult]:
     service = CourseService(session)
     await service.get(course_id)
@@ -65,6 +72,13 @@ async def delete_course(
     )
     staged_deletion = await storage.stage_course_deletion(course_id)
     try:
+        try:
+            await indexing.delete_course_vectors(course_id=course_id)
+        except Exception as error:
+            raise IndexStorageError(
+                "知识库索引暂时无法安全清理，因此课程没有被删除。"
+                "请确认没有其他进程占用 Qdrant 后重试。"
+            ) from error
         await service.delete(course_id)
     except Exception:
         await storage.restore_deletion(staged_deletion)

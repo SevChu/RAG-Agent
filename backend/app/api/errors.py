@@ -6,6 +6,7 @@ from app.core.exceptions import (
     ConflictError,
     DomainError,
     FileTooLargeError,
+    IndexStorageError,
     InvalidInputError,
     NotFoundError,
     UnsupportedFileTypeError,
@@ -17,6 +18,7 @@ ERROR_MAPPING: dict[type[DomainError], tuple[int, str]] = {
     FileTooLargeError: (413, "FILE_TOO_LARGE"),
     UnsupportedFileTypeError: (415, "UNSUPPORTED_FILE_TYPE"),
     InvalidInputError: (400, "INVALID_INPUT"),
+    IndexStorageError: (503, "INDEX_STORAGE_ERROR"),
 }
 
 

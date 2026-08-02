@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     embedding_model_path: Path = Path("../data/models/embedding/bge-m3")
     embedding_device: Literal["auto", "cuda", "cpu"] = "auto"
     embedding_batch_size: int = Field(default=8, gt=0)
+    auto_index_documents: bool = True
     max_upload_mb: int = Field(default=100, gt=0)
 
     @property

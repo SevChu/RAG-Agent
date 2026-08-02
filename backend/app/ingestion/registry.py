@@ -54,6 +54,7 @@ class DocumentParserRegistry:
 def build_default_registry(
     *,
     pdf_page_numbers: tuple[int, ...] | None = None,
+    ocr_model_root: Path | None = None,
 ) -> DocumentParserRegistry:
     """Build the parsers completed through week 2, plan day 3."""
 
@@ -63,6 +64,9 @@ def build_default_registry(
             MarkdownParser(),
             WordDocumentParser(),
             PowerPointParser(),
-            PdfParser(page_numbers=pdf_page_numbers),
+            PdfParser(
+                page_numbers=pdf_page_numbers,
+                ocr_model_root=ocr_model_root,
+            ),
         )
     )

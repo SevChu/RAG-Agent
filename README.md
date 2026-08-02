@@ -1,7 +1,6 @@
 # 基于 RAG 的计算机专业学习 Agent
 
-> 项目状态：第 1 周已完成；第 2 周计划日 1～2 与计划日 3 合并任务 A 已验收；
-> 计划日 3 合并任务 B 已完成并验收，包括 bge-m3、Qdrant、批量写入和课程隔离。
+> 项目状态：第 1 周已完成；第 2 周计划日 1～4 已实现并通过用户验收。
 
 ## 1. 项目简介
 
@@ -914,6 +913,26 @@ uv run python -m app.ingestion.inspect `
   检查全部通过；
 - 本任务不读取 DeepSeek Key，也不调用 LLM。
 
+### 19.12 第 2 周第 4 天：自动索引状态与失败恢复（已验收）
+
+已完成：
+
+- 上传成功后立即返回，并在后台串行执行解析、结构化分块、Embedding 和 Qdrant 入库；
+- 状态自动推进 `pending → processing → completed/failed`，前端每 2 秒刷新活动任务；
+- 后端重启时将未完成任务恢复为等待状态并继续处理；
+- 失败时清理该课程该文档可能写入一半的向量，保留原文件和可理解的中文失败原因；
+- 针对空白内容、加密/损坏文档、编码、OCR、本地模型、原文件缺失和临时运行错误
+  分别给出原因及下一步操作，不向前端暴露堆栈；
+- 新增 `POST /api/documents/{id}/reindex`，失败资料可“重新处理”，完成资料可“重新索引”；
+- 单份、批量和课程删除均按课程范围先清理 Qdrant；清理失败时保留 SQLite 记录和
+  原文件，并明确提示未执行删除；
+- 浏览器真实上传损坏 PDF 后，自动显示“处理失败”、具体原因和“重新处理”入口，
+  重试流程生效，页面无控制台错误；
+- 无新增模型、依赖或模型下载，不调用 DeepSeek。
+
+当前后端 83 项测试、Ruff、Mypy strict，前端 8 项测试、Lint、TypeScript 和生产构建
+全部通过。详细抽查步骤见 `docs/deliverables/week-02-day-04.md`。
+
 ## 20. 工程日志
 
 详细实施记录按计划周独立保存在 `docs/engineering-logs/`：
@@ -925,3 +944,4 @@ uv run python -m app.ingestion.inspect `
 - [第 2 周计划日 1 验收说明](docs/deliverables/week-02-day-01.md)
 - [第 2 周计划日 2 验收说明](docs/deliverables/week-02-day-02.md)
 - [第 2 周计划日 3 验收说明](docs/deliverables/week-02-day-03.md)
+- [第 2 周计划日 4 验收说明](docs/deliverables/week-02-day-04.md)

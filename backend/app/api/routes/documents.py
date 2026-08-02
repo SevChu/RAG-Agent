@@ -6,7 +6,9 @@ from fastapi import APIRouter, Depends, File, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
+from app.core.exceptions import IndexStorageError
 from app.db.session import get_session
+from app.indexing import DocumentIndexingManager, get_indexing_manager
 from app.schemas import (
     DocumentBulkDeleteRequest,
     DocumentBulkDeleteResult,
@@ -21,6 +23,10 @@ router = APIRouter(tags=["documents"])
 
 SessionDependency = Annotated[AsyncSession, Depends(get_session)]
 SettingsDependency = Annotated[Settings, Depends(get_settings)]
+IndexingDependency = Annotated[
+    DocumentIndexingManager,
+    Depends(get_indexing_manager),
+]
 
 
 @router.post(
@@ -33,6 +39,7 @@ async def upload_document(
     file: Annotated[UploadFile, File(...)],
     session: SessionDependency,
     settings: SettingsDependency,
+    indexing: IndexingDependency,
 ) -> APIResponse[DocumentRead]:
     await CourseService(session).get(course_id)
     storage = FileStorageService(
@@ -64,7 +71,12 @@ async def upload_document(
         else:
             await storage.discard_path(staged.path)
         raise
-    return APIResponse(data=DocumentRead.model_validate(document))
+    response: APIResponse[DocumentRead] = APIResponse(
+        data=DocumentRead.model_validate(document)
+    )
+    if settings.auto_index_documents:
+        indexing.schedule(document.id)
+    return response
 
 
 @router.get(
@@ -90,6 +102,7 @@ async def bulk_delete_documents(
     payload: DocumentBulkDeleteRequest,
     session: SessionDependency,
     settings: SettingsDependency,
+    indexing: IndexingDependency,
 ) -> APIResponse[DocumentBulkDeleteResult]:
     service = DocumentService(session)
     documents = await service.get_many_for_course(
@@ -108,6 +121,17 @@ async def bulk_delete_documents(
                 stored_name=document.stored_name,
             )
             staged_deletions.append(staged)
+        try:
+            for document in documents:
+                await indexing.delete_document_vectors(
+                    course_id=document.course_id,
+                    document_id=document.id,
+                )
+        except Exception as error:
+            raise IndexStorageError(
+                "知识库索引暂时无法安全清理，因此没有删除任何资料。"
+                "请确认没有其他进程占用 Qdrant 后重试。"
+            ) from error
         await service.delete_many(documents)
     except Exception:
         for staged in reversed(staged_deletions):
@@ -141,6 +165,23 @@ async def get_document(
     return APIResponse(data=DocumentRead.model_validate(document))
 
 
+@router.post(
+    "/documents/{document_id}/reindex",
+    response_model=APIResponse[DocumentRead],
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def reindex_document(
+    document_id: UUID,
+    session: SessionDependency,
+    settings: SettingsDependency,
+    indexing: IndexingDependency,
+) -> APIResponse[DocumentRead]:
+    document = await DocumentService(session).request_reindex(document_id)
+    if settings.auto_index_documents:
+        indexing.schedule(document.id)
+    return APIResponse(data=DocumentRead.model_validate(document))
+
+
 @router.delete(
     "/documents/{document_id}",
     response_model=APIResponse[DocumentDeleteResult],
@@ -149,6 +190,7 @@ async def delete_document(
     document_id: UUID,
     session: SessionDependency,
     settings: SettingsDependency,
+    indexing: IndexingDependency,
 ) -> APIResponse[DocumentDeleteResult]:
     service = DocumentService(session)
     document = await service.get(document_id)
@@ -161,6 +203,16 @@ async def delete_document(
         stored_name=document.stored_name,
     )
     try:
+        try:
+            await indexing.delete_document_vectors(
+                course_id=document.course_id,
+                document_id=document.id,
+            )
+        except Exception as error:
+            raise IndexStorageError(
+                "知识库索引暂时无法安全清理，因此资料没有被删除。"
+                "请确认没有其他进程占用 Qdrant 后重试。"
+            ) from error
         await service.delete(document_id)
     except Exception:
         await storage.restore_deletion(staged_deletion)

@@ -20,3 +20,7 @@ class UnsupportedFileTypeError(InvalidInputError):
 
 class FileTooLargeError(InvalidInputError):
     """Raised when an upload exceeds the configured size limit."""
+
+
+class IndexStorageError(DomainError):
+    """Raised when vectors cannot be safely updated or removed."""

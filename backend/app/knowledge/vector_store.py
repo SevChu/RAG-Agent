@@ -159,6 +159,24 @@ class QdrantChunkStore:
             wait=True,
         )
 
+    def delete_course(self, *, course_id: str) -> None:
+        normalized_course = _required_identifier(course_id, "course_id")
+        self.ensure_collection()
+        self._client.delete(
+            collection_name=self.collection_name,
+            points_selector=models.FilterSelector(
+                filter=models.Filter(
+                    must=[
+                        models.FieldCondition(
+                            key="course_id",
+                            match=models.MatchValue(value=normalized_course),
+                        )
+                    ]
+                )
+            ),
+            wait=True,
+        )
+
     def close(self) -> None:
         self._client.close()
 

@@ -182,3 +182,31 @@ def test_store_rejects_wrong_vector_dimension(tmp_path: Path) -> None:
             )
     finally:
         store.close()
+
+
+def test_delete_course_removes_only_the_target_course(tmp_path: Path) -> None:
+    store = QdrantChunkStore(tmp_path / "qdrant")
+    try:
+        for course_id in ("course-a", "course-b"):
+            store.replace_document(
+                course_id=course_id,
+                document_id="document-1",
+                chunks=[
+                    _chunk(
+                        course_id=course_id,
+                        document_id="document-1",
+                        index=0,
+                        text=course_id,
+                    )
+                ],
+                vectors=[_vector()],
+            )
+
+        store.delete_course(course_id="course-a")
+
+        assert store.search(course_id="course-a", vector=_vector()) == ()
+        assert [item.text for item in store.search(course_id="course-b", vector=_vector())] == [
+            "course-b"
+        ]
+    finally:
+        store.close()

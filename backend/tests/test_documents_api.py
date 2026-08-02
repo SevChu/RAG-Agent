@@ -173,6 +173,25 @@ async def test_document_queries_and_delete_remove_database_and_file(
     assert missing_response.status_code == 404
 
 
+async def test_reindex_rejects_document_that_is_already_waiting(
+    api_client: AsyncClient,
+) -> None:
+    course_id = await create_course(api_client, "重复索引保护")
+    upload_response = await api_client.post(
+        f"/api/courses/{course_id}/documents",
+        files={"file": ("notes.txt", b"content", "text/plain")},
+    )
+    document_id = upload_response.json()["data"]["id"]
+
+    response = await api_client.post(f"/api/documents/{document_id}/reindex")
+
+    assert response.status_code == 409
+    assert response.json()["error"] == {
+        "code": "CONFLICT",
+        "message": "This document is already waiting or being processed.",
+    }
+
+
 async def test_bulk_delete_removes_only_selected_documents(
     api_client: AsyncClient,
     api_settings: Settings,

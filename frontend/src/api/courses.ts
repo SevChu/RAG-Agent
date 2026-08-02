@@ -66,6 +66,13 @@ export async function removeDocument(documentId: string): Promise<DeleteResult> 
   return unwrapResponse(response.data)
 }
 
+export async function reindexDocument(documentId: string): Promise<CourseDocument> {
+  const response = await http.post<ApiResponse<CourseDocument>>(
+    `/documents/${documentId}/reindex`,
+  )
+  return unwrapResponse(response.data)
+}
+
 export async function removeDocuments(
   courseId: string,
   documentIds: string[],

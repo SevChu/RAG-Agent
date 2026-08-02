@@ -4,7 +4,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ConflictError, InvalidInputError, NotFoundError
-from app.models import Document
+from app.models import Document, DocumentStatus
 from app.repositories import CourseRepository, DocumentRepository
 
 
@@ -103,3 +103,15 @@ class DocumentService:
         except Exception:
             await self.session.rollback()
             raise
+
+    async def request_reindex(self, document_id: UUID) -> Document:
+        document = await self.get(document_id)
+        if document.status in {DocumentStatus.PENDING, DocumentStatus.PROCESSING}:
+            raise ConflictError("This document is already waiting or being processed.")
+        await self.repository.update_status(
+            document,
+            status=DocumentStatus.PENDING,
+            error_message=None,
+        )
+        await self.session.commit()
+        return document
