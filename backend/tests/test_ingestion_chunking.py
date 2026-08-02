@@ -14,6 +14,7 @@ from app.ingestion.chunking import (
     EstimatedTokenCounter,
     StructuredDocumentChunker,
 )
+from app.ingestion.models import ExtractionMethod
 
 
 def _block(
@@ -25,6 +26,7 @@ def _block(
     line: int | None = None,
     page: int | None = None,
     slide: int | None = None,
+    extraction_method: ExtractionMethod | None = None,
 ) -> ParsedBlock:
     return ParsedBlock(
         kind=kind,
@@ -35,6 +37,7 @@ def _block(
             line_end=line,
             page_number=page,
             slide_number=slide,
+            extraction_method=extraction_method,
         ),
         section_path=section_path,
     )
@@ -127,6 +130,34 @@ def test_chunker_splits_long_paragraph_with_configured_overlap() -> None:
     assert all(chunk.overlap_token_count == 5 for chunk in result.chunks[1:])
     assert all(chunk.source.source_block_indices == (0, 1) for chunk in result.chunks)
     assert result.stats.chunks_with_overlap == len(result.chunks) - 1
+
+
+def test_chunker_does_not_create_partial_overlap_for_ocr_paragraphs() -> None:
+    document = _document(
+        _block(
+            0,
+            BlockKind.PARAGRAPH,
+            "第一段语义完整。",
+            extraction_method=ExtractionMethod.OCR,
+        ),
+        _block(
+            1,
+            BlockKind.PARAGRAPH,
+            "第二段语义完整。",
+            extraction_method=ExtractionMethod.OCR,
+        ),
+    )
+
+    result = StructuredDocumentChunker().chunk(
+        document,
+        config=ChunkingConfig(target_tokens=8, overlap_tokens=3),
+    )
+
+    assert [chunk.text for chunk in result.chunks] == [
+        "第一段语义完整。",
+        "第二段语义完整。",
+    ]
+    assert all(chunk.overlap_token_count == 0 for chunk in result.chunks)
 
 
 def test_chunker_preserves_index_context_and_exact_source_locations() -> None:

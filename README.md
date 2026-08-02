@@ -1,6 +1,8 @@
 # 基于 RAG 的计算机专业学习 Agent
 
-> 项目状态：第 1 周已完成；第 2 周计划日 1 已完成统一解析契约及 Markdown/TXT 结构化解析。
+> 项目状态：第 1 周已完成；第 2 周计划日 1～2 已验收；计划日 3 合并任务 A 已完成
+> PDF 原生解析、扫描页 OCR 与基础版面重建，等待用户复验，原定 Embedding/Qdrant
+> 任务随后实施。
 
 ## 1. 项目简介
 
@@ -870,6 +872,30 @@ uv run python -m app.ingestion.inspect `
 本计划日明确不包含 PDF/OCR、图片像素文字识别、演讲者备注、复杂图表或 SmartArt
 语义、Embedding、Qdrant 和后台索引状态推进。
 
+### 19.10 第 2 周第 3 天合并任务 A：PDF 原生解析与扫描页 OCR（已修正，待复验）
+
+已完成：
+
+- PDF 逐页优先提取有效原生文本；
+- 无有效文本页以 220 DPI 渲染并使用本地 PaddleOCR 回退；
+- OCR 检测行按缩进、行距和版面区域重建为中文段落；
+- 右侧浮动基础表格、整页基础表格、连续公式和代码作为独立受保护块；
+- OCR Chunk 不生成从句中开始的部分重叠；
+- 混合 PDF 仅 OCR 必要页面，原生页不加载 OCR；
+- 每个 PDF 块保留一基页码、`native_pdf` / `ocr` 方式和 OCR 置信度；
+- Chunk 继续保留页码、解析方式及最低 OCR 置信度；
+- 拒绝损坏和加密 PDF，空白页与低置信度 OCR 产生明确警告；
+- 只读检查命令新增 `--page-number`，支持单页快速抽查；
+- 使用 PP-OCRv6 small 检测/识别模型，模型有效文件约 30.02 MiB，全部位于
+  `D:\Agentic\data\models\paddleocr`；
+- 真实教材验证中文、英文、C++ 代码、基础算式和原生/扫描混合页；
+- 新增 9 项 PDF、4 项 OCR 布局测试及 1 项 OCR 重叠测试；后端全量 69 项测试、
+  Ruff 和 Mypy strict 全部通过。
+
+复杂多栏、跨页或合并单元格表格、复杂数学公式和图示语义仍是已知边界，不在本任务
+承诺范围内。原定计划日 3 的 Embedding 与 Qdrant 作为同日合并任务 B，在任务 A
+复验后继续实施。
+
 ## 20. 工程日志
 
 详细实施记录按计划周独立保存在 `docs/engineering-logs/`：
@@ -880,3 +906,4 @@ uv run python -m app.ingestion.inspect `
 - [第 1 周交付说明](docs/deliverables/week-01.md)
 - [第 2 周计划日 1 验收说明](docs/deliverables/week-02-day-01.md)
 - [第 2 周计划日 2 验收说明](docs/deliverables/week-02-day-02.md)
+- [第 2 周计划日 3 验收说明](docs/deliverables/week-02-day-03.md)

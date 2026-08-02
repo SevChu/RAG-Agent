@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.ingestion.models import BlockKind, ParsedDocument
+from app.ingestion.models import BlockKind, ExtractionMethod, ParsedDocument
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,6 +42,8 @@ class ChunkSourceMetadata:
     line_end: int | None
     page_numbers: tuple[int, ...]
     slide_numbers: tuple[int, ...]
+    extraction_methods: tuple[ExtractionMethod, ...]
+    minimum_ocr_confidence: float | None
 
     def __post_init__(self) -> None:
         if self.source_block_start < 0 or self.source_block_end < self.source_block_start:

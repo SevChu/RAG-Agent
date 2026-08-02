@@ -156,11 +156,11 @@ def test_default_registry_routes_case_insensitively_and_rejects_future_types(
     result = registry.parse(text_path)
 
     assert registry.supported_file_types == frozenset(
-        {"docx", "md", "pptx", "txt"}
+        {"docx", "md", "pdf", "pptx", "txt"}
     )
     assert result.file_type == "txt"
-    with pytest.raises(UnsupportedParserError, match="pdf"):
-        registry.parse(tmp_path / "future.pdf")
+    with pytest.raises(UnsupportedParserError, match="epub"):
+        registry.parse(tmp_path / "future.epub")
 
 
 def test_registry_rejects_duplicate_file_type_registration() -> None:

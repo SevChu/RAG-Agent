@@ -6,6 +6,7 @@ from app.ingestion.errors import UnsupportedParserError
 from app.ingestion.models import ParsedDocument
 from app.ingestion.parsers import (
     MarkdownParser,
+    PdfParser,
     PlainTextParser,
     PowerPointParser,
     WordDocumentParser,
@@ -50,8 +51,11 @@ class DocumentParserRegistry:
         return file_type.strip().lower().removeprefix(".")
 
 
-def build_default_registry() -> DocumentParserRegistry:
-    """Build the parsers completed through week 2, plan day 2."""
+def build_default_registry(
+    *,
+    pdf_page_numbers: tuple[int, ...] | None = None,
+) -> DocumentParserRegistry:
+    """Build the parsers completed through week 2, plan day 3."""
 
     return DocumentParserRegistry(
         (
@@ -59,5 +63,6 @@ def build_default_registry() -> DocumentParserRegistry:
             MarkdownParser(),
             WordDocumentParser(),
             PowerPointParser(),
+            PdfParser(page_numbers=pdf_page_numbers),
         )
     )

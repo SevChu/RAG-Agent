@@ -11,6 +11,12 @@ class BlockKind(StrEnum):
     CODE = "code"
     TABLE = "table"
     IMAGE = "image"
+    FORMULA = "formula"
+
+
+class ExtractionMethod(StrEnum):
+    NATIVE_PDF = "native_pdf"
+    OCR = "ocr"
 
 
 @dataclass(frozen=True, slots=True)
@@ -22,6 +28,8 @@ class SourceLocation:
     line_end: int | None = None
     page_number: int | None = None
     slide_number: int | None = None
+    extraction_method: ExtractionMethod | None = None
+    confidence: float | None = None
 
     def __post_init__(self) -> None:
         if self.block_index < 0:
@@ -36,6 +44,10 @@ class SourceLocation:
             and self.line_end < self.line_start
         ):
             raise ValueError("line_end cannot be before line_start.")
+        if self.confidence is not None and not 0 <= self.confidence <= 1:
+            raise ValueError("confidence must be between 0 and 1 when provided.")
+        if self.confidence is not None and self.extraction_method is not ExtractionMethod.OCR:
+            raise ValueError("Only OCR sources can declare confidence.")
 
 
 @dataclass(frozen=True, slots=True)

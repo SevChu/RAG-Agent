@@ -11,7 +11,7 @@ from app.ingestion.chunking import (
     ChunkingContext,
     StructuredDocumentChunker,
 )
-from app.ingestion.models import BlockKind
+from app.ingestion.models import BlockKind, ExtractionMethod
 from app.ingestion.registry import build_default_registry
 
 
@@ -39,6 +39,14 @@ def main() -> None:
         "--slide-number",
         type=int,
         help="Only print blocks from this one-based slide number.",
+    )
+    parser.add_argument(
+        "--page-number",
+        type=int,
+        help=(
+            "Only parse and print one one-based PDF page. This avoids OCR processing "
+            "the entire PDF during manual inspection."
+        ),
     )
     parser.add_argument(
         "--chunks",
@@ -75,6 +83,8 @@ def main() -> None:
         parser.error("--max-blocks must be at least 1")
     if args.slide_number is not None and args.slide_number < 1:
         parser.error("--slide-number must be at least 1")
+    if args.page_number is not None and args.page_number < 1:
+        parser.error("--page-number must be at least 1")
     if args.max_chunks < 1:
         parser.error("--max-chunks must be at least 1")
     if args.chunk_index is not None and args.chunk_index < 0:
@@ -87,7 +97,9 @@ def main() -> None:
     except ValueError as error:
         parser.error(str(error))
 
-    result = build_default_registry().parse(
+    result = build_default_registry(
+        pdf_page_numbers=(args.page_number,) if args.page_number is not None else None
+    ).parse(
         args.path,
         file_type=args.file_type,
     )
@@ -102,10 +114,25 @@ def main() -> None:
         for block in result.blocks
         if block.source.slide_number is not None
     ]
+    extraction_method_counts = Counter(
+        block.source.extraction_method.value
+        for block in result.blocks
+        if block.source.extraction_method is not None
+    )
+    ocr_confidences = [
+        block.source.confidence
+        for block in result.blocks
+        if block.source.extraction_method is ExtractionMethod.OCR
+        and block.source.confidence is not None
+    ]
     matching_blocks = [
         block
         for block in result.blocks
         if (args.kind is None or block.kind.value == args.kind)
+        and (
+            args.page_number is None
+            or block.source.page_number == args.page_number
+        )
         and (
             args.slide_number is None
             or block.source.slide_number == args.slide_number
@@ -122,6 +149,13 @@ def main() -> None:
             "matched_block_count": len(matching_blocks),
             "shown_blocks": min(len(matching_blocks), args.max_blocks),
             "block_kind_counts": dict(sorted(block_kind_counts.items())),
+            "extraction_method_counts": dict(sorted(extraction_method_counts.items())),
+            "minimum_ocr_confidence": min(ocr_confidences, default=None),
+            "average_ocr_confidence": (
+                round(sum(ocr_confidences) / len(ocr_confidences), 4)
+                if ocr_confidences
+                else None
+            ),
             "max_page_number": max(page_numbers, default=None),
             "max_slide_number": max(slide_numbers, default=None),
         },

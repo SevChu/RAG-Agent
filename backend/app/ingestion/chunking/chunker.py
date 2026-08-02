@@ -13,7 +13,7 @@ from app.ingestion.chunking.models import (
     DocumentChunk,
 )
 from app.ingestion.chunking.tokens import EstimatedTokenCounter
-from app.ingestion.models import BlockKind, ParsedBlock, ParsedDocument
+from app.ingestion.models import BlockKind, ExtractionMethod, ParsedBlock, ParsedDocument
 
 
 @dataclass(frozen=True, slots=True)
@@ -22,6 +22,7 @@ class _AtomicUnit:
     block_indices: tuple[int, ...]
     kinds: tuple[BlockKind, ...]
     protected: bool
+    allow_partial_overlap: bool = True
     overlap_token_count: int = 0
 
 
@@ -140,9 +141,13 @@ class StructuredDocumentChunker:
                         chunks=chunks,
                     )
                     current = []
-                paragraph_overlap = min(
-                    config.overlap_tokens,
-                    max(0, available_content_tokens - 1),
+                paragraph_overlap = (
+                    min(
+                        config.overlap_tokens,
+                        max(0, available_content_tokens - 1),
+                    )
+                    if unit.allow_partial_overlap
+                    else 0
                 )
                 for segment_text, overlap_count in self._tokens.split(
                     unit.text,
@@ -154,6 +159,7 @@ class StructuredDocumentChunker:
                         block_indices=unit.block_indices,
                         kinds=unit.kinds,
                         protected=False,
+                        allow_partial_overlap=unit.allow_partial_overlap,
                         overlap_token_count=overlap_count,
                     )
                     self._emit_chunk(
@@ -307,6 +313,14 @@ class StructuredDocumentChunker:
             line_end=self._maximum_location(source_blocks, "line_end"),
             page_numbers=self._location_values(source_blocks, "page_number"),
             slide_numbers=self._location_values(source_blocks, "slide_number"),
+            extraction_methods=tuple(
+                dict.fromkeys(
+                    method
+                    for block in source_blocks
+                    if (method := block.source.extraction_method) is not None
+                )
+            ),
+            minimum_ocr_confidence=self._minimum_ocr_confidence(source_blocks),
         )
         chunks.append(
             DocumentChunk(
@@ -317,6 +331,16 @@ class StructuredDocumentChunker:
                 source=source,
             )
         )
+
+    @staticmethod
+    def _minimum_ocr_confidence(blocks: list[ParsedBlock]) -> float | None:
+        confidences = [
+            block.source.confidence
+            for block in blocks
+            if block.source.extraction_method is ExtractionMethod.OCR
+            and block.source.confidence is not None
+        ]
+        return min(confidences, default=None)
 
     def _section_groups(self, document: ParsedDocument) -> tuple[_SectionGroup, ...]:
         groups: list[_SectionGroup] = []
@@ -392,8 +416,12 @@ class StructuredDocumentChunker:
                     BlockKind.CODE,
                     BlockKind.TABLE,
                     BlockKind.IMAGE,
+                    BlockKind.FORMULA,
                     BlockKind.HEADING,
                 },
+                allow_partial_overlap=(
+                    block.source.extraction_method is not ExtractionMethod.OCR
+                ),
             )
             for block in blocks
         )
@@ -417,6 +445,8 @@ class StructuredDocumentChunker:
                 block_indices[0:0] = unit.block_indices
                 remaining -= unit_tokens
             else:
+                if not unit.allow_partial_overlap:
+                    break
                 suffix = self._tokens.suffix(unit.text, remaining)
                 if suffix:
                     texts.insert(0, suffix)
