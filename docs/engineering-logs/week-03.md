@@ -696,6 +696,7 @@ API Key、数据库迁移或用户启动命令故障。
 | 新模型下载 | 无 |
 | 数据库迁移 | 无；复用计划日 4 的 `20260803_03` 结构 |
 | 实现提交 | `a0dacd3 feat: complete conversational RAG workflows` |
+| 流式显示修正 | `06f53f9 fix: pace SSE answer deltas` |
 
 ### 当日目标
 
