@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     llm_max_output_tokens: int = Field(default=1600, gt=0)
     llm_temperature: float = Field(default=0.2, ge=0, le=2)
     rag_answer_top_k: int = Field(default=6, ge=1, le=20)
+    rag_answer_candidate_k: int = Field(default=20, ge=1, le=100)
     rag_min_similarity_score: float = Field(default=0.3, ge=-1, le=1)
 
     database_url: str = "sqlite+aiosqlite:///../data/app.db"
@@ -39,6 +40,10 @@ class Settings(BaseSettings):
     embedding_model_path: Path = Path("../data/models/embedding/bge-m3")
     embedding_device: Literal["auto", "cuda", "cpu"] = "auto"
     embedding_batch_size: int = Field(default=8, gt=0)
+    reranker_model_path: Path = Path("../data/models/reranker/bge-reranker-v2-m3")
+    reranker_device: Literal["auto", "cuda", "cpu"] = "auto"
+    reranker_batch_size: int = Field(default=4, gt=0)
+    reranker_max_length: int = Field(default=512, ge=32, le=8192)
     auto_index_documents: bool = True
     max_upload_mb: int = Field(default=100, gt=0)
 

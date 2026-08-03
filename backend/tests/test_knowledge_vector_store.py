@@ -83,6 +83,7 @@ def test_store_creates_bge_collection_and_isolates_courses(tmp_path: Path) -> No
         assert all("source_block_start" in item.payload for item in snapshots)
         assert all("context_block_indices" in item.payload for item in snapshots)
         assert all("line_start" in item.payload for item in snapshots)
+        assert all(item.payload.get("content_role") == "exposition" for item in snapshots)
     finally:
         store.close()
 

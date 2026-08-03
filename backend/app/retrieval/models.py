@@ -14,3 +14,15 @@ class DenseRetrievalResult:
     embedding_device: str | None
     fallback_reason: str | None = None
 
+
+@dataclass(frozen=True, slots=True)
+class RerankedRetrievalResult:
+    """Dense candidates after cross-encoder ranking and evidence qualification."""
+
+    query: str
+    hits: tuple[VectorSearchResult, ...]
+    dense_candidate_count: int
+    rejected_evidence_count: int
+    embedding_device: str | None
+    reranker_device: str | None
+    fallback_reason: str | None = None

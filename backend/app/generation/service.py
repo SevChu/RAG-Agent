@@ -170,6 +170,7 @@ def _user_prompt(question: str, hits: Sequence[VectorSearchResult]) -> str:
             "line_start": payload.get("line_start"),
             "line_end": payload.get("line_end"),
             "block_kinds": [str(value) for value in payload.get("block_kinds", [])],
+            "content_role": str(payload.get("content_role", "unknown")),
         }
         metadata_json = json.dumps(metadata, ensure_ascii=False)
         evidence_parts.append(

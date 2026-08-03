@@ -102,15 +102,16 @@ async def answer_course_question(
         if document.status is DocumentStatus.COMPLETED
     ]
     try:
-        retrieval = await indexing.search(
+        retrieval = await indexing.answer_search(
             course_id=course_id,
             query=payload.question,
+            candidate_k=settings.rag_answer_candidate_k,
             top_k=settings.rag_answer_top_k,
             document_ids=ready_document_ids,
         )
     except (FileNotFoundError, RuntimeError, OSError) as error:
         raise IndexStorageError(
-            "问答检索暂时不可用，请检查本地 Embedding 模型与 Qdrant 存储后重试。"
+            "问答检索暂时不可用，请检查本地 Embedding、Reranker 模型与 Qdrant 存储后重试。"
         ) from error
 
     answer, eligible_hits = await GroundedAnswerGenerator(
@@ -150,10 +151,14 @@ async def answer_course_question(
             citations=citations,
             retrieval=AnswerRetrievalRead(
                 requested_top_k=settings.rag_answer_top_k,
+                candidate_top_k=settings.rag_answer_candidate_k,
+                candidate_count=retrieval.dense_candidate_count,
                 returned_count=len(retrieval.hits),
                 eligible_evidence_count=len(eligible_hits),
+                rejected_evidence_count=retrieval.rejected_evidence_count,
                 scope_document_count=len(ready_document_ids),
                 embedding_device=retrieval.embedding_device,
+                reranker_device=retrieval.reranker_device,
                 fallback_reason=retrieval.fallback_reason,
             ),
             usage=usage,
@@ -183,6 +188,9 @@ def _citation_read(
         source_id=source_id,
         retrieval_rank=retrieval_rank,
         score=result.score,
+        dense_score=_optional_float(payload.get("dense_score")),
+        reranker_score=_optional_float(payload.get("reranker_score")),
+        content_role=str(payload.get("content_role", "unknown")),
         document_id=UUID(result.document_id),
         chunk_index=result.chunk_index,
         text=result.text,
@@ -199,4 +207,10 @@ def _citation_read(
 def _optional_int(value: object) -> int | None:
     if isinstance(value, (int, str)):
         return int(value)
+    return None
+
+
+def _optional_float(value: object) -> float | None:
+    if isinstance(value, (float, int, str)):
+        return float(value)
     return None

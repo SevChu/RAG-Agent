@@ -35,6 +35,9 @@ class AnswerCitationRead(BaseModel):
     source_id: int
     retrieval_rank: int
     score: float
+    dense_score: float | None
+    reranker_score: float | None
+    content_role: str
     document_id: UUID
     chunk_index: int
     text: str
@@ -48,12 +51,16 @@ class AnswerCitationRead(BaseModel):
 
 
 class AnswerRetrievalRead(BaseModel):
-    retrieval_mode: str = "dense"
+    retrieval_mode: str = "dense_rerank"
     requested_top_k: int
+    candidate_top_k: int
+    candidate_count: int
     returned_count: int
     eligible_evidence_count: int
+    rejected_evidence_count: int
     scope_document_count: int
     embedding_device: str | None
+    reranker_device: str | None
     fallback_reason: str | None
 
 

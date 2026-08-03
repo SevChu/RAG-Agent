@@ -9,6 +9,7 @@ from qdrant_client import QdrantClient, models
 
 from app.ingestion.chunking import DocumentChunk
 from app.knowledge.embedding import BGE_M3_DIMENSION
+from app.knowledge.evidence import classify_content_role
 from app.knowledge.models import VectorPointSnapshot, VectorSearchResult
 
 _POINT_NAMESPACE = UUID("ad388610-25a4-5c17-bdde-758af933bfe4")
@@ -242,6 +243,13 @@ class QdrantChunkStore:
             "source_block_indices": list(chunk.source.source_block_indices),
             "context_block_indices": list(chunk.source.context_block_indices),
             "block_kinds": [kind.value for kind in chunk.source.block_kinds],
+            "content_role": classify_content_role(
+                chunk.text,
+                {
+                    "section_path": list(chunk.source.section_path),
+                    "block_kinds": [kind.value for kind in chunk.source.block_kinds],
+                },
+            ).value,
             "line_start": chunk.source.line_start,
             "line_end": chunk.source.line_end,
             "page_numbers": list(chunk.source.page_numbers),

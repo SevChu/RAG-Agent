@@ -67,6 +67,9 @@ export interface AnswerCitation {
   source_id: number
   retrieval_rank: number
   score: number
+  dense_score: number | null
+  reranker_score: number | null
+  content_role: string
   document_id: string
   chunk_index: number
   text: string
@@ -80,12 +83,16 @@ export interface AnswerCitation {
 }
 
 export interface AnswerRetrieval {
-  retrieval_mode: 'dense'
+  retrieval_mode: 'dense_rerank'
   requested_top_k: number
+  candidate_top_k: number
+  candidate_count: number
   returned_count: number
   eligible_evidence_count: number
+  rejected_evidence_count: number
   scope_document_count: number
   embedding_device: string | null
+  reranker_device: string | null
   fallback_reason: string | null
 }
 

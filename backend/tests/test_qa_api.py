@@ -12,7 +12,7 @@ from app.indexing import get_indexing_manager
 from app.knowledge import VectorSearchResult
 from app.main import app
 from app.models import Document, DocumentStatus
-from app.retrieval import DenseRetrievalResult
+from app.retrieval import RerankedRetrievalResult
 
 
 async def _create_ready_document(
@@ -44,18 +44,20 @@ class FakeManager:
         self.hits = hits
         self.calls: list[dict[str, object]] = []
 
-    async def search(
+    async def answer_search(
         self,
         *,
         course_id: UUID,
         query: str,
+        candidate_k: int,
         top_k: int,
         document_ids: list[str],
-    ) -> DenseRetrievalResult:
+    ) -> RerankedRetrievalResult:
         self.calls.append(
             {
                 "course_id": course_id,
                 "query": query,
+                "candidate_k": candidate_k,
                 "top_k": top_k,
                 "document_ids": document_ids,
             }
@@ -84,10 +86,13 @@ class FakeManager:
             if self.hits
             else ()
         )
-        return DenseRetrievalResult(
+        return RerankedRetrievalResult(
             query=query,
             hits=results,
+            dense_candidate_count=len(results),
+            rejected_evidence_count=0,
             embedding_device="cpu",
+            reranker_device="cpu",
         )
 
 
@@ -134,8 +139,13 @@ async def test_answer_api_returns_verified_citation(
     assert data["citations"][0]["source_id"] == 1
     assert data["citations"][0]["file_name"] == "讲义.md"
     assert data["citations"][0]["line_start"] == 8
+    assert data["citations"][0]["content_role"] == "unknown"
     assert data["usage"]["total_tokens"] == 96
     assert data["retrieval"]["requested_top_k"] == 6
+    assert data["retrieval"]["candidate_top_k"] == 20
+    assert data["retrieval"]["retrieval_mode"] == "dense_rerank"
+    assert data["retrieval"]["reranker_device"] == "cpu"
+    assert manager.calls[0]["candidate_k"] == 20
     assert manager.calls[0]["document_ids"] == [document_id]
     assert gateway.calls == 1
 

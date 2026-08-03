@@ -25,7 +25,12 @@ from app.knowledge.embedding import BgeM3Embedder
 from app.knowledge.indexing import KnowledgeIndexer
 from app.knowledge.vector_store import QdrantChunkStore
 from app.models import Document, DocumentProcessingStage, DocumentStatus
-from app.retrieval import DenseRetrievalResult, DenseRetriever
+from app.retrieval import (
+    BgeReranker,
+    DenseRetrievalResult,
+    DenseRetriever,
+    RerankedRetrievalResult,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +66,12 @@ class DocumentIndexingPipeline:
         )
         self.indexer = KnowledgeIndexer(self.embedder, self.store)
         self.retriever = DenseRetriever(self.embedder, self.store)
+        self.reranker = BgeReranker(
+            settings.reranker_model_path,
+            device=settings.reranker_device,
+            batch_size=settings.reranker_batch_size,
+            max_length=settings.reranker_max_length,
+        )
 
     def index(
         self,
@@ -205,6 +216,23 @@ class DocumentIndexingPipeline:
             document_ids=document_ids,
         )
 
+    def answer_search(
+        self,
+        *,
+        course_id: UUID,
+        query: str,
+        candidate_k: int,
+        top_k: int,
+        document_ids: list[str],
+    ) -> RerankedRetrievalResult:
+        dense = self.search(
+            course_id=course_id,
+            query=query,
+            top_k=candidate_k,
+            document_ids=document_ids,
+        )
+        return self.reranker.rerank(dense, top_k=top_k)
+
     def close(self) -> None:
         self.store.close()
 
@@ -347,6 +375,27 @@ class DocumentIndexingManager:
                 self._get_pipeline().search,
                 course_id=course_id,
                 query=query,
+                top_k=top_k,
+                document_ids=document_ids,
+            )
+
+    async def answer_search(
+        self,
+        *,
+        course_id: UUID,
+        query: str,
+        candidate_k: int,
+        top_k: int,
+        document_ids: list[str],
+    ) -> RerankedRetrievalResult:
+        """Retrieve broad candidates, rerank them, and reject unsafe evidence roles."""
+
+        async with self._operation_lock:
+            return await asyncio.to_thread(
+                self._get_pipeline().answer_search,
+                course_id=course_id,
+                query=query,
+                candidate_k=candidate_k,
                 top_k=top_k,
                 document_ids=document_ids,
             )

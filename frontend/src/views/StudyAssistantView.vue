@@ -43,6 +43,19 @@ const styleOptions: Array<{ value: AnswerStyle; label: string; detail: string }>
   { value: 'detailed', label: '详细', detail: '资料依据 + 推导与延伸 + 边界和易错点' },
 ]
 
+const contentRoleLabels: Record<string, string> = {
+  exposition: '正文',
+  example: '已讲解示例',
+  exercise_question: '未作答题干',
+  exercise_answer: '答案或解析',
+  code: '代码',
+  unknown: '角色未知',
+}
+
+function contentRoleLabel(role: string): string {
+  return contentRoleLabels[role] ?? role
+}
+
 onMounted(async () => {
   try {
     const [, configuration] = await Promise.all([
@@ -187,8 +200,8 @@ function submitWithKeyboard(event: KeyboardEvent): void {
 
         <div v-if="loading" class="loading-answer" role="status" aria-live="polite">
           <span class="thinking-orbit" aria-hidden="true" />
-          <strong>正在检索课程资料并组织引用…</strong>
-          <p>首次检索可能需要加载本地 Embedding 模型，请稍候。</p>
+          <strong>正在召回、重排课程证据并组织引用…</strong>
+          <p>首次问答需要加载本地 Embedding 与 Reranker 模型，请稍候。</p>
         </div>
 
         <article v-if="result" class="answer-result">
@@ -223,17 +236,30 @@ function submitWithKeyboard(event: KeyboardEvent): void {
                   <strong>{{ citation.file_name }}</strong>
                   <small>{{ formatCitationLocation(citation) }}</small>
                 </span>
-                <span class="citation-score">{{ (citation.score * 100).toFixed(1) }}%</span>
+                <span class="citation-score">
+                  重排 {{ (citation.score * 100).toFixed(1) }}%
+                </span>
               </summary>
               <p>{{ citation.text }}</p>
-              <small>检索排名 #{{ citation.retrieval_rank }} · Chunk {{ citation.chunk_index }}</small>
+              <small>
+                重排排名 #{{ citation.retrieval_rank }} · {{ contentRoleLabel(citation.content_role) }}
+                · Dense
+                {{ citation.dense_score === null ? '—' : `${(citation.dense_score * 100).toFixed(1)}%` }}
+                · Chunk {{ citation.chunk_index }}
+              </small>
             </details>
           </section>
 
           <footer class="answer-meta">
             <span>{{ result.model || '未调用模型' }}</span>
-            <span>检索 {{ result.retrieval.returned_count }} 条</span>
+            <span>
+              候选 {{ result.retrieval.candidate_count }} → 重排
+              {{ result.retrieval.returned_count }}
+            </span>
             <span>合格证据 {{ result.retrieval.eligible_evidence_count }} 条</span>
+            <span v-if="result.retrieval.rejected_evidence_count">
+              排除不合格候选 {{ result.retrieval.rejected_evidence_count }} 条
+            </span>
             <span>{{ (result.elapsed_ms / 1000).toFixed(2) }} s</span>
             <span v-if="result.usage">{{ result.usage.total_tokens }} tokens</span>
           </footer>
