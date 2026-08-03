@@ -47,6 +47,7 @@ from app.schemas.qa import (
 from app.services import ConversationService, CourseService, DocumentService
 
 router = APIRouter(tags=["question-answering"])
+_SSE_DELTA_INTERVAL_SECONDS = 0.015
 
 SessionDependency = Annotated[AsyncSession, Depends(get_session)]
 SettingsDependency = Annotated[Settings, Depends(get_settings)]
@@ -162,7 +163,7 @@ async def stream_course_answer(
                 if await request.is_disconnected():
                     return
                 yield _sse("delta", {"text": delta})
-                await asyncio.sleep(0)
+                await asyncio.sleep(_SSE_DELTA_INTERVAL_SECONDS)
             if await request.is_disconnected():
                 return
             yield _sse(
@@ -234,7 +235,7 @@ async def stream_quick_chat_message(
                 if await request.is_disconnected():
                     return
                 yield _sse("delta", {"text": delta})
-                await asyncio.sleep(0)
+                await asyncio.sleep(_SSE_DELTA_INTERVAL_SECONDS)
             if await request.is_disconnected():
                 return
             usage = (
