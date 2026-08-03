@@ -24,6 +24,7 @@ from app.knowledge.embedding import BgeM3Embedder
 from app.knowledge.indexing import KnowledgeIndexer
 from app.knowledge.vector_store import QdrantChunkStore
 from app.models import Document, DocumentStatus
+from app.retrieval import DenseRetrievalResult, DenseRetriever
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +57,7 @@ class DocumentIndexingPipeline:
             collection_name=settings.qdrant_collection_name,
         )
         self.indexer = KnowledgeIndexer(self.embedder, self.store)
+        self.retriever = DenseRetriever(self.embedder, self.store)
 
     def index(self, document: IndexingDocument) -> int:
         source_path = (
@@ -92,6 +94,21 @@ class DocumentIndexingPipeline:
 
     def delete_course(self, *, course_id: UUID) -> None:
         self.store.delete_course(course_id=str(course_id))
+
+    def search(
+        self,
+        *,
+        course_id: UUID,
+        query: str,
+        top_k: int,
+        document_ids: list[str],
+    ) -> DenseRetrievalResult:
+        return self.retriever.search(
+            course_id=str(course_id),
+            query=query,
+            top_k=top_k,
+            document_ids=document_ids,
+        )
 
     def close(self) -> None:
         self.store.close()
@@ -194,6 +211,25 @@ class DocumentIndexingManager:
             await asyncio.to_thread(
                 self._get_pipeline().delete_course,
                 course_id=course_id,
+            )
+
+    async def search(
+        self,
+        *,
+        course_id: UUID,
+        query: str,
+        top_k: int,
+        document_ids: list[str],
+    ) -> DenseRetrievalResult:
+        """Serialize reads with local Qdrant mutations and keep model work off the loop."""
+
+        async with self._operation_lock:
+            return await asyncio.to_thread(
+                self._get_pipeline().search,
+                course_id=course_id,
+                query=query,
+                top_k=top_k,
+                document_ids=document_ids,
             )
 
     async def close(self) -> None:

@@ -1,6 +1,6 @@
 # 基于 RAG 的计算机专业学习 Agent
 
-> 项目状态：第 1 周和第 2 周均已完成并通过验收；第 3 周尚未开始。
+> 项目状态：第 1 周和第 2 周均已完成并通过验收；第 3 周计划日 1 已完成并通过验收。
 
 ## 1. 项目简介
 
@@ -566,6 +566,9 @@ LLM_AVAILABLE_MODELS=deepseek-v4-flash,deepseek-v4-pro
 - 加入查询改写、拒答和 SSE 流式输出；
 - 建立第一批人工评测数据。
 
+当前进度：计划日 1 的课程范围 Dense Top-K 检索和数据结构 5 个问题 × Top-5 抽查已完成
+并通过用户验收；主题 `Hit@5=100%`，安全支持率 80%。重排、LLM 和 SSE 尚未开始。
+
 ### 第 4 周：Agent、总结和出题
 
 - 完成 LangGraph 工作流；
@@ -975,3 +978,6 @@ uv run python -m app.ingestion.inspect `
 - [第 2 周计划日 4 验收说明](docs/deliverables/week-02-day-04.md)
 - [第 2 周计划日 5 验收说明](docs/deliverables/week-02-day-05.md)
 - [第 2 周整体验收说明](docs/deliverables/week-02.md)
+- [第 3 周工程日志：RAG 问答](docs/engineering-logs/week-03.md)
+- [第 3 周计划日 1 验收说明](docs/deliverables/week-03-day-01.md)
+- [第 3 周计划日 1 检索抽查报告](docs/deliverables/week-03-day-01-retrieval-review.md)

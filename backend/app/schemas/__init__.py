@@ -6,6 +6,11 @@ from app.schemas.document import (
     DocumentDeleteResult,
     DocumentRead,
 )
+from app.schemas.retrieval import (
+    RetrievalHitRead,
+    RetrievalSearchRead,
+    RetrievalSearchRequest,
+)
 
 __all__ = [
     "APIError",
@@ -17,4 +22,7 @@ __all__ = [
     "DocumentBulkDeleteResult",
     "DocumentDeleteResult",
     "DocumentRead",
+    "RetrievalHitRead",
+    "RetrievalSearchRead",
+    "RetrievalSearchRequest",
 ]
