@@ -97,7 +97,8 @@ class FakeGateway:
 
     async def complete(self, *, system_prompt: str, user_prompt: str) -> ChatCompletion:
         self.calls += 1
-        assert "均衡作答" in system_prompt
+        assert "## 结论" in system_prompt
+        assert "## 关键要点" in system_prompt
         assert "后进先出" in user_prompt
         return ChatCompletion(
             content=(

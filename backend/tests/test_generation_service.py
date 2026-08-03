@@ -87,6 +87,52 @@ async def test_grounded_answer_refuses_without_eligible_evidence_or_llm_call() -
 
 
 @pytest.mark.parametrize(
+    ("style", "required_markers", "forbidden_markers"),
+    [
+        (
+            AnswerStyle.CONCISE,
+            ("80～160", "不使用标题", "最多 3 个单句短要点"),
+            ("## 结论", "## 推导与延伸"),
+        ),
+        (
+            AnswerStyle.BALANCED,
+            ("220～450", "## 结论", "## 关键要点", "2～4 条"),
+            ("## 推导与延伸",),
+        ),
+        (
+            AnswerStyle.DETAILED,
+            (
+                "500～900",
+                "## 资料依据",
+                "## 推导与延伸",
+                "证据前提 → 推理过程 → 可得结论/应用",
+                "基于资料的推导",
+            ),
+            ("不使用标题",),
+        ),
+    ],
+)
+async def test_answer_styles_use_distinct_output_contracts(
+    style: AnswerStyle,
+    required_markers: tuple[str, ...],
+    forbidden_markers: tuple[str, ...],
+) -> None:
+    gateway = FakeGateway(
+        '{"sufficient_evidence":true,"answer":"栈遵循后进先出原则。[1]",'
+        '"used_source_ids":[1]}'
+    )
+    generator = GroundedAnswerGenerator(gateway, min_similarity_score=0.3)
+
+    await generator.answer(question="什么是栈？", hits=[_hit()], style=style)
+
+    system_prompt = gateway.calls[0][0]
+    for marker in required_markers:
+        assert marker in system_prompt
+    for marker in forbidden_markers:
+        assert marker not in system_prompt
+
+
+@pytest.mark.parametrize(
     "content",
     [
         '{"sufficient_evidence":true,"answer":"错误引用。[2]",'

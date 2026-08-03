@@ -35,6 +35,7 @@ async def api_settings(tmp_path: Path) -> AsyncIterator[Settings]:
         database_url=f"sqlite+aiosqlite:///{database_path}",
         upload_dir=tmp_path / "uploads",
         qdrant_path=tmp_path / "qdrant",
+        llm_api_key="",
         auto_index_documents=False,
         max_upload_mb=1,
     )

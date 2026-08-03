@@ -38,9 +38,9 @@ const answerHtml = computed(() => {
 })
 
 const styleOptions: Array<{ value: AnswerStyle; label: string; detail: string }> = [
-  { value: 'concise', label: '简洁', detail: '结论优先，保留必要解释' },
-  { value: 'balanced', label: '均衡', detail: '结论、原因与要点兼顾' },
-  { value: 'detailed', label: '详细', detail: '分层展开步骤与边界' },
+  { value: 'concise', label: '简洁', detail: '单段或至多 3 个短要点，只保留核心依据' },
+  { value: 'balanced', label: '均衡', detail: '结论 + 2～4 个关键要点 + 必要边界' },
+  { value: 'detailed', label: '详细', detail: '资料依据 + 推导与延伸 + 边界和易错点' },
 ]
 
 onMounted(async () => {
