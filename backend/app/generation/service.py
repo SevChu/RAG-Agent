@@ -11,7 +11,10 @@ from app.generation.client import ChatCompletionGateway
 from app.generation.models import AnswerStatus, AnswerStyle, GroundedAnswer
 from app.knowledge.models import VectorSearchResult
 
-_INLINE_CITATION = re.compile(r"\[(\d+)]")
+_INLINE_CITATION_GROUP = re.compile(
+    r"\[([0-9]+(?:\s*[,，、]\s*[0-9]+)*)]"
+)
+_INLINE_CITATION_SEPARATOR = re.compile(r"\s*[,，、]\s*")
 _INSUFFICIENT_ANSWER = (
     "根据当前课程资料，我暂时找不到足够证据回答这个问题。"
     "你可以补充相关资料，或把问题缩小到资料已覆盖的知识点。"
@@ -30,16 +33,6 @@ class _GeneratedPayload(BaseModel):
         if not normalized:
             raise ValueError("answer cannot be blank")
         return normalized
-
-    @field_validator("used_source_ids")
-    @classmethod
-    def source_ids_must_be_unique_and_positive(cls, value: list[int]) -> list[int]:
-        if any(source_id < 1 for source_id in value):
-            raise ValueError("source ids must be positive")
-        if len(set(value)) != len(value):
-            raise ValueError("source ids must be unique")
-        return value
-
 
 class GroundedAnswerGenerator:
     """Generate one answer and enforce that every citation names supplied evidence."""
@@ -80,14 +73,9 @@ class GroundedAnswerGenerator:
         )
         payload = _parse_payload(completion.content)
         available_ids = set(range(1, len(eligible_hits) + 1))
-        inline_ids = tuple(
-            dict.fromkeys(int(value) for value in _INLINE_CITATION.findall(payload.answer))
-        )
-        declared_ids = tuple(payload.used_source_ids)
+        inline_ids = _inline_source_ids(payload.answer)
         if not set(inline_ids).issubset(available_ids):
             raise LLMOutputError("模型生成了不存在的引用编号，本次回答已拦截，请重试。")
-        if inline_ids != declared_ids:
-            raise LLMOutputError("模型回答中的引用与引用清单不一致，本次回答已拦截，请重试。")
         if payload.sufficient_evidence and not inline_ids:
             raise LLMOutputError("模型回答没有提供资料引用，本次回答已拦截，请重试。")
 
@@ -116,6 +104,16 @@ def _parse_payload(content: str) -> _GeneratedPayload:
         return _GeneratedPayload.model_validate(raw)
     except (json.JSONDecodeError, ValidationError, TypeError) as error:
         raise LLMOutputError("模型没有按约定格式返回回答，本次结果已拦截，请重试。") from error
+
+
+def _inline_source_ids(answer: str) -> tuple[int, ...]:
+    """Return unique source IDs in first-visible-citation order."""
+
+    source_ids: dict[int, None] = {}
+    for group in _INLINE_CITATION_GROUP.findall(answer):
+        for value in _INLINE_CITATION_SEPARATOR.split(group):
+            source_ids.setdefault(int(value), None)
+    return tuple(source_ids)
 
 
 def _system_prompt(style: AnswerStyle) -> str:
@@ -155,7 +153,7 @@ def _system_prompt(style: AnswerStyle) -> str:
    并且不得把推导描述成资料原文结论。
 7. 若无法形成至少一个有引用支持的答案，设置 sufficient_evidence=false，
    answer 简要说明资料不足，used_source_ids=[]。
-8. used_source_ids 必须按正文首次出现顺序列出，且与正文中的 [n] 完全一致。
+8. used_source_ids 列出正文使用的来源编号；服务端最终以正文实际出现的引用为准。
 9. {style_instruction}
 """
 

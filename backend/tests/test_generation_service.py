@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from app.core.exceptions import LLMOutputError
@@ -137,8 +139,6 @@ async def test_answer_styles_use_distinct_output_contracts(
     [
         '{"sufficient_evidence":true,"answer":"错误引用。[2]",'
         '"used_source_ids":[2]}',
-        '{"sufficient_evidence":true,"answer":"正文引用。[1]",'
-        '"used_source_ids":[]}',
         '{"sufficient_evidence":true,"answer":"没有引用",'
         '"used_source_ids":[]}',
         "not-json",
@@ -153,3 +153,44 @@ async def test_grounded_answer_blocks_invalid_model_citations(content: str) -> N
             hits=[_hit()],
             style=AnswerStyle.DETAILED,
         )
+
+
+@pytest.mark.parametrize(
+    ("answer_text", "declared_ids", "expected_ids"),
+    [
+        ("先看第二条。[2] 再看第一条。[1]", [1, 2], (2, 1)),
+        ("两条资料共同支持。[1, 2]", [2, 1], (1, 2)),
+        ("两条资料共同支持。[1，2]", [], (1, 2)),
+        ("两条资料共同支持。[1、2]", [1, 1, 2], (1, 2)),
+        ("重复引用第一条。[1] 再次引用。[1]", [1], (1,)),
+    ],
+)
+async def test_grounded_answer_uses_visible_citations_as_source_of_truth(
+    answer_text: str,
+    declared_ids: list[int],
+    expected_ids: tuple[int, ...],
+) -> None:
+    second_hit = VectorSearchResult(
+        point_id="point-2",
+        score=0.82,
+        course_id="course-1",
+        document_id="3f9d3698-504c-4aed-8f80-8422126b8810",
+        chunk_index=5,
+        text="队列是一种先进先出的线性表。",
+        payload={"file_name": "数据结构讲义.md"},
+    )
+    gateway = FakeGateway(
+        '{"sufficient_evidence":true,'
+        f'"answer":{json.dumps(answer_text, ensure_ascii=False)},'
+        f'"used_source_ids":{json.dumps(declared_ids)}'
+        "}"
+    )
+    generator = GroundedAnswerGenerator(gateway, min_similarity_score=0.3)
+
+    answer, _ = await generator.answer(
+        question="比较栈和队列。",
+        hits=[_hit(), second_hit],
+        style=AnswerStyle.BALANCED,
+    )
+
+    assert answer.used_source_ids == expected_ids
