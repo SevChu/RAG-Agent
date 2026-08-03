@@ -15,6 +15,8 @@ from app.schemas.conversation import (
     ConversationDetailRead,
     ConversationMessageRead,
     ConversationSummaryRead,
+    QuickConversationDetailRead,
+    QuickConversationSummaryRead,
 )
 from app.services import ConversationService, CourseService
 
@@ -37,6 +39,66 @@ async def list_course_conversations(
             if conversation.course is not None
         ]
     )
+
+
+@router.get(
+    "/quick-conversations",
+    response_model=APIResponse[list[QuickConversationSummaryRead]],
+)
+async def list_quick_conversations(
+    session: SessionDependency,
+) -> APIResponse[list[QuickConversationSummaryRead]]:
+    conversations = await ConversationService(session).list_quick_conversations()
+    return APIResponse(data=[_quick_summary(item) for item in conversations])
+
+
+@router.post(
+    "/quick-conversations",
+    response_model=APIResponse[QuickConversationSummaryRead],
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_quick_conversation(
+    payload: ConversationCreate,
+    session: SessionDependency,
+) -> APIResponse[QuickConversationSummaryRead]:
+    conversation = await ConversationService(session).create_quick_conversation(
+        title=payload.title,
+    )
+    return APIResponse(data=_quick_summary(conversation))
+
+
+@router.get(
+    "/quick-conversations/{conversation_id}",
+    response_model=APIResponse[QuickConversationDetailRead],
+)
+async def get_quick_conversation(
+    conversation_id: UUID,
+    session: SessionDependency,
+) -> APIResponse[QuickConversationDetailRead]:
+    conversation = await ConversationService(session).get_quick_conversation(
+        conversation_id=conversation_id,
+        with_messages=True,
+    )
+    return APIResponse(
+        data=QuickConversationDetailRead(
+            **_quick_summary(conversation).model_dump(),
+            messages=[
+                ConversationMessageRead.model_validate(message) for message in conversation.messages
+            ],
+        )
+    )
+
+
+@router.delete(
+    "/quick-conversations/{conversation_id}",
+    response_model=APIResponse[ConversationDeleteResult],
+)
+async def delete_quick_conversation(
+    conversation_id: UUID,
+    session: SessionDependency,
+) -> APIResponse[ConversationDeleteResult]:
+    await ConversationService(session).delete_quick(conversation_id=conversation_id)
+    return APIResponse(data=ConversationDeleteResult(id=conversation_id))
 
 
 @router.post(
@@ -91,8 +153,7 @@ async def get_course_conversation(
         data=ConversationDetailRead(
             **_summary(conversation, course_name=course.name).model_dump(),
             messages=[
-                ConversationMessageRead.model_validate(message)
-                for message in conversation.messages
+                ConversationMessageRead.model_validate(message) for message in conversation.messages
             ],
         )
     )
@@ -125,6 +186,18 @@ def _summary(
         id=conversation.id,
         course_id=conversation.course_id,
         course_name=course_name,
+        title=conversation.title,
+        created_at=conversation.created_at,
+        updated_at=conversation.updated_at,
+        last_message_at=conversation.last_message_at,
+    )
+
+
+def _quick_summary(conversation: Conversation) -> QuickConversationSummaryRead:
+    if conversation.course_id is not None:
+        raise ValueError("Quick conversation cannot have a course_id")
+    return QuickConversationSummaryRead(
+        id=conversation.id,
         title=conversation.title,
         created_at=conversation.created_at,
         updated_at=conversation.updated_at,

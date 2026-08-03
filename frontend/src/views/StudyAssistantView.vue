@@ -3,15 +3,15 @@ import DOMPurify from 'dompurify'
 import { ElAlert, ElOption, ElSelect } from 'element-plus'
 import MarkdownIt from 'markdown-it'
 import { storeToRefs } from 'pinia'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { toFriendlyApiError } from '@/api/client'
-import { askCourseQuestion } from '@/api/qa'
+import { streamCourseQuestion } from '@/api/qa'
 import { useConversationsStore } from '@/stores/conversations'
 import { useCoursesStore } from '@/stores/courses'
 import { useLLMStore } from '@/stores/llm'
-import type { AnswerStyle, CourseConversationMessage } from '@/types/api'
+import type { AnswerCitation, AnswerStyle, CourseConversationMessage } from '@/types/api'
 import { formatCitationLocation } from '@/utils/format'
 
 const markdown = new MarkdownIt({ html: false, breaks: true, linkify: true })
@@ -28,6 +28,11 @@ const activeConversationId = ref('')
 const errorMessage = ref('')
 const loading = ref(false)
 const restoring = ref(false)
+const streamingQuestion = ref('')
+const streamingAnswer = ref('')
+const streamingCitations = ref<AnswerCitation[]>([])
+const streamState = ref<'idle' | 'streaming' | 'interrupted' | 'error'>('idle')
+let abortController: AbortController | null = null
 
 const selectedCourse = computed(() =>
   store.courses.find((course) => course.id === selectedCourseId.value),
@@ -80,6 +85,8 @@ onMounted(async () => {
   }
 })
 
+onBeforeUnmount(() => abortController?.abort())
+
 watch(
   () => route.params.conversationId,
   async () => {
@@ -125,6 +132,11 @@ async function restoreConversationFromRoute(): Promise<void> {
 }
 
 async function startNewConversation(): Promise<void> {
+  stopStreaming()
+  streamingQuestion.value = ''
+  streamingAnswer.value = ''
+  streamingCitations.value = []
+  streamState.value = 'idle'
   activeConversationId.value = ''
   errorMessage.value = ''
   question.value = ''
@@ -139,6 +151,12 @@ async function submitQuestion(): Promise<void> {
   }
   loading.value = true
   errorMessage.value = ''
+  const submittedQuestion = question.value.trim()
+  streamingQuestion.value = submittedQuestion
+  streamingAnswer.value = ''
+  streamingCitations.value = []
+  streamState.value = 'streaming'
+  abortController = new AbortController()
   try {
     let conversationId = activeConversationId.value
     if (!conversationId) {
@@ -149,21 +167,57 @@ async function submitQuestion(): Promise<void> {
       activeConversationId.value = conversation.id
       await router.replace(`/assistant/${conversation.id}`)
     }
-    const result = await askCourseQuestion(selectedCourseId.value, {
-      question: question.value.trim(),
-      answer_style: answerStyle.value,
-      conversation_id: conversationId,
-      model: selectedModel.value,
-    })
-    await conversationsStore.loadCourseConversation(
+    await streamCourseQuestion(
       selectedCourseId.value,
-      result.conversation_id,
+      {
+        question: submittedQuestion,
+        answer_style: answerStyle.value,
+        conversation_id: conversationId,
+        model: selectedModel.value,
+      },
+      abortController.signal,
+      {
+        onDelta: (delta) => {
+          streamingAnswer.value += delta
+        },
+        onCitations: (data) => {
+          streamingCitations.value = (data as { citations: AnswerCitation[] }).citations
+        },
+        onComplete: async (result) => {
+          await conversationsStore.loadCourseConversation(
+            selectedCourseId.value,
+            result.conversation_id,
+          )
+          await conversationsStore.loadCourseConversations()
+          question.value = ''
+          streamState.value = 'idle'
+          streamingQuestion.value = ''
+          streamingAnswer.value = ''
+          streamingCitations.value = []
+        },
+        onError: (error) => {
+          streamState.value = 'error'
+          errorMessage.value = error.message
+        },
+      },
     )
-    await conversationsStore.loadCourseConversations()
-    question.value = ''
   } catch (error) {
-    errorMessage.value = toFriendlyApiError(error).message
+    if (abortController?.signal.aborted) {
+      streamState.value = 'interrupted'
+    } else {
+      streamState.value = 'error'
+      errorMessage.value = toFriendlyApiError(error).message
+    }
   } finally {
+    loading.value = false
+    abortController = null
+  }
+}
+
+function stopStreaming(): void {
+  if (abortController) {
+    abortController.abort()
+    streamState.value = 'interrupted'
     loading.value = false
   }
 }
@@ -188,7 +242,7 @@ function submitWithKeyboard(event: KeyboardEvent): void {
         <h1>课程学习助手</h1>
         <p>从所选课程资料中检索证据，再生成带页码、幻灯片号或文本行号的可追溯回答。</p>
       </div>
-      <span class="context-pill">会话已持久化 · 回答仍逐题检索</span>
+      <span class="context-pill">有限上下文 · 改写后逐题检索</span>
     </header>
 
     <el-alert
@@ -359,6 +413,7 @@ function submitWithKeyboard(event: KeyboardEvent): void {
                   {{ message.retrieval.returned_count }}
                 </span>
                 <span>合格证据 {{ message.retrieval.eligible_evidence_count }} 条</span>
+                <span>上下文 {{ message.retrieval.context_message_count }} 条</span>
                 <span v-if="message.retrieval.rejected_evidence_count">
                   排除不合格候选 {{ message.retrieval.rejected_evidence_count }} 条
                 </span>
@@ -366,15 +421,46 @@ function submitWithKeyboard(event: KeyboardEvent): void {
                   {{ (message.elapsed_ms / 1000).toFixed(2) }} s
                 </span>
                 <span v-if="message.usage">{{ message.usage.total_tokens }} tokens</span>
+                <span v-if="message.retrieval.rewrite_applied">
+                  已改写检索：{{ message.retrieval.rewritten_query }}
+                </span>
               </footer>
             </article>
           </template>
         </div>
 
-        <div v-if="loading" class="loading-answer compact" role="status" aria-live="polite">
-          <span class="thinking-orbit" aria-hidden="true" />
-          <strong>正在召回、重排课程证据并组织引用…</strong>
-          <p>首次问答需要加载本地 Embedding 与 Reranker 模型，请稍候。</p>
+        <div v-if="streamingQuestion" class="message-thread live-thread" aria-live="polite">
+          <div class="question-bubble">{{ streamingQuestion }}</div>
+          <article class="answer-result live-answer">
+            <div class="answer-heading">
+              <div>
+                <span class="soft-label">STREAMING ANSWER</span>
+                <h2>资料依据回答</h2>
+              </div>
+              <span class="answer-status" :class="{ refused: streamState !== 'streaming' }">
+                {{
+                  streamState === 'streaming'
+                    ? '正在生成'
+                    : streamState === 'interrupted'
+                      ? '已中断 · 未保存'
+                      : '生成失败 · 未保存'
+                }}
+              </span>
+            </div>
+            <div
+              v-if="streamingAnswer"
+              class="markdown-answer"
+              v-html="DOMPurify.sanitize(markdown.render(streamingAnswer))"
+            />
+            <div v-else class="loading-answer compact" role="status">
+              <span class="thinking-orbit" aria-hidden="true" />
+              <strong>正在改写问题、召回并校验证据…</strong>
+              <p>正文通过引用一致性校验后开始流式显示。</p>
+            </div>
+            <p v-if="streamingCitations.length" class="stream-citation-note">
+              已校验 {{ streamingCitations.length }} 条引用，正在保存完整回答…
+            </p>
+          </article>
         </div>
 
         <form class="question-composer" @submit.prevent="submitQuestion">
@@ -389,8 +475,16 @@ function submitWithKeyboard(event: KeyboardEvent): void {
           />
           <div class="composer-footer">
             <span>Ctrl / ⌘ + Enter 发送</span>
-            <button type="submit" class="primary-button" :disabled="!canSubmit">
-              {{ loading ? '正在回答…' : '检索并回答' }}
+            <button
+              v-if="loading"
+              type="button"
+              class="secondary-button stop-button"
+              @click="stopStreaming"
+            >
+              停止生成
+            </button>
+            <button v-else type="submit" class="primary-button" :disabled="!canSubmit">
+              检索并回答
             </button>
           </div>
         </form>
@@ -728,6 +822,26 @@ function submitWithKeyboard(event: KeyboardEvent): void {
 .answer-meta span + span::before {
   margin-right: 12px;
   content: '·';
+}
+
+.live-thread {
+  margin-top: 14px;
+}
+
+.live-answer {
+  border-color: rgb(62 155 255 / 28%);
+}
+
+.stream-citation-note {
+  margin: 0;
+  padding-top: 12px;
+  font-size: 11px;
+  color: var(--ink-faint);
+  border-top: 1px solid var(--line-soft);
+}
+
+.stop-button {
+  color: var(--danger);
 }
 
 .question-composer {

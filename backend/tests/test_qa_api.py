@@ -124,6 +124,54 @@ class FakeGateway:
             usage=TokenUsage(prompt_tokens=80, completion_tokens=16, total_tokens=96),
         )
 
+    async def complete_text(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+    ) -> ChatCompletion:
+        raise AssertionError("course answer must not use plain text completion")
+
+
+class ContextGateway:
+    def __init__(self) -> None:
+        self.rewrite_prompts: list[str] = []
+
+    async def complete(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+    ) -> ChatCompletion:
+        if "检索查询改写器" in system_prompt:
+            self.rewrite_prompts.append(user_prompt)
+            return ChatCompletion(
+                content=(
+                    '{"standalone_query":"栈的后进先出特性有什么作用？"}'
+                ),
+                model=model,
+            )
+        return ChatCompletion(
+            content=(
+                '{"sufficient_evidence":true,'
+                '"answer":"栈遵循后进先出原则。[1]",'
+                '"used_source_ids":[1]}'
+            ),
+            model=model,
+            usage=TokenUsage(prompt_tokens=50, completion_tokens=12, total_tokens=62),
+        )
+
+    async def complete_text(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+    ) -> ChatCompletion:
+        raise AssertionError("not used")
+
 
 async def test_answer_api_returns_verified_citation(
     api_client: AsyncClient,
@@ -261,4 +309,56 @@ async def test_llm_configuration_api_never_returns_key(
     assert data["configured"] is False
     assert data["model"] == "deepseek-v4-flash"
     assert data["answer_styles"] == ["concise", "balanced", "detailed"]
+    assert data["rag_context_max_messages"] == 6
+    assert data["quick_chat_context_max_messages"] == 10
     assert "api_key" not in data
+
+
+async def test_course_stream_rewrites_follow_up_and_persists_only_complete_answer(
+    api_client: AsyncClient,
+    api_settings: Settings,
+) -> None:
+    course_id, document_id = await _create_ready_document(api_client, api_settings)
+    manager = FakeManager(course_id=course_id, document_id=document_id)
+    gateway = ContextGateway()
+    app.dependency_overrides[get_indexing_manager] = lambda: manager
+    app.dependency_overrides[get_chat_completion_gateway] = lambda: gateway
+
+    first = await api_client.post(
+        f"/api/courses/{course_id}/answers",
+        json={"question": "什么是栈？"},
+    )
+    conversation_id = first.json()["data"]["conversation_id"]
+
+    response = await api_client.post(
+        f"/api/courses/{course_id}/answers/stream",
+        json={
+            "question": "它有什么作用？",
+            "conversation_id": conversation_id,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/event-stream")
+    assert "event: start" in response.text
+    assert "event: delta" in response.text
+    assert "event: citations" in response.text
+    assert "event: complete" in response.text
+    assert manager.calls[-1]["query"] == "栈的后进先出特性有什么作用？"
+    assert len(gateway.rewrite_prompts) == 1
+    detail = (
+        await api_client.get(
+            f"/api/courses/{course_id}/conversations/{conversation_id}"
+        )
+    ).json()["data"]
+    assert [message["role"] for message in detail["messages"]] == [
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+    ]
+    retrieval = detail["messages"][-1]["retrieval"]
+    assert retrieval["original_question"] == "它有什么作用？"
+    assert retrieval["rewritten_query"] == "栈的后进先出特性有什么作用？"
+    assert retrieval["context_message_count"] == 2
+    assert retrieval["rewrite_applied"] is True

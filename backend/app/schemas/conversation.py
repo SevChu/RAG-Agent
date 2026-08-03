@@ -35,6 +35,16 @@ class ConversationSummaryRead(BaseModel):
     last_message_at: datetime | None
 
 
+class QuickConversationSummaryRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    title: str
+    created_at: datetime
+    updated_at: datetime
+    last_message_at: datetime | None
+
+
 class ConversationMessageRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -54,6 +64,10 @@ class ConversationMessageRead(BaseModel):
 
 
 class ConversationDetailRead(ConversationSummaryRead):
+    messages: list[ConversationMessageRead]
+
+
+class QuickConversationDetailRead(QuickConversationSummaryRead):
     messages: list[ConversationMessageRead]
 
 

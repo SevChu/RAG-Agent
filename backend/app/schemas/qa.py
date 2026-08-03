@@ -69,6 +69,10 @@ class AnswerRetrievalRead(BaseModel):
     embedding_device: str | None
     reranker_device: str | None
     fallback_reason: str | None
+    original_question: str = ""
+    rewritten_query: str = ""
+    context_message_count: int = 0
+    rewrite_applied: bool = False
 
 
 class AnswerTokenUsageRead(BaseModel):
@@ -100,3 +104,23 @@ class LLMConfigurationRead(BaseModel):
     available_models: list[str]
     configured: bool
     answer_styles: list[AnswerStyle]
+    rag_context_max_messages: int
+    quick_chat_context_max_messages: int
+
+
+class QuickChatRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=4000)
+    model: str | None = Field(default=None, min_length=1, max_length=120)
+
+    @field_validator("message")
+    @classmethod
+    def normalize_message(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("message cannot be blank")
+        return normalized
+
+    @field_validator("model")
+    @classmethod
+    def normalize_quick_model(cls, value: str | None) -> str | None:
+        return value.strip() if value is not None else None

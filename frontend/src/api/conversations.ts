@@ -6,10 +6,45 @@ import type {
   CourseConversationDetail,
   CourseConversationSummary,
   DeleteResult,
+  QuickConversationDetail,
+  QuickConversationSummary,
 } from '@/types/api'
 
 export async function fetchCourseConversations(): Promise<CourseConversationSummary[]> {
   const response = await http.get<ApiResponse<CourseConversationSummary[]>>('/conversations')
+  return unwrapResponse(response.data)
+}
+
+export async function fetchQuickConversations(): Promise<QuickConversationSummary[]> {
+  const response = await http.get<ApiResponse<QuickConversationSummary[]>>(
+    '/quick-conversations',
+  )
+  return unwrapResponse(response.data)
+}
+
+export async function createQuickConversation(
+  title?: string,
+): Promise<QuickConversationSummary> {
+  const response = await http.post<ApiResponse<QuickConversationSummary>>(
+    '/quick-conversations',
+    title ? { title } : {},
+  )
+  return unwrapResponse(response.data)
+}
+
+export async function fetchQuickConversation(
+  conversationId: string,
+): Promise<QuickConversationDetail> {
+  const response = await http.get<ApiResponse<QuickConversationDetail>>(
+    `/quick-conversations/${conversationId}`,
+  )
+  return unwrapResponse(response.data)
+}
+
+export async function removeQuickConversation(conversationId: string): Promise<DeleteResult> {
+  const response = await http.delete<ApiResponse<DeleteResult>>(
+    `/quick-conversations/${conversationId}`,
+  )
   return unwrapResponse(response.data)
 }
 

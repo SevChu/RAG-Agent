@@ -18,7 +18,7 @@ const router = createRouter({
       component: () => import('@/views/CourseDetailView.vue'),
     },
     {
-      path: '/chat/new',
+      path: '/chat/:conversationId?',
       name: 'quick-chat',
       component: () => import('@/views/QuickChatView.vue'),
     },

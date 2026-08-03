@@ -32,6 +32,17 @@ class ConversationService:
         await self.session.commit()
         return conversation
 
+    async def create_quick_conversation(
+        self,
+        *,
+        title: str | None = None,
+    ) -> Conversation:
+        conversation = await self.repository.create_quick(
+            title=title or "新快速对话",
+        )
+        await self.session.commit()
+        return conversation
+
     async def get_course_conversation(
         self,
         *,
@@ -56,17 +67,45 @@ class ConversationService:
     async def list_all_course_conversations(self) -> list[Conversation]:
         return await self.repository.list_course_conversations()
 
+    async def get_quick_conversation(
+        self,
+        *,
+        conversation_id: UUID,
+        with_messages: bool = False,
+    ) -> Conversation:
+        conversation = await self.repository.get_quick_conversation(
+            conversation_id=conversation_id,
+            with_messages=with_messages,
+        )
+        if conversation is None:
+            raise NotFoundError("Quick conversation not found.")
+        return conversation
+
+    async def list_quick_conversations(self) -> list[Conversation]:
+        return await self.repository.list_quick_conversations()
+
+    async def recent_completed_messages(
+        self,
+        conversation_id: UUID,
+        *,
+        limit: int,
+    ) -> list[Message]:
+        return await self.repository.list_completed_messages(
+            conversation_id,
+            limit=limit,
+        )
+
     async def record_exchange(
         self,
         *,
         conversation: Conversation,
         question: str,
         answer: str,
-        answer_status: str,
-        answer_style: str,
+        answer_status: str | None,
+        answer_style: str | None,
         model: str | None,
         citations: list[dict[str, Any]],
-        retrieval: dict[str, Any],
+        retrieval: dict[str, Any] | None,
         usage: dict[str, Any] | None,
         elapsed_ms: float,
     ) -> tuple[Message, Message]:
@@ -105,6 +144,14 @@ class ConversationService:
     async def delete(self, *, course_id: UUID, conversation_id: UUID) -> Conversation:
         conversation = await self.get_course_conversation(
             course_id=course_id,
+            conversation_id=conversation_id,
+        )
+        await self.repository.delete(conversation)
+        await self.session.commit()
+        return conversation
+
+    async def delete_quick(self, *, conversation_id: UUID) -> Conversation:
+        conversation = await self.get_quick_conversation(
             conversation_id=conversation_id,
         )
         await self.repository.delete(conversation)

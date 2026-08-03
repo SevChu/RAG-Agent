@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     rag_answer_top_k: int = Field(default=6, ge=1, le=20)
     rag_answer_candidate_k: int = Field(default=20, ge=1, le=100)
     rag_min_similarity_score: float = Field(default=0.3, ge=-1, le=1)
+    rag_context_max_messages: int = Field(default=6, ge=1, le=20)
+    rag_context_max_chars: int = Field(default=6000, ge=500, le=30000)
+    quick_chat_context_max_messages: int = Field(default=10, ge=1, le=30)
+    quick_chat_context_max_chars: int = Field(default=8000, ge=500, le=40000)
 
     database_url: str = "sqlite+aiosqlite:///../data/app.db"
     qdrant_path: Path = Path("../data/qdrant")
@@ -49,19 +53,11 @@ class Settings(BaseSettings):
 
     @property
     def available_models(self) -> list[str]:
-        return [
-            model.strip()
-            for model in self.llm_available_models.split(",")
-            if model.strip()
-        ]
+        return [model.strip() for model in self.llm_available_models.split(",") if model.strip()]
 
     @property
     def allowed_cors_origins(self) -> list[str]:
-        return [
-            origin.strip()
-            for origin in self.cors_origins.split(",")
-            if origin.strip()
-        ]
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
 
 @lru_cache

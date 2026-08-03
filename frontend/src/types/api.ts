@@ -94,6 +94,10 @@ export interface AnswerRetrieval {
   embedding_device: string | null
   reranker_device: string | null
   fallback_reason: string | null
+  original_question: string
+  rewritten_query: string
+  context_message_count: number
+  rewrite_applied: boolean
 }
 
 export interface AnswerTokenUsage {
@@ -133,6 +137,8 @@ export interface LLMConfiguration {
   available_models: string[]
   configured: boolean
   answer_styles: AnswerStyle[]
+  rag_context_max_messages: number
+  quick_chat_context_max_messages: number
 }
 
 export type ConversationMessageRole = 'user' | 'assistant'
@@ -166,4 +172,37 @@ export interface CourseConversationMessage {
 
 export interface CourseConversationDetail extends CourseConversationSummary {
   messages: CourseConversationMessage[]
+}
+
+export interface QuickConversationSummary {
+  id: string
+  title: string
+  created_at: string
+  updated_at: string
+  last_message_at: string | null
+}
+
+export interface QuickConversationDetail extends QuickConversationSummary {
+  messages: CourseConversationMessage[]
+}
+
+export interface StreamError {
+  code: string
+  message: string
+}
+
+export interface StreamStart {
+  conversation_id: string
+  model: string
+  context_max_messages: number
+}
+
+export interface QuickChatComplete {
+  conversation_id: string
+  user_message_id: string
+  assistant_message_id: string
+  model: string
+  usage: AnswerTokenUsage | null
+  elapsed_ms: number
+  context_message_count: number
 }

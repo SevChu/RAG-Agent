@@ -19,6 +19,14 @@ class ChatCompletionGateway(Protocol):
         model: str,
     ) -> ChatCompletion: ...
 
+    async def complete_text(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+    ) -> ChatCompletion: ...
+
 
 class OpenAICompatibleChatClient:
     """Minimal async client for an OpenAI-compatible chat-completions API."""
@@ -33,11 +41,39 @@ class OpenAICompatibleChatClient:
         user_prompt: str,
         model: str,
     ) -> ChatCompletion:
+        return await self._complete(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            model=model,
+            json_mode=True,
+        )
+
+    async def complete_text(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+    ) -> ChatCompletion:
+        return await self._complete(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            model=model,
+            json_mode=False,
+        )
+
+    async def _complete(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+        json_mode: bool,
+    ) -> ChatCompletion:
         api_key = self.settings.llm_api_key.strip()
         if not api_key:
             raise LLMConfigurationError(
-                "尚未配置 LLM API Key。请在项目根目录 .env 中填写 LLM_API_KEY，"
-                "然后重启后端服务。"
+                "尚未配置 LLM API Key。请在项目根目录 .env 中填写 LLM_API_KEY，然后重启后端服务。"
             )
 
         payload: dict[str, Any] = {
@@ -48,9 +84,10 @@ class OpenAICompatibleChatClient:
             ],
             "temperature": self.settings.llm_temperature,
             "max_tokens": self.settings.llm_max_output_tokens,
-            "response_format": {"type": "json_object"},
             "stream": False,
         }
+        if json_mode:
+            payload["response_format"] = {"type": "json_object"}
         if self.settings.llm_provider.strip().lower() == "deepseek":
             payload["thinking"] = {"type": "disabled"}
 

@@ -1,5 +1,6 @@
 import { unwrapResponse } from './client'
 import { http } from './http'
+import { postEventStream } from './stream'
 
 import type {
   ApiResponse,
@@ -7,6 +8,7 @@ import type {
   CourseAnswerPayload,
   LLMConfiguration,
 } from '@/types/api'
+import type { StreamHandlers } from './stream'
 
 export async function fetchLLMConfiguration(): Promise<LLMConfiguration> {
   const response = await http.get<ApiResponse<LLMConfiguration>>('/llm/config')
@@ -23,4 +25,32 @@ export async function askCourseQuestion(
     { timeout: 120_000 },
   )
   return unwrapResponse(response.data)
+}
+
+export async function streamCourseQuestion(
+  courseId: string,
+  payload: CourseAnswerPayload,
+  signal: AbortSignal,
+  handlers: StreamHandlers<CourseAnswer>,
+): Promise<void> {
+  await postEventStream(
+    `/courses/${courseId}/answers/stream`,
+    payload,
+    signal,
+    handlers,
+  )
+}
+
+export async function streamQuickChat(
+  conversationId: string,
+  payload: { message: string; model?: string },
+  signal: AbortSignal,
+  handlers: StreamHandlers<import('@/types/api').QuickChatComplete>,
+): Promise<void> {
+  await postEventStream(
+    `/quick-conversations/${conversationId}/messages/stream`,
+    payload,
+    signal,
+    handlers,
+  )
 }

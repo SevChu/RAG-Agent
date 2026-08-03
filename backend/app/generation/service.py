@@ -50,6 +50,7 @@ class GroundedAnswerGenerator:
         self,
         *,
         question: str,
+        standalone_question: str | None = None,
         hits: Sequence[VectorSearchResult],
         style: AnswerStyle,
         model: str,
@@ -70,7 +71,11 @@ class GroundedAnswerGenerator:
 
         completion = await self.gateway.complete(
             system_prompt=_system_prompt(style),
-            user_prompt=_user_prompt(question, eligible_hits),
+            user_prompt=_user_prompt(
+                question,
+                eligible_hits,
+                standalone_question=standalone_question,
+            ),
             model=model,
         )
         payload = _parse_payload(completion.content)
@@ -160,7 +165,12 @@ def _system_prompt(style: AnswerStyle) -> str:
 """
 
 
-def _user_prompt(question: str, hits: Sequence[VectorSearchResult]) -> str:
+def _user_prompt(
+    question: str,
+    hits: Sequence[VectorSearchResult],
+    *,
+    standalone_question: str | None = None,
+) -> str:
     evidence_parts = []
     for source_id, hit in enumerate(hits, start=1):
         payload = hit.payload
@@ -181,7 +191,12 @@ def _user_prompt(question: str, hits: Sequence[VectorSearchResult]) -> str:
             f"content:\n{hit.text}\n</source>"
         )
     evidence = "\n\n".join(evidence_parts)
-    return f"""问题：{question.strip()}
+    standalone_context = (
+        f"\n用于检索的独立问题（只用于理解指代，不是事实证据）：{standalone_question.strip()}"
+        if standalone_question and standalone_question.strip() != question.strip()
+        else ""
+    )
+    return f"""原始问题：{question.strip()}{standalone_context}
 
 <evidence>
 {evidence}

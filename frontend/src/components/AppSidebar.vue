@@ -29,7 +29,10 @@ const isSettings = computed(() => route.path.startsWith('/settings'))
 
 onMounted(async () => {
   try {
-    await conversationsStore.loadCourseConversations()
+    await Promise.all([
+      conversationsStore.loadCourseConversations(),
+      conversationsStore.loadQuickConversations(),
+    ])
   } catch (error) {
     ElMessage.error(toFriendlyApiError(error).message)
   }
@@ -37,6 +40,26 @@ onMounted(async () => {
 
 function closeMobile(): void {
   emit('update:mobileOpen', false)
+}
+
+async function deleteQuickConversation(conversationId: string): Promise<void> {
+  try {
+    await ElMessageBox.confirm('删除后将移除该快速对话的全部消息。', '删除对话', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning',
+      confirmButtonClass: 'danger-confirm-button',
+    })
+    await conversationsStore.deleteQuickConversation(conversationId)
+    if (route.params.conversationId === conversationId && isQuickChat.value) {
+      await router.push('/chat/new')
+    }
+    ElMessage.success('快速对话已删除')
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(toFriendlyApiError(error).message)
+    }
+  }
 }
 
 async function deleteConversation(courseId: string, conversationId: string): Promise<void> {
@@ -143,7 +166,34 @@ async function deleteConversation(courseId: string, conversationId: string): Pro
           <span aria-hidden="true">{{ quickHistoryExpanded ? '⌄' : '›' }}</span>
         </button>
         <div v-show="quickHistoryExpanded" id="quick-history-list" class="history-list">
-          <p class="history-empty">暂无临时对话</p>
+          <p v-if="!conversationsStore.quickConversations.length" class="history-empty">
+            暂无临时对话
+          </p>
+          <div
+            v-for="conversation in conversationsStore.quickConversations"
+            :key="conversation.id"
+            class="history-item"
+            :class="{
+              active: isQuickChat && route.params.conversationId === conversation.id,
+            }"
+          >
+            <RouterLink
+              :to="`/chat/${conversation.id}`"
+              :title="conversation.title"
+              @click="closeMobile"
+            >
+              <strong>{{ conversation.title }}</strong>
+              <small>快速对话</small>
+            </RouterLink>
+            <button
+              type="button"
+              aria-label="删除快速对话"
+              title="删除对话"
+              @click="deleteQuickConversation(conversation.id)"
+            >
+              ×
+            </button>
+          </div>
         </div>
       </section>
 
