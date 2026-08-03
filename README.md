@@ -1,6 +1,6 @@
 # 基于 RAG 的计算机专业学习 Agent
 
-> 项目状态：第 1 周已完成；第 2 周计划日 1～4 已验收，计划日 5 已实现并等待最终肉眼抽查。
+> 项目状态：第 1 周和第 2 周均已完成并通过验收；第 3 周尚未开始。
 
 ## 1. 项目简介
 
@@ -933,7 +933,7 @@ uv run python -m app.ingestion.inspect `
 当前后端 83 项测试、Ruff、Mypy strict，前端 8 项测试、Lint、TypeScript 和生产构建
 全部通过。详细抽查步骤见 `docs/deliverables/week-02-day-04.md`。
 
-### 19.13 第 2 周第 5 天：周级一致性与交付验收（待用户肉眼抽查）
+### 19.13 第 2 周第 5 天：周级一致性与交付验收（已验收）
 
 已完成：
 
@@ -958,9 +958,8 @@ uv run python -m app.ingestion.inspect `
 - 后端全量 94 项测试、Ruff、Mypy strict，前端 8 项测试、Lint、TypeScript、生产构建和
   npm audit 全部通过。
 
-本计划日没有新增模型、依赖或下载，也没有读取 DeepSeek Key。用户只需按照
-`docs/deliverables/week-02-day-05.md` 抽查章节、页码/幻灯片和 Chunk 语义，并结合
-`docs/deliverables/week-02.md` 完成第二周整体结果验收。
+本计划日没有新增模型、依赖或下载，也没有读取 DeepSeek Key。用户已于 2026-08-03
+完成章节、页码/幻灯片和 Chunk 语义肉眼抽查，并确认计划日 5 及第二周整体验收通过。
 
 ## 20. 工程日志
 
