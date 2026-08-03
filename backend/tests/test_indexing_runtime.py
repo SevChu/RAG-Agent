@@ -13,10 +13,11 @@ from app.indexing.runtime import (
     DocumentIndexingManager,
     DocumentIndexingPipeline,
     IndexingDocument,
+    IndexingProgressCallback,
     friendly_indexing_error,
 )
 from app.ingestion.errors import EmptyDocumentError, InvalidDocumentFormatError
-from app.models import Course, Document, DocumentStatus
+from app.models import Course, Document, DocumentProcessingStage, DocumentStatus
 
 
 class FakePipeline:
@@ -25,10 +26,18 @@ class FakePipeline:
         self.indexed: list[UUID] = []
         self.cleaned: list[UUID] = []
 
-    def index(self, document: IndexingDocument) -> int:
+    def index(
+        self,
+        document: IndexingDocument,
+        progress_callback: IndexingProgressCallback | None = None,
+    ) -> int:
         self.indexed.append(document.id)
+        if progress_callback is not None:
+            progress_callback(DocumentProcessingStage.PARSING, 35, "正在解析测试资料")
         if self.error is not None:
             raise self.error
+        if progress_callback is not None:
+            progress_callback(DocumentProcessingStage.STORING, 99, "正在确认索引结果")
         return 3
 
     def delete_document(self, *, course_id: UUID, document_id: UUID) -> None:
@@ -91,6 +100,9 @@ async def test_runtime_advances_pending_to_completed(tmp_path: Path) -> None:
             document = await session.get_one(Document, document_id)
             assert document.status is DocumentStatus.COMPLETED
             assert document.error_message is None
+            assert document.progress_percent == 100
+            assert document.processing_stage is DocumentProcessingStage.COMPLETED
+            assert document.progress_detail == "处理完成"
         assert pipeline.indexed == [document_id]
         assert pipeline.cleaned == []
     finally:
@@ -106,6 +118,9 @@ async def test_runtime_marks_failure_and_cleans_partial_vectors(tmp_path: Path) 
         async with session_factory() as session:
             document = await session.get_one(Document, document_id)
             assert document.status is DocumentStatus.FAILED
+            assert document.progress_percent == 35
+            assert document.processing_stage is DocumentProcessingStage.PARSING
+            assert document.progress_detail == "正在解析测试资料失败"
             assert document.error_message == (
                 "没有识别到可入库的文字内容。请确认文件不是空白内容；"
                 "若为扫描 PDF，请换用更清晰的版本后重新上传。"

@@ -3,7 +3,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Document, DocumentStatus
+from app.models import Document, DocumentProcessingStage, DocumentStatus
 
 
 class DocumentRepository:
@@ -31,6 +31,9 @@ class DocumentRepository:
             file_size=file_size,
             sha256=sha256,
             status=status,
+            progress_percent=0,
+            processing_stage=DocumentProcessingStage.WAITING,
+            progress_detail="等待后台处理",
         )
         self.session.add(document)
         await self.session.flush()

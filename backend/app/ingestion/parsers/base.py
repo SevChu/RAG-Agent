@@ -1,7 +1,10 @@
+from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
 
 from app.ingestion.models import ParsedDocument
+
+ParseProgressCallback = Callable[[int, int, str], None]
 
 
 class DocumentParser(Protocol):
@@ -13,4 +16,5 @@ class DocumentParser(Protocol):
         path: Path,
         *,
         display_name: str | None = None,
+        progress_callback: ParseProgressCallback | None = None,
     ) -> ParsedDocument: ...

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from functools import partial
 from uuid import UUID
@@ -23,10 +24,12 @@ from app.ingestion.registry import build_default_registry
 from app.knowledge.embedding import BgeM3Embedder
 from app.knowledge.indexing import KnowledgeIndexer
 from app.knowledge.vector_store import QdrantChunkStore
-from app.models import Document, DocumentStatus
+from app.models import Document, DocumentProcessingStage, DocumentStatus
 from app.retrieval import DenseRetrievalResult, DenseRetriever
 
 logger = logging.getLogger(__name__)
+
+IndexingProgressCallback = Callable[[DocumentProcessingStage, int, str], None]
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,7 +62,17 @@ class DocumentIndexingPipeline:
         self.indexer = KnowledgeIndexer(self.embedder, self.store)
         self.retriever = DenseRetriever(self.embedder, self.store)
 
-    def index(self, document: IndexingDocument) -> int:
+    def index(
+        self,
+        document: IndexingDocument,
+        progress_callback: IndexingProgressCallback | None = None,
+    ) -> int:
+        self._report(
+            progress_callback,
+            DocumentProcessingStage.PREPARING,
+            2,
+            "正在检查原文件",
+        )
         source_path = (
             self.settings.upload_dir
             / str(document.course_id)
@@ -67,10 +80,33 @@ class DocumentIndexingPipeline:
         )
         if not source_path.is_file():
             raise FileNotFoundError(f"Uploaded source file is missing: {source_path}")
+        self._report(
+            progress_callback,
+            DocumentProcessingStage.PARSING,
+            5,
+            "正在读取文档内容",
+        )
         parsed = self.registry.parse(
             source_path,
             file_type=document.file_type,
             display_name=document.original_name,
+            progress_callback=(
+                lambda current, total, detail: self._report_fraction(
+                    progress_callback,
+                    DocumentProcessingStage.PARSING,
+                    current,
+                    total,
+                    start_percent=5,
+                    end_percent=55,
+                    detail=detail,
+                )
+            ),
+        )
+        self._report(
+            progress_callback,
+            DocumentProcessingStage.CHUNKING,
+            58,
+            "正在进行结构化分块",
         )
         chunks = self.chunker.chunk(
             parsed,
@@ -79,12 +115,71 @@ class DocumentIndexingPipeline:
                 document_id=str(document.id),
             ),
         )
+        self._report(
+            progress_callback,
+            DocumentProcessingStage.CHUNKING,
+            65,
+            f"已生成 {len(chunks.chunks)} 个文本块",
+        )
         result = self.indexer.index(
             chunks,
             course_id=str(document.course_id),
             document_id=str(document.id),
+            embedding_progress=lambda current, total: self._report_fraction(
+                progress_callback,
+                DocumentProcessingStage.EMBEDDING,
+                current,
+                total,
+                start_percent=65,
+                end_percent=92,
+                detail=f"正在向量化 {current}/{total} 个文本块",
+            ),
+            storage_progress=lambda current, total: self._report_fraction(
+                progress_callback,
+                DocumentProcessingStage.STORING,
+                current,
+                total,
+                start_percent=92,
+                end_percent=99,
+                detail=f"正在写入知识库 {current}/{total} 个文本块",
+            ),
+        )
+        self._report(
+            progress_callback,
+            DocumentProcessingStage.STORING,
+            99,
+            "正在确认索引结果",
         )
         return result.chunk_count
+
+    @staticmethod
+    def _report(
+        callback: IndexingProgressCallback | None,
+        stage: DocumentProcessingStage,
+        percent: int,
+        detail: str,
+    ) -> None:
+        if callback is not None:
+            callback(stage, percent, detail)
+
+    @classmethod
+    def _report_fraction(
+        cls,
+        callback: IndexingProgressCallback | None,
+        stage: DocumentProcessingStage,
+        current: int,
+        total: int,
+        *,
+        start_percent: int,
+        end_percent: int,
+        detail: str,
+    ) -> None:
+        safe_total = max(total, 1)
+        safe_current = min(max(current, 0), safe_total)
+        percent = start_percent + round(
+            (end_percent - start_percent) * safe_current / safe_total
+        )
+        cls._report(callback, stage, percent, detail)
 
     def delete_document(self, *, course_id: UUID, document_id: UUID) -> None:
         self.store.delete_document(
@@ -146,9 +241,30 @@ class DocumentIndexingManager:
             if document is None:
                 return
             try:
+                loop = asyncio.get_running_loop()
+
+                def report_progress(
+                    stage: DocumentProcessingStage,
+                    percent: int,
+                    detail: str,
+                ) -> None:
+                    future = asyncio.run_coroutine_threadsafe(
+                        self._update_progress(document_id, stage, percent, detail),
+                        loop,
+                    )
+                    try:
+                        future.result()
+                    except Exception:
+                        logger.warning(
+                            "Unable to persist indexing progress for %s",
+                            document_id,
+                            exc_info=True,
+                        )
+
                 chunk_count = await asyncio.to_thread(
                     self._get_pipeline().index,
                     document,
+                    report_progress,
                 )
             except asyncio.CancelledError:
                 await self._mark_pending_after_interruption(document_id)
@@ -188,6 +304,9 @@ class DocumentIndexingManager:
             for document in documents:
                 document.status = DocumentStatus.PENDING
                 document.error_message = None
+                document.progress_percent = 0
+                document.processing_stage = DocumentProcessingStage.WAITING
+                document.progress_detail = "等待后台恢复处理"
             await session.commit()
         for document in documents:
             self.schedule(document.id)
@@ -251,6 +370,9 @@ class DocumentIndexingManager:
                 return None
             document.status = DocumentStatus.PROCESSING
             document.error_message = None
+            document.progress_percent = 1
+            document.processing_stage = DocumentProcessingStage.PREPARING
+            document.progress_detail = "后台任务已开始"
             await session.commit()
             return IndexingDocument(
                 id=document.id,
@@ -267,6 +389,9 @@ class DocumentIndexingManager:
                 return
             document.status = DocumentStatus.COMPLETED
             document.error_message = None
+            document.progress_percent = 100
+            document.processing_stage = DocumentProcessingStage.COMPLETED
+            document.progress_detail = "处理完成"
             await session.commit()
 
     async def _mark_failed(self, document_id: UUID, message: str) -> None:
@@ -276,6 +401,7 @@ class DocumentIndexingManager:
                 return
             document.status = DocumentStatus.FAILED
             document.error_message = message
+            document.progress_detail = f"{document.progress_detail or '处理过程中'}失败"
             await session.commit()
 
     async def _mark_pending_after_interruption(self, document_id: UUID) -> None:
@@ -285,6 +411,34 @@ class DocumentIndexingManager:
                 return
             document.status = DocumentStatus.PENDING
             document.error_message = None
+            document.progress_percent = 0
+            document.processing_stage = DocumentProcessingStage.WAITING
+            document.progress_detail = "等待后台恢复处理"
+            await session.commit()
+
+    async def _update_progress(
+        self,
+        document_id: UUID,
+        stage: DocumentProcessingStage,
+        percent: int,
+        detail: str,
+    ) -> None:
+        async with self.session_factory() as session:
+            document = await session.get(Document, document_id)
+            if document is None or document.status is not DocumentStatus.PROCESSING:
+                return
+            bounded_percent = min(max(percent, 1), 99)
+            if bounded_percent < document.progress_percent:
+                return
+            if (
+                bounded_percent == document.progress_percent
+                and stage == document.processing_stage
+                and detail == document.progress_detail
+            ):
+                return
+            document.progress_percent = bounded_percent
+            document.processing_stage = stage
+            document.progress_detail = detail[:255]
             await session.commit()
 
     def _finish_task(

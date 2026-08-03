@@ -60,6 +60,9 @@ async def test_upload_accepts_all_supported_file_types(
     document = response.json()["data"]
     assert document["original_name"] == filename
     assert document["status"] == "pending"
+    assert document["progress_percent"] == 0
+    assert document["processing_stage"] == "waiting"
+    assert document["progress_detail"] == "等待后台处理"
     assert document["file_size"] == len(content)
     stored_files = list((api_settings.upload_dir / course_id).iterdir())
     assert len(stored_files) == 1
@@ -161,6 +164,7 @@ async def test_document_queries_and_delete_remove_database_and_file(
     status_response = await api_client.get(f"/api/documents/{document_id}/status")
     assert status_response.status_code == 200
     assert status_response.json()["data"]["status"] == "pending"
+    assert status_response.json()["data"]["progress_percent"] == 0
 
     stored_path = next((api_settings.upload_dir / course_id).iterdir())
     assert stored_path.is_file()

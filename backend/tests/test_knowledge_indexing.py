@@ -43,16 +43,25 @@ def test_indexer_batches_chunks_and_searches_only_requested_course(tmp_path: Pat
     embedder = BgeM3Embedder(
         model_path,
         device="cpu",
+        batch_size=1,
         model_factory=lambda path, device: ConstantEmbeddingModel(),
     )
-    store = QdrantChunkStore(tmp_path / "qdrant")
+    store = QdrantChunkStore(tmp_path / "qdrant", write_batch_size=1)
     try:
         indexer = KnowledgeIndexer(embedder, store)
+        embedding_updates: list[tuple[int, int]] = []
+        storage_updates: list[tuple[int, int]] = []
 
         result = indexer.index(
             chunking,
             course_id="course-a",
             document_id="document-a",
+            embedding_progress=lambda current, total: embedding_updates.append(
+                (current, total)
+            ),
+            storage_progress=lambda current, total: storage_updates.append(
+                (current, total)
+            ),
         )
         matches = indexer.search("什么是栈？", course_id="course-a")
         other_course = indexer.search("什么是栈？", course_id="course-b")
@@ -60,6 +69,9 @@ def test_indexer_batches_chunks_and_searches_only_requested_course(tmp_path: Pat
         assert result.chunk_count == len(chunking.chunks)
         assert result.vector_dimension == BGE_M3_DIMENSION
         assert result.device == "cpu"
+        expected_total = len(chunking.chunks)
+        assert embedding_updates[-1] == (expected_total, expected_total)
+        assert storage_updates[-1] == (expected_total, expected_total)
         assert matches
         assert all(match.course_id == "course-a" for match in matches)
         assert other_course == ()

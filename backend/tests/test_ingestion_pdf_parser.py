@@ -154,6 +154,30 @@ def test_mixed_pdf_falls_back_only_for_page_without_text(tmp_path: Path) -> None
     ]
 
 
+def test_pdf_reports_page_and_ocr_progress(tmp_path: Path) -> None:
+    path = tmp_path / "progress.pdf"
+    _write_pdf(
+        path,
+        ("This page has a meaningful native text layer for extraction.", None),
+    )
+    updates: list[tuple[int, int, str]] = []
+    parser = PdfParser(
+        renderer=FakeRenderer(),
+        ocr_engine=FakeOcrEngine({1: (_ocr_line("Scanned second page"),)}),
+    )
+
+    parser.parse(
+        path,
+        progress_callback=lambda current, total, detail: updates.append(
+            (current, total, detail)
+        ),
+    )
+
+    assert updates[0] == (0, 2, "正在解析第 1/2 页")
+    assert (1, 2, "正在 OCR 第 2/2 页") in updates
+    assert updates[-1] == (2, 2, "已解析第 2/2 页")
+
+
 def test_ocr_provenance_reaches_chunk_metadata(tmp_path: Path) -> None:
     path = tmp_path / "scan.pdf"
     _write_pdf(path, (None,))

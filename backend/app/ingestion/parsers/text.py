@@ -9,6 +9,7 @@ from app.ingestion.errors import (
     InvalidDocumentEncodingError,
 )
 from app.ingestion.models import BlockKind, ParsedBlock, ParsedDocument, SourceLocation
+from app.ingestion.parsers.base import ParseProgressCallback
 
 _BOOK_HEADING_RE = re.compile(r"^Book\b", re.IGNORECASE)
 _NUMBERED_HEADING_RE = re.compile(
@@ -43,6 +44,7 @@ class PlainTextParser:
         path: Path,
         *,
         display_name: str | None = None,
+        progress_callback: ParseProgressCallback | None = None,
     ) -> ParsedDocument:
         text = read_utf8_text(path)
         lines = text.split("\n")
@@ -109,6 +111,8 @@ class PlainTextParser:
 
         if not blocks:
             raise EmptyDocumentError("The text document contains no meaningful content.")
+        if progress_callback is not None:
+            progress_callback(len(lines), len(lines), f"已解析 {len(lines)} 行文本")
         return ParsedDocument(
             file_name=display_name or path.name,
             file_type="txt",

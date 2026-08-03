@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid5
@@ -68,6 +68,7 @@ class QdrantChunkStore:
         document_id: str,
         chunks: Sequence[DocumentChunk],
         vectors: Sequence[Sequence[float]],
+        progress_callback: Callable[[int, int], None] | None = None,
     ) -> int:
         normalized_course = _required_identifier(course_id, "course_id")
         normalized_document = _required_identifier(document_id, "document_id")
@@ -88,11 +89,14 @@ class QdrantChunkStore:
             document_id=normalized_document,
         )
         for start in range(0, len(points), self.write_batch_size):
+            end = min(start + self.write_batch_size, len(points))
             self._client.upsert(
                 collection_name=self.collection_name,
-                points=points[start : start + self.write_batch_size],
+                points=points[start:end],
                 wait=True,
             )
+            if progress_callback is not None:
+                progress_callback(end, len(points))
         return len(points)
 
     def search(

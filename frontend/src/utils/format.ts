@@ -1,4 +1,4 @@
-import type { DocumentStatus } from '@/types/api'
+import type { DocumentProcessingStage, DocumentStatus } from '@/types/api'
 
 export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024
 export const ACCEPTED_FILE_EXTENSIONS = ['pdf', 'docx', 'pptx', 'md', 'txt'] as const
@@ -43,6 +43,19 @@ export function statusType(status: DocumentStatus): 'info' | 'warning' | 'succes
     failed: 'danger',
   }
   return types[status]
+}
+
+export function processingStageLabel(stage: DocumentProcessingStage): string {
+  return {
+    waiting: '等待后台处理',
+    preparing: '正在准备',
+    parsing: '正在解析内容',
+    chunking: '正在结构化分块',
+    embedding: '正在生成向量',
+    storing: '正在写入知识库',
+    completed: '处理完成',
+    failed: '处理失败',
+  }[stage]
 }
 
 export function fileExtension(fileName: string): string {

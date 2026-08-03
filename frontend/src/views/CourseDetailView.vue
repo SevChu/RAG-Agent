@@ -19,6 +19,7 @@ import {
   ACCEPTED_FILE_EXTENSIONS,
   formatDateTime,
   formatFileSize,
+  processingStageLabel,
   statusLabel,
   statusType,
   validateUploadFile,
@@ -412,10 +413,27 @@ function uploadStateLabel(item: UploadItem): string {
                 </td>
                 <td class="uppercase-cell">{{ document.file_type }}</td>
                 <td>{{ formatFileSize(document.file_size) }}</td>
-                <td>
+                <td class="status-cell">
                   <el-tag :type="statusType(document.status)" effect="light" round>
                     {{ statusLabel(document.status) }}
                   </el-tag>
+                  <div
+                    v-if="document.status === 'processing'"
+                    class="indexing-progress"
+                    :aria-label="`处理进度 ${document.progress_percent}%`"
+                  >
+                    <el-progress
+                      :percentage="document.progress_percent"
+                      :show-text="false"
+                      :stroke-width="6"
+                    />
+                    <small>
+                      <b>{{ document.progress_percent }}%</b>
+                      {{
+                        document.progress_detail || processingStageLabel(document.processing_stage)
+                      }}
+                    </small>
+                  </div>
                 </td>
                 <td>{{ formatDateTime(document.created_at) }}</td>
                 <td class="action-cell">
@@ -680,7 +698,7 @@ function uploadStateLabel(item: UploadItem): string {
 
 .material-table {
   width: 100%;
-  min-width: 830px;
+  min-width: 960px;
   border-collapse: collapse;
 }
 
@@ -782,6 +800,31 @@ function uploadStateLabel(item: UploadItem): string {
 
 .uppercase-cell {
   text-transform: uppercase;
+}
+
+.status-cell {
+  min-width: 210px;
+}
+
+.indexing-progress {
+  width: 190px;
+  margin-top: 9px;
+}
+
+.indexing-progress small {
+  display: block;
+  margin-top: 5px;
+  overflow: hidden;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--ink-faint);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.indexing-progress small b {
+  margin-right: 4px;
+  color: var(--primary-deep);
 }
 
 .action-cell {

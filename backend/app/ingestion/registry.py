@@ -11,7 +11,7 @@ from app.ingestion.parsers import (
     PowerPointParser,
     WordDocumentParser,
 )
-from app.ingestion.parsers.base import DocumentParser
+from app.ingestion.parsers.base import DocumentParser, ParseProgressCallback
 
 
 class DocumentParserRegistry:
@@ -37,6 +37,7 @@ class DocumentParserRegistry:
         *,
         file_type: str | None = None,
         display_name: str | None = None,
+        progress_callback: ParseProgressCallback | None = None,
     ) -> ParsedDocument:
         normalized = self._normalize_file_type(file_type or path.suffix)
         parser = self._parsers.get(normalized)
@@ -44,7 +45,13 @@ class DocumentParserRegistry:
             raise UnsupportedParserError(
                 f"No document parser is registered for {normalized or 'unknown'} files."
             )
-        return parser.parse(path, display_name=display_name)
+        if progress_callback is None:
+            return parser.parse(path, display_name=display_name)
+        return parser.parse(
+            path,
+            display_name=display_name,
+            progress_callback=progress_callback,
+        )
 
     @staticmethod
     def _normalize_file_type(file_type: str) -> str:

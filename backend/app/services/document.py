@@ -4,7 +4,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ConflictError, InvalidInputError, NotFoundError
-from app.models import Document, DocumentStatus
+from app.models import Document, DocumentProcessingStage, DocumentStatus
 from app.repositories import CourseRepository, DocumentRepository
 
 
@@ -113,5 +113,8 @@ class DocumentService:
             status=DocumentStatus.PENDING,
             error_message=None,
         )
+        document.progress_percent = 0
+        document.processing_stage = DocumentProcessingStage.WAITING
+        document.progress_detail = "等待后台处理"
         await self.session.commit()
         return document

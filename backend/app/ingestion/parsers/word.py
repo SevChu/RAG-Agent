@@ -12,6 +12,7 @@ from app.ingestion.models import (
     SourceLocation,
 )
 from app.ingestion.parsers._ooxml import OoxmlPackage, local_name
+from app.ingestion.parsers.base import ParseProgressCallback
 
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 WP_NS = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
@@ -45,6 +46,7 @@ class WordDocumentParser:
         path: Path,
         *,
         display_name: str | None = None,
+        progress_callback: ParseProgressCallback | None = None,
     ) -> ParsedDocument:
         with OoxmlPackage(
             path,
@@ -64,7 +66,9 @@ class WordDocumentParser:
         if body is None:
             raise EmptyDocumentError(f"{path.name} has no document body.")
 
-        for element in self._iter_body_content(body):
+        body_content = self._iter_body_content(body)
+        total_elements = len(body_content)
+        for element_number, element in enumerate(body_content, start=1):
             if element.tag == f"{{{W_NS}}}p":
                 paragraph_text = self._paragraph_text(element)
                 style_id = self._paragraph_style_id(element)
@@ -105,6 +109,12 @@ class WordDocumentParser:
                             section_path=self._section_path(section_levels),
                         )
                     )
+            if progress_callback is not None:
+                progress_callback(
+                    element_number,
+                    total_elements,
+                    f"已解析第 {element_number}/{total_elements} 个正文元素",
+                )
                 for description in self._image_descriptions(element):
                     image_number += 1
                     pending.append(

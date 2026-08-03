@@ -17,6 +17,15 @@ export interface Course {
 }
 
 export type DocumentStatus = 'pending' | 'processing' | 'completed' | 'failed'
+export type DocumentProcessingStage =
+  | 'waiting'
+  | 'preparing'
+  | 'parsing'
+  | 'chunking'
+  | 'embedding'
+  | 'storing'
+  | 'completed'
+  | 'failed'
 
 export interface CourseDocument {
   id: string
@@ -27,6 +36,9 @@ export interface CourseDocument {
   sha256: string
   status: DocumentStatus
   error_message: string | null
+  progress_percent: number
+  processing_stage: DocumentProcessingStage
+  progress_detail: string | null
   created_at: string
   updated_at: string
 }

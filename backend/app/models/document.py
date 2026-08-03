@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import (
     BigInteger,
+    CheckConstraint,
     DateTime,
     Enum,
     ForeignKey,
@@ -31,6 +32,17 @@ class DocumentStatus(StrEnum):
     FAILED = "failed"
 
 
+class DocumentProcessingStage(StrEnum):
+    WAITING = "waiting"
+    PREPARING = "preparing"
+    PARSING = "parsing"
+    CHUNKING = "chunking"
+    EMBEDDING = "embedding"
+    STORING = "storing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
 class Document(Base):
     __tablename__ = "documents"
     __table_args__ = (
@@ -38,6 +50,10 @@ class Document(Base):
             "course_id",
             "sha256",
             name="uq_documents_course_id_sha256",
+        ),
+        CheckConstraint(
+            "progress_percent >= 0 AND progress_percent <= 100",
+            name="ck_documents_progress_percent_range",
         ),
     )
 
@@ -66,6 +82,24 @@ class Document(Base):
         server_default=DocumentStatus.PENDING.value,
     )
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    progress_percent: Mapped[int] = mapped_column(
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
+    processing_stage: Mapped[DocumentProcessingStage] = mapped_column(
+        Enum(
+            DocumentProcessingStage,
+            name="document_processing_stage",
+            native_enum=False,
+            create_constraint=False,
+            values_callable=lambda enum_type: [item.value for item in enum_type],
+        ),
+        nullable=False,
+        default=DocumentProcessingStage.WAITING,
+        server_default=DocumentProcessingStage.WAITING.value,
+    )
+    progress_detail: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

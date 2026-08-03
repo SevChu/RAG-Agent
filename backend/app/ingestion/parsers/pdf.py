@@ -31,6 +31,7 @@ from app.ingestion.parsers._ocr_layout import (
     OcrLayoutAnalyzer,
     OcrLayoutBlock,
 )
+from app.ingestion.parsers.base import ParseProgressCallback
 
 _WHITESPACE_RE = re.compile(r"[\t\u00a0 ]+")
 _DEFAULT_MODEL_ROOT = Path(__file__).resolve().parents[4] / "data" / "models" / "paddleocr"
@@ -203,7 +204,13 @@ class PdfParser:
             tuple(dict.fromkeys(page_numbers)) if page_numbers is not None else None
         )
 
-    def parse(self, path: Path, *, display_name: str | None = None) -> ParsedDocument:
+    def parse(
+        self,
+        path: Path,
+        *,
+        display_name: str | None = None,
+        progress_callback: ParseProgressCallback | None = None,
+    ) -> ParsedDocument:
         reader = self._open_reader(path)
         page_indexes = self._selected_page_indexes(len(reader.pages))
         blocks: list[ParsedBlock] = []
@@ -220,7 +227,14 @@ class PdfParser:
             )
 
         try:
-            self._parse_pages(reader, path, page_indexes, blocks, warnings)
+            self._parse_pages(
+                reader,
+                path,
+                page_indexes,
+                blocks,
+                warnings,
+                progress_callback,
+            )
         finally:
             self.renderer.close()
 
@@ -241,9 +255,17 @@ class PdfParser:
         page_indexes: tuple[int, ...],
         blocks: list[ParsedBlock],
         warnings: list[ParseWarning],
+        progress_callback: ParseProgressCallback | None,
     ) -> None:
-        for page_index in page_indexes:
+        total_pages = len(page_indexes)
+        for completed_pages, page_index in enumerate(page_indexes):
             page_number = page_index + 1
+            if progress_callback is not None:
+                progress_callback(
+                    completed_pages,
+                    total_pages,
+                    f"正在解析第 {completed_pages + 1}/{total_pages} 页",
+                )
             try:
                 native_text = reader.pages[page_index].extract_text() or ""
             except FileNotDecryptedError as error:
@@ -258,8 +280,20 @@ class PdfParser:
             native_paragraphs = _normalize_native_paragraphs(native_text)
             if _has_meaningful_text(native_paragraphs, self.config.minimum_native_characters):
                 self._append_native_blocks(blocks, native_paragraphs, page_number)
+                if progress_callback is not None:
+                    progress_callback(
+                        completed_pages + 1,
+                        total_pages,
+                        f"已解析第 {completed_pages + 1}/{total_pages} 页",
+                    )
                 continue
 
+            if progress_callback is not None:
+                progress_callback(
+                    completed_pages,
+                    total_pages,
+                    f"正在 OCR 第 {completed_pages + 1}/{total_pages} 页",
+                )
             image = self.renderer.render(path, page_index, dpi=self.config.render_dpi)
             ocr_lines = self.ocr_engine.recognize(image)
             accepted = tuple(
@@ -297,8 +331,14 @@ class PdfParser:
                         page_number=page_number,
                     )
                 )
-                continue
-            self._append_ocr_blocks(blocks, layout_blocks, page_number)
+            else:
+                self._append_ocr_blocks(blocks, layout_blocks, page_number)
+            if progress_callback is not None:
+                progress_callback(
+                    completed_pages + 1,
+                    total_pages,
+                    f"已解析第 {completed_pages + 1}/{total_pages} 页",
+                )
 
     @staticmethod
     def _open_reader(path: Path) -> PdfReader:

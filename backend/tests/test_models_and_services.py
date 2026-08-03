@@ -5,7 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ConflictError
-from app.models import Course, Document, DocumentStatus
+from app.models import Course, Document, DocumentProcessingStage, DocumentStatus
 from app.repositories import CourseRepository
 from app.services import CourseService, DocumentService
 
@@ -49,6 +49,9 @@ async def test_document_hash_is_unique_per_course_only(
     )
 
     assert first_document.status is DocumentStatus.PENDING
+    assert first_document.progress_percent == 0
+    assert first_document.processing_stage is DocumentProcessingStage.WAITING
+    assert first_document.progress_detail == "等待后台处理"
     assert first_document.file_type == "pdf"
 
     with pytest.raises(ConflictError, match="already exists"):

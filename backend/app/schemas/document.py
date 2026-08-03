@@ -3,7 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.models import DocumentStatus
+from app.models import DocumentProcessingStage, DocumentStatus
 
 
 class DocumentRead(BaseModel):
@@ -17,6 +17,9 @@ class DocumentRead(BaseModel):
     sha256: str
     status: DocumentStatus
     error_message: str | None
+    progress_percent: int = Field(ge=0, le=100)
+    processing_stage: DocumentProcessingStage
+    progress_detail: str | None
     created_at: datetime
     updated_at: datetime
 

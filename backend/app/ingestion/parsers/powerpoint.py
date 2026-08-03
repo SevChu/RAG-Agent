@@ -13,6 +13,7 @@ from app.ingestion.models import (
     SourceLocation,
 )
 from app.ingestion.parsers._ooxml import OoxmlPackage, local_name, resolve_ooxml_target
+from app.ingestion.parsers.base import ParseProgressCallback
 
 P_NS = "http://schemas.openxmlformats.org/presentationml/2006/main"
 A_NS = "http://schemas.openxmlformats.org/drawingml/2006/main"
@@ -37,6 +38,7 @@ class PowerPointParser:
         path: Path,
         *,
         display_name: str | None = None,
+        progress_callback: ParseProgressCallback | None = None,
     ) -> ParsedDocument:
         required = (
             "[Content_Types].xml",
@@ -58,6 +60,7 @@ class PowerPointParser:
         blocks: list[ParsedBlock] = []
         warnings: list[ParseWarning] = []
         image_number = 0
+        total_slides = len(slide_roots)
         for slide_number, slide_root in enumerate(slide_roots, start=1):
             pending, slide_image_count = self._parse_slide(
                 slide_root,
@@ -72,6 +75,12 @@ class PowerPointParser:
                         slide_number=slide_number,
                     )
                 )
+                if progress_callback is not None:
+                    progress_callback(
+                        slide_number,
+                        total_slides,
+                        f"已解析第 {slide_number}/{total_slides} 张幻灯片",
+                    )
                 continue
             title = next(
                 (item.text for item in pending if item.kind is BlockKind.HEADING),
@@ -89,6 +98,12 @@ class PowerPointParser:
                         ),
                         section_path=section_path,
                     )
+                )
+            if progress_callback is not None:
+                progress_callback(
+                    slide_number,
+                    total_slides,
+                    f"已解析第 {slide_number}/{total_slides} 张幻灯片",
                 )
 
         if not blocks:

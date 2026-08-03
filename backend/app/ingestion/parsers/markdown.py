@@ -11,6 +11,7 @@ from app.ingestion.models import (
     ParseWarning,
     SourceLocation,
 )
+from app.ingestion.parsers.base import ParseProgressCallback
 from app.ingestion.parsers.text import read_utf8_text
 
 HEADING_RE = re.compile(r"^(#{1,6})[ \t]+(.+?)\s*$")
@@ -30,6 +31,7 @@ class MarkdownParser:
         path: Path,
         *,
         display_name: str | None = None,
+        progress_callback: ParseProgressCallback | None = None,
     ) -> ParsedDocument:
         lines = read_utf8_text(path).split("\n")
         blocks: list[ParsedBlock] = []
@@ -193,6 +195,8 @@ class MarkdownParser:
             raise EmptyDocumentError(
                 "The Markdown document contains no meaningful content."
             )
+        if progress_callback is not None:
+            progress_callback(len(lines), len(lines), f"已解析 {len(lines)} 行文本")
         return ParsedDocument(
             file_name=display_name or path.name,
             file_type="md",
