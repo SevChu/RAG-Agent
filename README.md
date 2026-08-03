@@ -1,6 +1,7 @@
 # 基于 RAG 的计算机专业学习 Agent
 
-> 项目状态：第 1 周和第 2 周均已完成并通过验收；第 3 周计划日 1 已完成并通过验收。
+> 项目状态：第 1 周和第 2 周均已完成并通过验收；第 3 周计划日 1 已通过验收，计划日 2
+> 的 LLM 回答与引用功能已实现，等待真实 API 与回答风格验收。
 
 ## 1. 项目简介
 
@@ -503,6 +504,11 @@ LLM_BASE_URL=https://api.deepseek.com
 LLM_API_KEY=
 LLM_MODEL=deepseek-v4-flash
 LLM_AVAILABLE_MODELS=deepseek-v4-flash,deepseek-v4-pro
+LLM_REQUEST_TIMEOUT_SECONDS=90
+LLM_MAX_OUTPUT_TOKENS=1600
+LLM_TEMPERATURE=0.2
+RAG_ANSWER_TOP_K=6
+RAG_MIN_SIMILARITY_SCORE=0.3
 ```
 
 `LLM_MODEL` 表示默认模型，`LLM_AVAILABLE_MODELS` 表示允许用户切换的模型白名单。模型名称只从配置读取，不写死在业务逻辑中。前端切换模型时只能选择后端返回的可用模型，API Key 始终只保存在后端环境变量中。
@@ -568,8 +574,10 @@ LLM_AVAILABLE_MODELS=deepseek-v4-flash,deepseek-v4-pro
 
 当前进度：计划日 1 的课程范围 Dense Top-K 检索和数据结构 5 个问题 × Top-5 抽查已完成
 并通过用户验收；主题 `Hit@5=100%`，安全支持率 80%。计划日 1 增补的上传后真实索引
-处理进度也已完成：解析/OCR、分块、Embedding 和 Qdrant 写入均会上报真实阶段百分比，
-资料列表每 2 秒刷新进度条。重排、LLM 和 SSE 尚未开始。
+处理进度也已通过验收。计划日 2 已实现单轮课程问答、三种回答风格、DeepSeek
+OpenAI-compatible API、资料不足拒答、服务端引用编号校验和前端原文引用卡片；当前等待用户
+在本地 `.env` 填写 API Key 后执行真实回答与风格验收。Reranker、查询改写、SSE 和长期
+对话仍未开始，Reranker 模型也未下载。
 
 ### 第 4 周：Agent、总结和出题
 
@@ -983,3 +991,4 @@ uv run python -m app.ingestion.inspect `
 - [第 3 周工程日志：RAG 问答](docs/engineering-logs/week-03.md)
 - [第 3 周计划日 1 验收说明](docs/deliverables/week-03-day-01.md)
 - [第 3 周计划日 1 检索抽查报告](docs/deliverables/week-03-day-01-retrieval-review.md)
+- [第 3 周计划日 2 验收说明](docs/deliverables/week-03-day-02.md)
