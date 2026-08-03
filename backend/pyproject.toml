@@ -7,6 +7,7 @@ dependencies = [
     "aiosqlite>=0.22.1",
     "alembic>=1.18.5",
     "fastapi[standard-no-fastapi-cloud-cli]>=0.141.1",
+    "httpx>=0.28.1",
     "orjson>=3.11.9",
     "paddleocr==3.7.0",
     "paddlepaddle==3.3.1",
@@ -46,7 +47,6 @@ plugins = ["pydantic.mypy"]
 
 [dependency-groups]
 dev = [
-    "httpx>=0.28.1",
     "mypy>=2.3.0",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",

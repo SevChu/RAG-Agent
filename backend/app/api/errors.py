@@ -8,6 +8,9 @@ from app.core.exceptions import (
     FileTooLargeError,
     IndexStorageError,
     InvalidInputError,
+    LLMConfigurationError,
+    LLMOutputError,
+    LLMServiceError,
     NotFoundError,
     UnsupportedFileTypeError,
 )
@@ -19,6 +22,9 @@ ERROR_MAPPING: dict[type[DomainError], tuple[int, str]] = {
     UnsupportedFileTypeError: (415, "UNSUPPORTED_FILE_TYPE"),
     InvalidInputError: (400, "INVALID_INPUT"),
     IndexStorageError: (503, "INDEX_STORAGE_ERROR"),
+    LLMConfigurationError: (503, "LLM_NOT_CONFIGURED"),
+    LLMServiceError: (502, "LLM_SERVICE_ERROR"),
+    LLMOutputError: (502, "LLM_OUTPUT_ERROR"),
 }
 
 

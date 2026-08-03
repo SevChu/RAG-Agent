@@ -78,6 +78,9 @@ function translateApiMessage(code: string, fallback: string): string {
     NOT_FOUND: '目标内容不存在，可能已被删除',
     UNSUPPORTED_FILE_TYPE: '文件格式不受支持，或文件内容与扩展名不一致',
     INDEX_STORAGE_ERROR: fallback,
+    LLM_NOT_CONFIGURED: fallback,
+    LLM_OUTPUT_ERROR: fallback,
+    LLM_SERVICE_ERROR: fallback,
   }
   return messages[code] ?? fallback
 }

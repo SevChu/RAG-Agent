@@ -24,3 +24,15 @@ class FileTooLargeError(InvalidInputError):
 
 class IndexStorageError(DomainError):
     """Raised when vectors cannot be safely updated or removed."""
+
+
+class LLMConfigurationError(DomainError):
+    """Raised when a model-backed operation has no usable server configuration."""
+
+
+class LLMServiceError(DomainError):
+    """Raised when the configured model service cannot complete a request."""
+
+
+class LLMOutputError(DomainError):
+    """Raised when generated output fails the grounded-answer contract."""

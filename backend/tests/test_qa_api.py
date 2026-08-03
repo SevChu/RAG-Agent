@@ -1,0 +1,194 @@
+from __future__ import annotations
+
+from uuid import UUID
+
+from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import async_sessionmaker
+
+from app.core.config import Settings
+from app.db.session import create_database_engine
+from app.generation import ChatCompletion, TokenUsage, get_chat_completion_gateway
+from app.indexing import get_indexing_manager
+from app.knowledge import VectorSearchResult
+from app.main import app
+from app.models import Document, DocumentStatus
+from app.retrieval import DenseRetrievalResult
+
+
+async def _create_ready_document(
+    client: AsyncClient,
+    settings: Settings,
+) -> tuple[str, str]:
+    course_response = await client.post("/api/courses", json={"name": "数据结构"})
+    course_id = str(course_response.json()["data"]["id"])
+    upload_response = await client.post(
+        f"/api/courses/{course_id}/documents",
+        files={"file": ("讲义.md", "# 栈\n\n后进先出".encode(), "text/markdown")},
+    )
+    document_id = str(upload_response.json()["data"]["id"])
+    engine = create_database_engine(settings.database_url)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with session_factory() as session:
+        document = await session.get(Document, UUID(document_id))
+        assert document is not None
+        document.status = DocumentStatus.COMPLETED
+        await session.commit()
+    await engine.dispose()
+    return course_id, document_id
+
+
+class FakeManager:
+    def __init__(self, *, course_id: str, document_id: str, hits: bool = True) -> None:
+        self.course_id = course_id
+        self.document_id = document_id
+        self.hits = hits
+        self.calls: list[dict[str, object]] = []
+
+    async def search(
+        self,
+        *,
+        course_id: UUID,
+        query: str,
+        top_k: int,
+        document_ids: list[str],
+    ) -> DenseRetrievalResult:
+        self.calls.append(
+            {
+                "course_id": course_id,
+                "query": query,
+                "top_k": top_k,
+                "document_ids": document_ids,
+            }
+        )
+        results = (
+            (
+                VectorSearchResult(
+                    point_id="point-1",
+                    score=0.91,
+                    course_id=self.course_id,
+                    document_id=self.document_id,
+                    chunk_index=4,
+                    text="栈的插入与删除只能在线性表的一端进行，遵循后进先出。",
+                    payload={
+                        "file_name": "讲义.md",
+                        "file_type": "md",
+                        "section_path": ["栈", "基本概念"],
+                        "page_numbers": [],
+                        "slide_numbers": [],
+                        "line_start": 8,
+                        "line_end": 12,
+                        "block_kinds": ["paragraph"],
+                    },
+                ),
+            )
+            if self.hits
+            else ()
+        )
+        return DenseRetrievalResult(
+            query=query,
+            hits=results,
+            embedding_device="cpu",
+        )
+
+
+class FakeGateway:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def complete(self, *, system_prompt: str, user_prompt: str) -> ChatCompletion:
+        self.calls += 1
+        assert "均衡作答" in system_prompt
+        assert "后进先出" in user_prompt
+        return ChatCompletion(
+            content=(
+                '{"sufficient_evidence":true,'
+                '"answer":"栈只在一端插入和删除，并遵循后进先出原则。[1]",'
+                '"used_source_ids":[1]}'
+            ),
+            model="deepseek-test",
+            usage=TokenUsage(prompt_tokens=80, completion_tokens=16, total_tokens=96),
+        )
+
+
+async def test_answer_api_returns_verified_citation(
+    api_client: AsyncClient,
+    api_settings: Settings,
+) -> None:
+    course_id, document_id = await _create_ready_document(api_client, api_settings)
+    manager = FakeManager(course_id=course_id, document_id=document_id)
+    gateway = FakeGateway()
+    app.dependency_overrides[get_indexing_manager] = lambda: manager
+    app.dependency_overrides[get_chat_completion_gateway] = lambda: gateway
+
+    response = await api_client.post(
+        f"/api/courses/{course_id}/answers",
+        json={"question": "什么是栈？", "answer_style": "balanced"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["status"] == "answered"
+    assert data["answer"].endswith("[1]")
+    assert data["model"] == "deepseek-test"
+    assert data["citations"][0]["source_id"] == 1
+    assert data["citations"][0]["file_name"] == "讲义.md"
+    assert data["citations"][0]["line_start"] == 8
+    assert data["usage"]["total_tokens"] == 96
+    assert data["retrieval"]["requested_top_k"] == 6
+    assert manager.calls[0]["document_ids"] == [document_id]
+    assert gateway.calls == 1
+
+
+async def test_answer_api_refuses_without_hits_and_skips_llm(
+    api_client: AsyncClient,
+    api_settings: Settings,
+) -> None:
+    course_id, document_id = await _create_ready_document(api_client, api_settings)
+    manager = FakeManager(course_id=course_id, document_id=document_id, hits=False)
+    gateway = FakeGateway()
+    app.dependency_overrides[get_indexing_manager] = lambda: manager
+    app.dependency_overrides[get_chat_completion_gateway] = lambda: gateway
+
+    response = await api_client.post(
+        f"/api/courses/{course_id}/answers",
+        json={"question": "红黑树如何旋转？", "answer_style": "concise"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["status"] == "insufficient_evidence"
+    assert data["citations"] == []
+    assert data["model"] is None
+    assert gateway.calls == 0
+
+
+async def test_answer_api_reports_missing_key_without_exposing_it(
+    api_client: AsyncClient,
+    api_settings: Settings,
+) -> None:
+    course_id, document_id = await _create_ready_document(api_client, api_settings)
+    app.dependency_overrides[get_indexing_manager] = lambda: FakeManager(
+        course_id=course_id,
+        document_id=document_id,
+    )
+
+    response = await api_client.post(
+        f"/api/courses/{course_id}/answers",
+        json={"question": "什么是栈？"},
+    )
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "LLM_NOT_CONFIGURED"
+
+
+async def test_llm_configuration_api_never_returns_key(
+    api_client: AsyncClient,
+) -> None:
+    response = await api_client.get("/api/llm/config")
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["configured"] is False
+    assert data["model"] == "deepseek-v4-flash"
+    assert data["answer_styles"] == ["concise", "balanced", "detailed"]
+    assert "api_key" not in data

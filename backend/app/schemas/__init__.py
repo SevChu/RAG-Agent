@@ -6,6 +6,14 @@ from app.schemas.document import (
     DocumentDeleteResult,
     DocumentRead,
 )
+from app.schemas.qa import (
+    AnswerCitationRead,
+    AnswerRetrievalRead,
+    AnswerTokenUsageRead,
+    CourseAnswerRead,
+    CourseAnswerRequest,
+    LLMConfigurationRead,
+)
 from app.schemas.retrieval import (
     RetrievalHitRead,
     RetrievalSearchRead,
@@ -15,9 +23,14 @@ from app.schemas.retrieval import (
 __all__ = [
     "APIError",
     "APIResponse",
+    "AnswerCitationRead",
+    "AnswerRetrievalRead",
+    "AnswerTokenUsageRead",
     "CourseCreate",
     "CourseDeleteResult",
     "CourseRead",
+    "CourseAnswerRead",
+    "CourseAnswerRequest",
     "DocumentBulkDeleteRequest",
     "DocumentBulkDeleteResult",
     "DocumentDeleteResult",
@@ -25,4 +38,5 @@ __all__ = [
     "RetrievalHitRead",
     "RetrievalSearchRead",
     "RetrievalSearchRequest",
+    "LLMConfigurationRead",
 ]

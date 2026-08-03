@@ -1,4 +1,4 @@
-import type { DocumentProcessingStage, DocumentStatus } from '@/types/api'
+import type { AnswerCitation, DocumentProcessingStage, DocumentStatus } from '@/types/api'
 
 export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024
 export const ACCEPTED_FILE_EXTENSIONS = ['pdf', 'docx', 'pptx', 'md', 'txt'] as const
@@ -74,4 +74,26 @@ export function validateUploadFile(file: File): string | null {
     return '仅支持 PDF、DOCX、PPTX、MD 和 TXT'
   }
   return null
+}
+
+export function formatCitationLocation(citation: AnswerCitation): string {
+  const parts: string[] = []
+  if (citation.section_path.length > 0) {
+    parts.push(citation.section_path.join(' / '))
+  }
+  if (citation.page_numbers.length > 0) {
+    parts.push(`第 ${citation.page_numbers.join('、')} 页`)
+  }
+  if (citation.slide_numbers.length > 0) {
+    parts.push(`第 ${citation.slide_numbers.join('、')} 张幻灯片`)
+  }
+  if (citation.line_start !== null) {
+    const lineEnd = citation.line_end ?? citation.line_start
+    parts.push(
+      lineEnd === citation.line_start
+        ? `第 ${citation.line_start} 行`
+        : `第 ${citation.line_start}–${lineEnd} 行`,
+    )
+  }
+  return parts.join(' · ') || '来源位置未标注'
 }

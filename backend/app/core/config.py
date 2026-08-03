@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     llm_api_key: str = ""
     llm_model: str = "deepseek-v4-flash"
     llm_available_models: str = "deepseek-v4-flash,deepseek-v4-pro"
+    llm_request_timeout_seconds: float = Field(default=90.0, gt=0)
+    llm_max_output_tokens: int = Field(default=1600, gt=0)
+    llm_temperature: float = Field(default=0.2, ge=0, le=2)
+    rag_answer_top_k: int = Field(default=6, ge=1, le=20)
+    rag_min_similarity_score: float = Field(default=0.3, ge=-1, le=1)
 
     database_url: str = "sqlite+aiosqlite:///../data/app.db"
     qdrant_path: Path = Path("../data/qdrant")

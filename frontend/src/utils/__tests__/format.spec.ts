@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   formatFileSize,
+  formatCitationLocation,
   processingStageLabel,
   statusLabel,
   validateUploadFile,
@@ -33,5 +34,25 @@ describe('file presentation helpers', () => {
     const oversized = new File(['x'], 'large.pdf')
     Object.defineProperty(oversized, 'size', { value: 100 * 1024 * 1024 + 1 })
     expect(validateUploadFile(oversized)).toBe('文件超过 100 MB')
+  })
+
+  it('formats a traceable citation location', () => {
+    expect(
+      formatCitationLocation({
+        source_id: 1,
+        retrieval_rank: 2,
+        score: 0.91,
+        document_id: 'document-id',
+        chunk_index: 4,
+        text: '证据正文',
+        file_name: '数据结构.pdf',
+        file_type: 'pdf',
+        section_path: ['图', '最短路径'],
+        page_numbers: [12],
+        slide_numbers: [],
+        line_start: null,
+        line_end: null,
+      }),
+    ).toBe('图 / 最短路径 · 第 12 页')
   })
 })
