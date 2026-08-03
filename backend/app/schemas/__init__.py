@@ -1,4 +1,11 @@
 from app.schemas.api import APIError, APIResponse
+from app.schemas.conversation import (
+    ConversationCreate,
+    ConversationDeleteResult,
+    ConversationDetailRead,
+    ConversationMessageRead,
+    ConversationSummaryRead,
+)
 from app.schemas.course import CourseCreate, CourseDeleteResult, CourseRead
 from app.schemas.document import (
     DocumentBulkDeleteRequest,
@@ -31,6 +38,11 @@ __all__ = [
     "CourseRead",
     "CourseAnswerRead",
     "CourseAnswerRequest",
+    "ConversationCreate",
+    "ConversationDeleteResult",
+    "ConversationDetailRead",
+    "ConversationMessageRead",
+    "ConversationSummaryRead",
     "DocumentBulkDeleteRequest",
     "DocumentBulkDeleteResult",
     "DocumentDeleteResult",

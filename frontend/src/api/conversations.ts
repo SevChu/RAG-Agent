@@ -1,0 +1,45 @@
+import { unwrapResponse } from './client'
+import { http } from './http'
+
+import type {
+  ApiResponse,
+  CourseConversationDetail,
+  CourseConversationSummary,
+  DeleteResult,
+} from '@/types/api'
+
+export async function fetchCourseConversations(): Promise<CourseConversationSummary[]> {
+  const response = await http.get<ApiResponse<CourseConversationSummary[]>>('/conversations')
+  return unwrapResponse(response.data)
+}
+
+export async function createCourseConversation(
+  courseId: string,
+  title?: string,
+): Promise<CourseConversationSummary> {
+  const response = await http.post<ApiResponse<CourseConversationSummary>>(
+    `/courses/${courseId}/conversations`,
+    title ? { title } : {},
+  )
+  return unwrapResponse(response.data)
+}
+
+export async function fetchCourseConversation(
+  courseId: string,
+  conversationId: string,
+): Promise<CourseConversationDetail> {
+  const response = await http.get<ApiResponse<CourseConversationDetail>>(
+    `/courses/${courseId}/conversations/${conversationId}`,
+  )
+  return unwrapResponse(response.data)
+}
+
+export async function removeCourseConversation(
+  courseId: string,
+  conversationId: string,
+): Promise<DeleteResult> {
+  const response = await http.delete<ApiResponse<DeleteResult>>(
+    `/courses/${courseId}/conversations/${conversationId}`,
+  )
+  return unwrapResponse(response.data)
+}

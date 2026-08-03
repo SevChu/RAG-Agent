@@ -16,6 +16,7 @@ class ChatCompletionGateway(Protocol):
         *,
         system_prompt: str,
         user_prompt: str,
+        model: str,
     ) -> ChatCompletion: ...
 
 
@@ -30,6 +31,7 @@ class OpenAICompatibleChatClient:
         *,
         system_prompt: str,
         user_prompt: str,
+        model: str,
     ) -> ChatCompletion:
         api_key = self.settings.llm_api_key.strip()
         if not api_key:
@@ -39,7 +41,7 @@ class OpenAICompatibleChatClient:
             )
 
         payload: dict[str, Any] = {
-            "model": self.settings.llm_model,
+            "model": model,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
@@ -83,14 +85,14 @@ class OpenAICompatibleChatClient:
             body = response.json()
             choice = body["choices"][0]
             content = choice["message"]["content"]
-            model = str(body.get("model") or self.settings.llm_model)
+            response_model = str(body.get("model") or model)
         except (KeyError, IndexError, TypeError, ValueError) as error:
             raise LLMServiceError("模型服务返回了无法识别的响应。") from error
         if not isinstance(content, str) or not content.strip():
             raise LLMServiceError("模型服务没有返回回答内容，请重试。")
 
         usage = _parse_usage(body.get("usage"))
-        return ChatCompletion(content=content.strip(), model=model, usage=usage)
+        return ChatCompletion(content=content.strip(), model=response_model, usage=usage)
 
 
 def _parse_usage(value: object) -> TokenUsage | None:

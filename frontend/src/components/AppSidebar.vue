@@ -1,6 +1,10 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { computed, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+
+import { toFriendlyApiError } from '@/api/client'
+import { useConversationsStore } from '@/stores/conversations'
 
 defineProps<{
   collapsed: boolean
@@ -13,6 +17,8 @@ const emit = defineEmits<{
 }>()
 
 const route = useRoute()
+const router = useRouter()
+const conversationsStore = useConversationsStore()
 const quickHistoryExpanded = ref(true)
 const assistantHistoryExpanded = ref(true)
 
@@ -21,8 +27,36 @@ const isQuickChat = computed(() => route.path.startsWith('/chat'))
 const isAssistant = computed(() => route.path.startsWith('/assistant'))
 const isSettings = computed(() => route.path.startsWith('/settings'))
 
+onMounted(async () => {
+  try {
+    await conversationsStore.loadCourseConversations()
+  } catch (error) {
+    ElMessage.error(toFriendlyApiError(error).message)
+  }
+})
+
 function closeMobile(): void {
   emit('update:mobileOpen', false)
+}
+
+async function deleteConversation(courseId: string, conversationId: string): Promise<void> {
+  try {
+    await ElMessageBox.confirm('删除后将同时移除该课程对话的全部消息与引用记录。', '删除对话', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning',
+      confirmButtonClass: 'danger-confirm-button',
+    })
+    await conversationsStore.deleteCourseConversation(courseId, conversationId)
+    if (route.params.conversationId === conversationId) {
+      await router.push('/assistant')
+    }
+    ElMessage.success('课程对话已删除')
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(toFriendlyApiError(error).message)
+    }
+  }
 }
 </script>
 
@@ -125,7 +159,32 @@ function closeMobile(): void {
           <span aria-hidden="true">{{ assistantHistoryExpanded ? '⌄' : '›' }}</span>
         </button>
         <div v-show="assistantHistoryExpanded" id="assistant-history-list" class="history-list">
-          <p class="history-empty">暂无课程对话</p>
+          <p v-if="!conversationsStore.courseConversations.length" class="history-empty">
+            暂无课程对话
+          </p>
+          <div
+            v-for="conversation in conversationsStore.courseConversations"
+            :key="conversation.id"
+            class="history-item"
+            :class="{ active: route.params.conversationId === conversation.id }"
+          >
+            <RouterLink
+              :to="`/assistant/${conversation.id}`"
+              :title="`${conversation.course_name} · ${conversation.title}`"
+              @click="closeMobile"
+            >
+              <strong>{{ conversation.title }}</strong>
+              <small>{{ conversation.course_name }}</small>
+            </RouterLink>
+            <button
+              type="button"
+              aria-label="删除课程对话"
+              title="删除对话"
+              @click="deleteConversation(conversation.course_id, conversation.id)"
+            >
+              ×
+            </button>
+          </div>
         </div>
       </section>
     </template>
@@ -382,6 +441,68 @@ function closeMobile(): void {
   color: var(--ink-faint);
   background: rgb(230 239 249 / 48%);
   border-radius: 10px;
+}
+
+.history-list {
+  display: grid;
+  gap: 4px;
+  margin-top: 3px;
+}
+
+.history-item {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  background: rgb(238 246 255 / 54%);
+  border: 1px solid transparent;
+  border-radius: 10px;
+}
+
+.history-item:hover,
+.history-item.active {
+  background: rgb(226 242 255 / 82%);
+  border-color: rgb(62 155 255 / 13%);
+}
+
+.history-item > a {
+  display: grid;
+  min-width: 0;
+  padding: 8px 4px 8px 10px;
+  flex: 1;
+  gap: 2px;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.history-item strong,
+.history-item small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-item strong {
+  font-size: 11px;
+}
+
+.history-item small {
+  font-size: 9px;
+  color: var(--ink-faint);
+}
+
+.history-item > button {
+  width: 28px;
+  height: 30px;
+  padding: 0;
+  flex: 0 0 28px;
+  color: var(--ink-faint);
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+}
+
+.history-item > button:hover {
+  color: var(--danger);
 }
 
 .sidebar-spacer {

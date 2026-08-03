@@ -52,6 +52,7 @@ class GroundedAnswerGenerator:
         question: str,
         hits: Sequence[VectorSearchResult],
         style: AnswerStyle,
+        model: str,
     ) -> tuple[GroundedAnswer, tuple[VectorSearchResult, ...]]:
         eligible_hits = tuple(
             hit for hit in hits if hit.score >= self.min_similarity_score
@@ -70,6 +71,7 @@ class GroundedAnswerGenerator:
         completion = await self.gateway.complete(
             system_prompt=_system_prompt(style),
             user_prompt=_user_prompt(question, eligible_hits),
+            model=model,
         )
         payload = _parse_payload(completion.content)
         available_ids = set(range(1, len(eligible_hits) + 1))

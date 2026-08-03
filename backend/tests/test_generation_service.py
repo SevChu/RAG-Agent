@@ -18,10 +18,16 @@ from app.knowledge import VectorSearchResult
 class FakeGateway:
     def __init__(self, content: str) -> None:
         self.content = content
-        self.calls: list[tuple[str, str]] = []
+        self.calls: list[tuple[str, str, str]] = []
 
-    async def complete(self, *, system_prompt: str, user_prompt: str) -> ChatCompletion:
-        self.calls.append((system_prompt, user_prompt))
+    async def complete(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+    ) -> ChatCompletion:
+        self.calls.append((system_prompt, user_prompt, model))
         return ChatCompletion(
             content=self.content,
             model="test-model",
@@ -60,6 +66,7 @@ async def test_grounded_answer_accepts_only_declared_inline_citations() -> None:
         question="什么是栈？",
         hits=[_hit()],
         style=AnswerStyle.BALANCED,
+        model="deepseek-v4-pro",
     )
 
     assert answer.status is AnswerStatus.ANSWERED
@@ -69,6 +76,7 @@ async def test_grounded_answer_accepts_only_declared_inline_citations() -> None:
     assert eligible == (_hit(),)
     assert "只允许使用" in gateway.calls[0][0]
     assert "数据结构讲义.md" in gateway.calls[0][1]
+    assert gateway.calls[0][2] == "deepseek-v4-pro"
 
 
 async def test_grounded_answer_refuses_without_eligible_evidence_or_llm_call() -> None:
@@ -79,6 +87,7 @@ async def test_grounded_answer_refuses_without_eligible_evidence_or_llm_call() -
         question="课程资料之外的问题",
         hits=[_hit(score=0.2)],
         style=AnswerStyle.CONCISE,
+        model="deepseek-v4-flash",
     )
 
     assert answer.status is AnswerStatus.INSUFFICIENT_EVIDENCE
@@ -125,7 +134,12 @@ async def test_answer_styles_use_distinct_output_contracts(
     )
     generator = GroundedAnswerGenerator(gateway, min_similarity_score=0.3)
 
-    await generator.answer(question="什么是栈？", hits=[_hit()], style=style)
+    await generator.answer(
+        question="什么是栈？",
+        hits=[_hit()],
+        style=style,
+        model="deepseek-v4-flash",
+    )
 
     system_prompt = gateway.calls[0][0]
     for marker in required_markers:
@@ -152,6 +166,7 @@ async def test_grounded_answer_blocks_invalid_model_citations(content: str) -> N
             question="什么是栈？",
             hits=[_hit()],
             style=AnswerStyle.DETAILED,
+            model="deepseek-v4-flash",
         )
 
 
@@ -191,6 +206,7 @@ async def test_grounded_answer_uses_visible_citations_as_source_of_truth(
         question="比较栈和队列。",
         hits=[_hit(), second_hit],
         style=AnswerStyle.BALANCED,
+        model="deepseek-v4-flash",
     )
 
     assert answer.used_source_ids == expected_ids

@@ -103,6 +103,9 @@ export interface AnswerTokenUsage {
 }
 
 export interface CourseAnswer {
+  conversation_id: string
+  user_message_id: string
+  assistant_message_id: string
   course_id: string
   question: string
   answer: string
@@ -119,6 +122,8 @@ export interface CourseAnswerPayload {
   question: string
   answer_style: AnswerStyle
   document_ids?: string[]
+  conversation_id?: string
+  model?: string
 }
 
 export interface LLMConfiguration {
@@ -128,4 +133,37 @@ export interface LLMConfiguration {
   available_models: string[]
   configured: boolean
   answer_styles: AnswerStyle[]
+}
+
+export type ConversationMessageRole = 'user' | 'assistant'
+export type ConversationMessageStatus = 'completed' | 'pending' | 'failed' | 'interrupted'
+
+export interface CourseConversationSummary {
+  id: string
+  course_id: string
+  course_name: string
+  title: string
+  created_at: string
+  updated_at: string
+  last_message_at: string | null
+}
+
+export interface CourseConversationMessage {
+  id: string
+  sequence_number: number
+  role: ConversationMessageRole
+  status: ConversationMessageStatus
+  content: string
+  answer_status: AnswerStatus | null
+  answer_style: AnswerStyle | null
+  model: string | null
+  citations: AnswerCitation[]
+  retrieval: AnswerRetrieval | null
+  usage: AnswerTokenUsage | null
+  elapsed_ms: number | null
+  created_at: string
+}
+
+export interface CourseConversationDetail extends CourseConversationSummary {
+  messages: CourseConversationMessage[]
 }

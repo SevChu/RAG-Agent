@@ -1,5 +1,22 @@
 <script setup lang="ts">
 import { ElAlert, ElOption, ElSelect } from 'element-plus'
+import { storeToRefs } from 'pinia'
+import { onMounted, ref } from 'vue'
+
+import { toFriendlyApiError } from '@/api/client'
+import { useLLMStore } from '@/stores/llm'
+
+const llmStore = useLLMStore()
+const { configuration, selectedModel, loading } = storeToRefs(llmStore)
+const errorMessage = ref('')
+
+onMounted(async () => {
+  try {
+    await llmStore.loadConfiguration()
+  } catch (error) {
+    errorMessage.value = toFriendlyApiError(error).message
+  }
+})
 </script>
 
 <template>
@@ -8,7 +25,7 @@ import { ElAlert, ElOption, ElSelect } from 'element-plus'
       <div>
         <div class="eyebrow"><span /> SETTINGS</div>
         <h1>设置</h1>
-        <p>管理模型偏好和本地学习空间配置。真实密钥不会在页面中展示。</p>
+        <p>选择本次浏览器会话使用的生成模型。真实密钥不会在页面中展示。</p>
       </div>
     </header>
 
@@ -16,19 +33,37 @@ import { ElAlert, ElOption, ElSelect } from 'element-plus'
       <div class="setting-icon" aria-hidden="true">AI</div>
       <div>
         <span class="soft-label">MODEL PROVIDER</span>
-        <h2>DeepSeek</h2>
-        <p>兼容 OpenAI API · https://api.deepseek.com</p>
+        <h2>{{ configuration?.provider || 'DeepSeek' }}</h2>
+        <p>兼容 OpenAI API · {{ configuration?.base_url || '正在读取配置' }}</p>
       </div>
-      <el-select model-value="deepseek-v4-flash" disabled class="model-select">
-        <el-option label="deepseek-v4-flash" value="deepseek-v4-flash" />
-        <el-option label="deepseek-v4-pro" value="deepseek-v4-pro" />
+      <el-select
+        v-model="selectedModel"
+        :loading="loading"
+        :disabled="!configuration"
+        class="model-select"
+        aria-label="默认生成模型"
+      >
+        <el-option
+          v-for="model in configuration?.available_models ?? []"
+          :key="model"
+          :label="model"
+          :value="model"
+        />
       </el-select>
     </section>
 
     <el-alert
-      title="模型切换将在模型调用阶段接入"
-      description="第四日只保留配置入口；API Key 仍仅通过本地环境变量管理。"
-      type="info"
+      v-if="errorMessage"
+      :title="errorMessage"
+      type="error"
+      :closable="false"
+      show-icon
+    />
+    <el-alert
+      v-else
+      title="模型切换已生效"
+      :description="`课程学习助手的后续请求会使用 ${selectedModel || '后端默认模型'}；刷新页面后恢复后端默认值 ${configuration?.model || ''}。API Key 仍仅通过本地环境变量管理。`"
+      type="success"
       :closable="false"
       show-icon
     />

@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
-from app.core.exceptions import ConflictError, IndexStorageError
+from app.core.exceptions import ConflictError, IndexStorageError, InvalidInputError
 from app.db.session import get_session
 from app.generation import (
     AnswerStyle,
@@ -28,7 +28,7 @@ from app.schemas.qa import (
     CourseAnswerRequest,
     LLMConfigurationRead,
 )
-from app.services import CourseService, DocumentService
+from app.services import ConversationService, CourseService, DocumentService
 
 router = APIRouter(tags=["question-answering"])
 
@@ -77,6 +77,21 @@ async def answer_course_question(
 ) -> APIResponse[CourseAnswerRead]:
     started_at = perf_counter()
     await CourseService(session).get(course_id)
+    selected_model = payload.model or settings.llm_model
+    if selected_model not in settings.available_models:
+        raise InvalidInputError(
+            f"不支持模型 {selected_model}。可选模型：{', '.join(settings.available_models)}"
+        )
+    conversation_service = ConversationService(session)
+    if payload.conversation_id is None:
+        conversation = await conversation_service.create_course_conversation(
+            course_id=course_id,
+        )
+    else:
+        conversation = await conversation_service.get_course_conversation(
+            course_id=course_id,
+            conversation_id=payload.conversation_id,
+        )
     document_service = DocumentService(session)
     if payload.document_ids is None:
         candidate_documents = await document_service.list_for_course(course_id)
@@ -121,6 +136,7 @@ async def answer_course_question(
         question=payload.question,
         hits=retrieval.hits,
         style=payload.answer_style,
+        model=selected_model,
     )
     citations = [
         _citation_read(
@@ -139,28 +155,45 @@ async def answer_course_question(
         if answer.usage is not None
         else None
     )
+    elapsed_ms = round((perf_counter() - started_at) * 1000, 2)
+    retrieval_read = AnswerRetrievalRead(
+        requested_top_k=settings.rag_answer_top_k,
+        candidate_top_k=settings.rag_answer_candidate_k,
+        candidate_count=retrieval.dense_candidate_count,
+        returned_count=len(retrieval.hits),
+        eligible_evidence_count=len(eligible_hits),
+        rejected_evidence_count=retrieval.rejected_evidence_count,
+        scope_document_count=len(ready_document_ids),
+        embedding_device=retrieval.embedding_device,
+        reranker_device=retrieval.reranker_device,
+        fallback_reason=retrieval.fallback_reason,
+    )
+    user_message, assistant_message = await conversation_service.record_exchange(
+        conversation=conversation,
+        question=payload.question,
+        answer=answer.answer,
+        answer_status=answer.status.value,
+        answer_style=payload.answer_style.value,
+        model=answer.model,
+        citations=[citation.model_dump(mode="json") for citation in citations],
+        retrieval=retrieval_read.model_dump(mode="json"),
+        usage=usage.model_dump(mode="json") if usage is not None else None,
+        elapsed_ms=elapsed_ms,
+    )
     return APIResponse(
         data=CourseAnswerRead(
+            conversation_id=conversation.id,
+            user_message_id=user_message.id,
+            assistant_message_id=assistant_message.id,
             course_id=course_id,
             question=payload.question,
             answer=answer.answer,
             status=answer.status,
             answer_style=payload.answer_style,
             model=answer.model,
-            elapsed_ms=round((perf_counter() - started_at) * 1000, 2),
+            elapsed_ms=elapsed_ms,
             citations=citations,
-            retrieval=AnswerRetrievalRead(
-                requested_top_k=settings.rag_answer_top_k,
-                candidate_top_k=settings.rag_answer_candidate_k,
-                candidate_count=retrieval.dense_candidate_count,
-                returned_count=len(retrieval.hits),
-                eligible_evidence_count=len(eligible_hits),
-                rejected_evidence_count=retrieval.rejected_evidence_count,
-                scope_document_count=len(ready_document_ids),
-                embedding_device=retrieval.embedding_device,
-                reranker_device=retrieval.reranker_device,
-                fallback_reason=retrieval.fallback_reason,
-            ),
+            retrieval=retrieval_read,
             usage=usage,
         )
     )

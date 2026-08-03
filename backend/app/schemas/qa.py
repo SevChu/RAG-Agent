@@ -11,6 +11,8 @@ class CourseAnswerRequest(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
     answer_style: AnswerStyle = AnswerStyle.BALANCED
     document_ids: list[UUID] | None = Field(default=None, max_length=50)
+    conversation_id: UUID | None = None
+    model: str | None = Field(default=None, min_length=1, max_length=120)
 
     @field_validator("question")
     @classmethod
@@ -29,6 +31,11 @@ class CourseAnswerRequest(BaseModel):
         if value is not None and len(set(value)) != len(value):
             raise ValueError("document_ids cannot contain duplicates")
         return value
+
+    @field_validator("model")
+    @classmethod
+    def normalize_model(cls, value: str | None) -> str | None:
+        return value.strip() if value is not None else None
 
 
 class AnswerCitationRead(BaseModel):
@@ -71,6 +78,9 @@ class AnswerTokenUsageRead(BaseModel):
 
 
 class CourseAnswerRead(BaseModel):
+    conversation_id: UUID
+    user_message_id: UUID
+    assistant_message_id: UUID
     course_id: UUID
     question: str
     answer: str

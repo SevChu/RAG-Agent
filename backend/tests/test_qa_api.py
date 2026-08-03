@@ -99,12 +99,21 @@ class FakeManager:
 class FakeGateway:
     def __init__(self) -> None:
         self.calls = 0
+        self.models: list[str] = []
 
-    async def complete(self, *, system_prompt: str, user_prompt: str) -> ChatCompletion:
+    async def complete(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+    ) -> ChatCompletion:
         self.calls += 1
+        self.models.append(model)
         assert "## 结论" in system_prompt
         assert "## 关键要点" in system_prompt
         assert "后进先出" in user_prompt
+        assert model in {"deepseek-v4-flash", "deepseek-v4-pro"}
         return ChatCompletion(
             content=(
                 '{"sufficient_evidence":true,'
@@ -136,6 +145,9 @@ async def test_answer_api_returns_verified_citation(
     assert data["status"] == "answered"
     assert data["answer"].endswith("[1]")
     assert data["model"] == "deepseek-test"
+    assert data["conversation_id"]
+    assert data["user_message_id"]
+    assert data["assistant_message_id"]
     assert data["citations"][0]["source_id"] == 1
     assert data["citations"][0]["file_name"] == "讲义.md"
     assert data["citations"][0]["line_start"] == 8
@@ -148,6 +160,53 @@ async def test_answer_api_returns_verified_citation(
     assert manager.calls[0]["candidate_k"] == 20
     assert manager.calls[0]["document_ids"] == [document_id]
     assert gateway.calls == 1
+
+    conversation_response = await api_client.get(
+        f"/api/courses/{course_id}/conversations/{data['conversation_id']}"
+    )
+    assert conversation_response.status_code == 200
+    conversation = conversation_response.json()["data"]
+    assert conversation["title"] == "什么是栈？"
+    assert [message["role"] for message in conversation["messages"]] == [
+        "user",
+        "assistant",
+    ]
+    assert conversation["messages"][1]["citations"][0]["file_name"] == "讲义.md"
+
+
+async def test_answer_api_uses_selected_allowed_model(
+    api_client: AsyncClient,
+    api_settings: Settings,
+) -> None:
+    course_id, document_id = await _create_ready_document(api_client, api_settings)
+    manager = FakeManager(course_id=course_id, document_id=document_id)
+    gateway = FakeGateway()
+    app.dependency_overrides[get_indexing_manager] = lambda: manager
+    app.dependency_overrides[get_chat_completion_gateway] = lambda: gateway
+
+    response = await api_client.post(
+        f"/api/courses/{course_id}/answers",
+        json={"question": "什么是栈？", "model": "deepseek-v4-pro"},
+    )
+
+    assert response.status_code == 200
+    assert gateway.calls == 1
+    assert gateway.models == ["deepseek-v4-pro"]
+
+
+async def test_answer_api_rejects_model_outside_server_allowlist(
+    api_client: AsyncClient,
+    api_settings: Settings,
+) -> None:
+    course_id, _ = await _create_ready_document(api_client, api_settings)
+
+    response = await api_client.post(
+        f"/api/courses/{course_id}/answers",
+        json={"question": "什么是栈？", "model": "untrusted-model"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "INVALID_INPUT"
 
 
 async def test_answer_api_refuses_without_hits_and_skips_llm(

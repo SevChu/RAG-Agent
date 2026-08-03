@@ -2,40 +2,50 @@
 import DOMPurify from 'dompurify'
 import { ElAlert, ElOption, ElSelect } from 'element-plus'
 import MarkdownIt from 'markdown-it'
+import { storeToRefs } from 'pinia'
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
 import { toFriendlyApiError } from '@/api/client'
-import { askCourseQuestion, fetchLLMConfiguration } from '@/api/qa'
+import { askCourseQuestion } from '@/api/qa'
+import { useConversationsStore } from '@/stores/conversations'
 import { useCoursesStore } from '@/stores/courses'
-import type { AnswerStyle, CourseAnswer, LLMConfiguration } from '@/types/api'
+import { useLLMStore } from '@/stores/llm'
+import type { AnswerStyle, CourseConversationMessage } from '@/types/api'
 import { formatCitationLocation } from '@/utils/format'
 
 const markdown = new MarkdownIt({ html: false, breaks: true, linkify: true })
+const route = useRoute()
+const router = useRouter()
 const store = useCoursesStore()
+const conversationsStore = useConversationsStore()
+const llmStore = useLLMStore()
+const { configuration: llmConfiguration, selectedModel } = storeToRefs(llmStore)
 const selectedCourseId = ref('')
 const answerStyle = ref<AnswerStyle>('balanced')
 const question = ref('')
-const result = ref<CourseAnswer | null>(null)
-const llmConfiguration = ref<LLMConfiguration | null>(null)
+const activeConversationId = ref('')
 const errorMessage = ref('')
 const loading = ref(false)
+const restoring = ref(false)
 
 const selectedCourse = computed(() =>
   store.courses.find((course) => course.id === selectedCourseId.value),
 )
+const activeConversation = computed(() =>
+  activeConversationId.value
+    ? conversationsStore.details[activeConversationId.value] ?? null
+    : null,
+)
+const messages = computed(() => activeConversation.value?.messages ?? [])
 const canSubmit = computed(
   () =>
     Boolean(selectedCourseId.value) &&
     Boolean(question.value.trim()) &&
+    Boolean(selectedModel.value) &&
     Boolean(llmConfiguration.value?.configured) &&
     !loading.value,
 )
-const answerHtml = computed(() => {
-  if (!result.value) {
-    return ''
-  }
-  return DOMPurify.sanitize(markdown.render(result.value.answer))
-})
 
 const styleOptions: Array<{ value: AnswerStyle; label: string; detail: string }> = [
   { value: 'concise', label: '简洁', detail: '单段或至多 3 个短要点，只保留核心依据' },
@@ -58,21 +68,70 @@ function contentRoleLabel(role: string): string {
 
 onMounted(async () => {
   try {
-    const [, configuration] = await Promise.all([
+    await Promise.all([
       store.loadCourses(false),
-      fetchLLMConfiguration(),
+      llmStore.loadConfiguration(),
+      conversationsStore.loadCourseConversations(),
     ])
-    llmConfiguration.value = configuration
     selectedCourseId.value = store.courses[0]?.id ?? ''
+    await restoreConversationFromRoute()
   } catch (error) {
     errorMessage.value = toFriendlyApiError(error).message
   }
 })
 
-watch(selectedCourseId, () => {
-  result.value = null
+watch(
+  () => route.params.conversationId,
+  async () => {
+    if (!restoring.value) {
+      await restoreConversationFromRoute()
+    }
+  },
+)
+
+async function restoreConversationFromRoute(): Promise<void> {
+  const conversationId = String(route.params.conversationId ?? '')
+  if (!conversationId) {
+    activeConversationId.value = ''
+    return
+  }
+  restoring.value = true
   errorMessage.value = ''
-})
+  try {
+    let summary = conversationsStore.courseConversations.find(
+      (conversation) => conversation.id === conversationId,
+    )
+    if (!summary) {
+      await conversationsStore.loadCourseConversations()
+      summary = conversationsStore.courseConversations.find(
+        (conversation) => conversation.id === conversationId,
+      )
+    }
+    if (!summary) {
+      throw {
+        code: 'NOT_FOUND',
+        message: '找不到该课程对话，记录可能已经被删除。',
+      }
+    }
+    selectedCourseId.value = summary.course_id
+    await conversationsStore.loadCourseConversation(summary.course_id, summary.id)
+    activeConversationId.value = summary.id
+  } catch (error) {
+    activeConversationId.value = ''
+    errorMessage.value = toFriendlyApiError(error).message
+  } finally {
+    restoring.value = false
+  }
+}
+
+async function startNewConversation(): Promise<void> {
+  activeConversationId.value = ''
+  errorMessage.value = ''
+  question.value = ''
+  if (route.params.conversationId) {
+    await router.push('/assistant')
+  }
+}
 
 async function submitQuestion(): Promise<void> {
   if (!canSubmit.value) {
@@ -80,17 +139,37 @@ async function submitQuestion(): Promise<void> {
   }
   loading.value = true
   errorMessage.value = ''
-  result.value = null
   try {
-    result.value = await askCourseQuestion(selectedCourseId.value, {
+    let conversationId = activeConversationId.value
+    if (!conversationId) {
+      const conversation = await conversationsStore.createCourseConversation(
+        selectedCourseId.value,
+      )
+      conversationId = conversation.id
+      activeConversationId.value = conversation.id
+      await router.replace(`/assistant/${conversation.id}`)
+    }
+    const result = await askCourseQuestion(selectedCourseId.value, {
       question: question.value.trim(),
       answer_style: answerStyle.value,
+      conversation_id: conversationId,
+      model: selectedModel.value,
     })
+    await conversationsStore.loadCourseConversation(
+      selectedCourseId.value,
+      result.conversation_id,
+    )
+    await conversationsStore.loadCourseConversations()
+    question.value = ''
   } catch (error) {
     errorMessage.value = toFriendlyApiError(error).message
   } finally {
     loading.value = false
   }
+}
+
+function renderAnswer(message: CourseConversationMessage): string {
+  return DOMPurify.sanitize(markdown.render(message.content))
 }
 
 function submitWithKeyboard(event: KeyboardEvent): void {
@@ -109,7 +188,7 @@ function submitWithKeyboard(event: KeyboardEvent): void {
         <h1>课程学习助手</h1>
         <p>从所选课程资料中检索证据，再生成带页码、幻灯片号或文本行号的可追溯回答。</p>
       </div>
-      <span class="context-pill">单轮课程问答</span>
+      <span class="context-pill">会话已持久化 · 回答仍逐题检索</span>
     </header>
 
     <el-alert
@@ -142,6 +221,7 @@ function submitWithKeyboard(event: KeyboardEvent): void {
           placeholder="请选择课程"
           size="large"
           class="control-select"
+          @change="startNewConversation"
         >
           <el-option
             v-for="course in store.courses"
@@ -169,10 +249,25 @@ function submitWithKeyboard(event: KeyboardEvent): void {
           {{ styleOptions.find((option) => option.value === answerStyle)?.detail }}
         </p>
 
+        <label for="answer-model">生成模型</label>
+        <el-select
+          id="answer-model"
+          v-model="selectedModel"
+          size="large"
+          class="control-select"
+        >
+          <el-option
+            v-for="model in llmConfiguration?.available_models ?? []"
+            :key="model"
+            :label="model"
+            :value="model"
+          />
+        </el-select>
+
         <div class="model-card">
           <div>
-            <span>当前模型</span>
-            <strong>{{ llmConfiguration?.model || '正在读取配置' }}</strong>
+            <span>本次请求模型</span>
+            <strong>{{ selectedModel || '正在读取配置' }}</strong>
           </div>
           <span
             class="config-status"
@@ -182,6 +277,15 @@ function submitWithKeyboard(event: KeyboardEvent): void {
           </span>
         </div>
 
+        <button
+          v-if="activeConversationId"
+          type="button"
+          class="secondary-button new-conversation-button"
+          @click="startNewConversation"
+        >
+          新建课程对话
+        </button>
+
         <div class="guardrail-note">
           <strong>回答边界</strong>
           <p>只使用已完成入库的课程资料。证据不足时明确拒答，不用模型常识补齐。</p>
@@ -189,7 +293,7 @@ function submitWithKeyboard(event: KeyboardEvent): void {
       </aside>
 
       <main class="answer-panel">
-        <div v-if="!result && !loading" class="empty-answer">
+        <div v-if="!messages.length && !loading" class="empty-answer">
           <span class="assistant-mark" aria-hidden="true">AI</span>
           <span class="soft-label">READY FOR YOUR QUESTION</span>
           <h2>{{ selectedCourse?.name || '请选择一门课程' }}</h2>
@@ -198,72 +302,80 @@ function submitWithKeyboard(event: KeyboardEvent): void {
           </p>
         </div>
 
-        <div v-if="loading" class="loading-answer" role="status" aria-live="polite">
+        <div v-if="messages.length" class="message-thread">
+          <template v-for="message in messages" :key="message.id">
+            <div v-if="message.role === 'user'" class="question-bubble">
+              {{ message.content }}
+            </div>
+            <article v-else class="answer-result">
+              <div class="answer-heading">
+                <div>
+                  <span class="soft-label">GROUNDED ANSWER</span>
+                  <h2>资料依据回答</h2>
+                </div>
+                <span
+                  class="answer-status"
+                  :class="{ refused: message.answer_status === 'insufficient_evidence' }"
+                >
+                  {{ message.answer_status === 'answered' ? '证据已引用' : '资料不足' }}
+                </span>
+              </div>
+              <div class="markdown-answer" v-html="renderAnswer(message)" />
+
+              <section v-if="message.citations.length" class="citation-section">
+                <div class="citation-title">
+                  <h3>引用资料</h3>
+                  <span>{{ message.citations.length }} 条已使用证据</span>
+                </div>
+                <details
+                  v-for="citation in message.citations"
+                  :key="`${message.id}-${citation.document_id}-${citation.chunk_index}`"
+                  class="citation-card"
+                >
+                  <summary>
+                    <span class="citation-number">[{{ citation.source_id }}]</span>
+                    <span class="citation-summary">
+                      <strong>{{ citation.file_name }}</strong>
+                      <small>{{ formatCitationLocation(citation) }}</small>
+                    </span>
+                    <span class="citation-score">
+                      重排 {{ (citation.score * 100).toFixed(1) }}%
+                    </span>
+                  </summary>
+                  <p>{{ citation.text }}</p>
+                  <small>
+                    重排排名 #{{ citation.retrieval_rank }} ·
+                    {{ contentRoleLabel(citation.content_role) }} · Dense
+                    {{ citation.dense_score === null ? '—' : `${(citation.dense_score * 100).toFixed(1)}%` }}
+                    · Chunk {{ citation.chunk_index }}
+                  </small>
+                </details>
+              </section>
+
+              <footer v-if="message.retrieval" class="answer-meta">
+                <span>{{ message.model || '未调用模型' }}</span>
+                <span>
+                  候选 {{ message.retrieval.candidate_count }} → 重排
+                  {{ message.retrieval.returned_count }}
+                </span>
+                <span>合格证据 {{ message.retrieval.eligible_evidence_count }} 条</span>
+                <span v-if="message.retrieval.rejected_evidence_count">
+                  排除不合格候选 {{ message.retrieval.rejected_evidence_count }} 条
+                </span>
+                <span v-if="message.elapsed_ms !== null">
+                  {{ (message.elapsed_ms / 1000).toFixed(2) }} s
+                </span>
+                <span v-if="message.usage">{{ message.usage.total_tokens }} tokens</span>
+              </footer>
+            </article>
+          </template>
+        </div>
+
+        <div v-if="loading" class="loading-answer compact" role="status" aria-live="polite">
           <span class="thinking-orbit" aria-hidden="true" />
           <strong>正在召回、重排课程证据并组织引用…</strong>
           <p>首次问答需要加载本地 Embedding 与 Reranker 模型，请稍候。</p>
         </div>
-
-        <article v-if="result" class="answer-result">
-          <div class="question-bubble">{{ result.question }}</div>
-          <div class="answer-heading">
-            <div>
-              <span class="soft-label">GROUNDED ANSWER</span>
-              <h2>资料依据回答</h2>
-            </div>
-            <span
-              class="answer-status"
-              :class="{ refused: result.status === 'insufficient_evidence' }"
-            >
-              {{ result.status === 'answered' ? '证据已引用' : '资料不足' }}
-            </span>
-          </div>
-          <div class="markdown-answer" v-html="answerHtml" />
-
-          <section v-if="result.citations.length" class="citation-section">
-            <div class="citation-title">
-              <h3>引用资料</h3>
-              <span>{{ result.citations.length }} 条已使用证据</span>
-            </div>
-            <details
-              v-for="citation in result.citations"
-              :key="`${citation.document_id}-${citation.chunk_index}`"
-              class="citation-card"
-            >
-              <summary>
-                <span class="citation-number">[{{ citation.source_id }}]</span>
-                <span class="citation-summary">
-                  <strong>{{ citation.file_name }}</strong>
-                  <small>{{ formatCitationLocation(citation) }}</small>
-                </span>
-                <span class="citation-score">
-                  重排 {{ (citation.score * 100).toFixed(1) }}%
-                </span>
-              </summary>
-              <p>{{ citation.text }}</p>
-              <small>
-                重排排名 #{{ citation.retrieval_rank }} · {{ contentRoleLabel(citation.content_role) }}
-                · Dense
-                {{ citation.dense_score === null ? '—' : `${(citation.dense_score * 100).toFixed(1)}%` }}
-                · Chunk {{ citation.chunk_index }}
-              </small>
-            </details>
-          </section>
-
-          <footer class="answer-meta">
-            <span>{{ result.model || '未调用模型' }}</span>
-            <span>
-              候选 {{ result.retrieval.candidate_count }} → 重排
-              {{ result.retrieval.returned_count }}
-            </span>
-            <span>合格证据 {{ result.retrieval.eligible_evidence_count }} 条</span>
-            <span v-if="result.retrieval.rejected_evidence_count">
-              排除不合格候选 {{ result.retrieval.rejected_evidence_count }} 条
-            </span>
-            <span>{{ (result.elapsed_ms / 1000).toFixed(2) }} s</span>
-            <span v-if="result.usage">{{ result.usage.total_tokens }} tokens</span>
-          </footer>
-        </article>
 
         <form class="question-composer" @submit.prevent="submitQuestion">
           <label for="course-question" class="sr-only">课程问题</label>
@@ -358,6 +470,11 @@ function submitWithKeyboard(event: KeyboardEvent): void {
   color: var(--ink-muted);
 }
 
+.new-conversation-button {
+  width: 100%;
+  margin-top: 14px;
+}
+
 .model-card strong {
   overflow: hidden;
   font-size: 12px;
@@ -446,8 +563,22 @@ function submitWithKeyboard(event: KeyboardEvent): void {
   color: var(--ink-strong);
 }
 
+.message-thread {
+  display: grid;
+  gap: 18px;
+  padding-bottom: 22px;
+}
+
 .answer-result {
-  flex: 1;
+  padding: 20px;
+  background: rgb(255 255 255 / 72%);
+  border: 1px solid var(--line-soft);
+  border-radius: 18px;
+}
+
+.loading-answer.compact {
+  min-height: 170px;
+  margin-block: 14px;
 }
 
 .question-bubble {

@@ -23,7 +23,7 @@ const router = createRouter({
       component: () => import('@/views/QuickChatView.vue'),
     },
     {
-      path: '/assistant',
+      path: '/assistant/:conversationId?',
       name: 'study-assistant',
       component: () => import('@/views/StudyAssistantView.vue'),
     },
