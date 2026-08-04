@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     rag_context_max_chars: int = Field(default=6000, ge=500, le=30000)
     quick_chat_context_max_messages: int = Field(default=10, ge=1, le=30)
     quick_chat_context_max_chars: int = Field(default=8000, ge=500, le=40000)
+    external_search_enabled: bool = True
+    external_search_timeout_seconds: float = Field(default=60.0, gt=0)
+    external_search_max_uses: int = Field(default=1, ge=1, le=5)
+    external_search_max_results: int = Field(default=6, ge=1, le=20)
 
     database_url: str = "sqlite+aiosqlite:///../data/app.db"
     qdrant_path: Path = Path("../data/qdrant")

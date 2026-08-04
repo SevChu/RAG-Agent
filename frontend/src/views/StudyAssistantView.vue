@@ -11,7 +11,12 @@ import { streamCourseQuestion } from '@/api/qa'
 import { useConversationsStore } from '@/stores/conversations'
 import { useCoursesStore } from '@/stores/courses'
 import { useLLMStore } from '@/stores/llm'
-import type { AnswerCitation, AnswerStyle, CourseConversationMessage } from '@/types/api'
+import type {
+  AnswerCitation,
+  AnswerScope,
+  AnswerStyle,
+  CourseConversationMessage,
+} from '@/types/api'
 import { formatCitationLocation } from '@/utils/format'
 
 const markdown = new MarkdownIt({ html: false, breaks: true, linkify: true })
@@ -23,6 +28,7 @@ const llmStore = useLLMStore()
 const { configuration: llmConfiguration, selectedModel } = storeToRefs(llmStore)
 const selectedCourseId = ref('')
 const answerStyle = ref<AnswerStyle>('balanced')
+const answerScope = ref<AnswerScope>('course_and_external')
 const question = ref('')
 const activeConversationId = ref('')
 const errorMessage = ref('')
@@ -58,6 +64,19 @@ const styleOptions: Array<{ value: AnswerStyle; label: string; detail: string }>
   { value: 'detailed', label: '详细', detail: '资料依据 + 推导与延伸 + 边界和易错点' },
 ]
 
+const scopeOptions: Array<{ value: AnswerScope; label: string; detail: string }> = [
+  {
+    value: 'course_and_external',
+    label: '课程资料 + 外部补充',
+    detail: '默认范围；Day 1 已完成检索基础，Day 2 接入自动搜索与混合生成',
+  },
+  {
+    value: 'course_only',
+    label: '仅课程资料',
+    detail: '完全关闭 Web Search，只允许已入库课程资料支撑回答',
+  },
+]
+
 const contentRoleLabels: Record<string, string> = {
   exposition: '正文',
   example: '已讲解示例',
@@ -69,6 +88,16 @@ const contentRoleLabels: Record<string, string> = {
 
 function contentRoleLabel(role: string): string {
   return contentRoleLabels[role] ?? role
+}
+
+function citationLabel(citation: AnswerCitation): string {
+  return `[${citation.source_type === 'external' ? '外' : '课'}${citation.source_id}]`
+}
+
+function citationTitle(citation: AnswerCitation): string {
+  return citation.source_type === 'external'
+    ? citation.title || citation.publisher || '外部资料'
+    : citation.file_name
 }
 
 onMounted(async () => {
@@ -172,6 +201,7 @@ async function submitQuestion(): Promise<void> {
       {
         question: submittedQuestion,
         answer_style: answerStyle.value,
+        answer_scope: answerScope.value,
         conversation_id: conversationId,
         model: selectedModel.value,
       },
@@ -240,7 +270,7 @@ function submitWithKeyboard(event: KeyboardEvent): void {
       <div>
         <div class="eyebrow"><span /> GROUNDED COURSE Q&amp;A</div>
         <h1>课程学习助手</h1>
-        <p>从所选课程资料中检索证据，再生成带页码、幻灯片号或文本行号的可追溯回答。</p>
+        <p>优先检索课程证据，并按回答范围补充可核验外部来源。</p>
       </div>
       <span class="context-pill">有限上下文 · 改写后逐题检索</span>
     </header>
@@ -284,6 +314,24 @@ function submitWithKeyboard(event: KeyboardEvent): void {
             :value="course.id"
           />
         </el-select>
+
+        <label for="answer-scope">回答范围</label>
+        <el-select
+          id="answer-scope"
+          v-model="answerScope"
+          size="large"
+          class="control-select"
+        >
+          <el-option
+            v-for="option in scopeOptions"
+            :key="option.value"
+            :label="option.label"
+            :value="option.value"
+          />
+        </el-select>
+        <p class="style-detail">
+          {{ scopeOptions.find((option) => option.value === answerScope)?.detail }}
+        </p>
 
         <label for="answer-style">回答风格</label>
         <el-select
@@ -342,7 +390,12 @@ function submitWithKeyboard(event: KeyboardEvent): void {
 
         <div class="guardrail-note">
           <strong>回答边界</strong>
-          <p>只使用已完成入库的课程资料。证据不足时明确拒答，不用模型常识补齐。</p>
+          <p v-if="answerScope === 'course_only'">
+            仅使用已完成入库的课程资料；不会发起 Web Search。
+          </p>
+          <p v-else>
+            Day 1 已验证外部搜索与来源解析；Day 2 接入回答链路前，本页仍按课程证据作答。
+          </p>
         </div>
       </aside>
 
@@ -352,7 +405,7 @@ function submitWithKeyboard(event: KeyboardEvent): void {
           <span class="soft-label">READY FOR YOUR QUESTION</span>
           <h2>{{ selectedCourse?.name || '请选择一门课程' }}</h2>
           <p>
-            输入课程知识问题。每条可核查结论会使用 [1]、[2] 等编号关联下方原文证据。
+            输入课程知识问题。课程引用使用 [课1]，外部引用使用 [外1]，两类来源独立编号。
           </p>
         </div>
 
@@ -383,25 +436,35 @@ function submitWithKeyboard(event: KeyboardEvent): void {
                 </div>
                 <details
                   v-for="citation in message.citations"
-                  :key="`${message.id}-${citation.document_id}-${citation.chunk_index}`"
+                  :key="`${message.id}-${citation.source_type}-${citation.source_id}`"
                   class="citation-card"
+                  :class="citation.source_type"
                 >
                   <summary>
-                    <span class="citation-number">[{{ citation.source_id }}]</span>
+                    <span class="citation-number">{{ citationLabel(citation) }}</span>
                     <span class="citation-summary">
-                      <strong>{{ citation.file_name }}</strong>
-                      <small>{{ formatCitationLocation(citation) }}</small>
+                      <strong>{{ citationTitle(citation) }}</strong>
+                      <small v-if="citation.source_type === 'course'">
+                        {{ formatCitationLocation(citation) }}
+                      </small>
+                      <small v-else>{{ citation.publisher }} · {{ citation.url }}</small>
                     </span>
-                    <span class="citation-score">
+                    <span v-if="citation.score !== null" class="citation-score">
                       重排 {{ (citation.score * 100).toFixed(1) }}%
                     </span>
                   </summary>
                   <p>{{ citation.text }}</p>
-                  <small>
+                  <small v-if="citation.source_type === 'course'">
                     重排排名 #{{ citation.retrieval_rank }} ·
                     {{ contentRoleLabel(citation.content_role) }} · Dense
                     {{ citation.dense_score === null ? '—' : `${(citation.dense_score * 100).toFixed(1)}%` }}
                     · Chunk {{ citation.chunk_index }}
+                  </small>
+                  <small v-else>
+                    访问时间 {{ citation.accessed_at || '未记录' }} ·
+                    <a v-if="citation.url" :href="citation.url" target="_blank" rel="noopener noreferrer">
+                      打开来源
+                    </a>
                   </small>
                 </details>
               </section>
@@ -423,6 +486,12 @@ function submitWithKeyboard(event: KeyboardEvent): void {
                 <span v-if="message.usage">{{ message.usage.total_tokens }} tokens</span>
                 <span v-if="message.retrieval.rewrite_applied">
                   已改写检索：{{ message.retrieval.rewritten_query }}
+                </span>
+                <span>
+                  {{ message.retrieval.answer_scope === 'course_only' ? '仅课程资料' : '课程 + 外部补充' }}
+                </span>
+                <span v-if="message.retrieval.external_search.failure_reason">
+                  {{ message.retrieval.external_search.failure_reason }}
                 </span>
               </footer>
             </article>
@@ -750,6 +819,16 @@ function submitWithKeyboard(event: KeyboardEvent): void {
   border-radius: 15px;
 }
 
+.citation-card.external {
+  background: rgb(249 247 255 / 92%);
+  border-color: rgb(121 94 214 / 24%);
+}
+
+.citation-card.external .citation-number {
+  color: #6548b8;
+  background: #eee8ff;
+}
+
 .citation-card summary {
   display: flex;
   padding: 13px 14px;
@@ -796,6 +875,10 @@ function submitWithKeyboard(event: KeyboardEvent): void {
 .citation-card > small {
   font-size: 10px;
   color: var(--ink-faint);
+}
+
+.citation-card > small a {
+  color: var(--primary-deep);
 }
 
 .citation-card > p {

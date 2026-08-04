@@ -40,6 +40,7 @@ describe('file presentation helpers', () => {
     expect(
       formatCitationLocation({
         source_id: 1,
+        source_type: 'course',
         retrieval_rank: 2,
         score: 0.91,
         dense_score: 0.82,
@@ -55,6 +56,10 @@ describe('file presentation helpers', () => {
         slide_numbers: [],
         line_start: null,
         line_end: null,
+        title: null,
+        publisher: null,
+        url: null,
+        accessed_at: null,
       }),
     ).toBe('图 / 最短路径 · 第 12 页')
   })

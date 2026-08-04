@@ -15,6 +15,16 @@ class AnswerStyle(StrEnum):
     DETAILED = "detailed"
 
 
+class AnswerScope(StrEnum):
+    COURSE_AND_EXTERNAL = "course_and_external"
+    COURSE_ONLY = "course_only"
+
+
+class CitationSourceType(StrEnum):
+    COURSE = "course"
+    EXTERNAL = "external"
+
+
 @dataclass(frozen=True, slots=True)
 class TokenUsage:
     prompt_tokens: int

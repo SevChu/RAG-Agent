@@ -1,15 +1,18 @@
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
-from app.generation import AnswerStatus, AnswerStyle
+from app.external_search import ExternalSearchStatus
+from app.generation import AnswerScope, AnswerStatus, AnswerStyle, CitationSourceType
 
 
 class CourseAnswerRequest(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
     answer_style: AnswerStyle = AnswerStyle.BALANCED
+    answer_scope: AnswerScope = AnswerScope.COURSE_AND_EXTERNAL
     document_ids: list[UUID] | None = Field(default=None, max_length=50)
     conversation_id: UUID | None = None
     model: str | None = Field(default=None, min_length=1, max_length=120)
@@ -40,21 +43,35 @@ class CourseAnswerRequest(BaseModel):
 
 class AnswerCitationRead(BaseModel):
     source_id: int
-    retrieval_rank: int
-    score: float
-    dense_score: float | None
-    reranker_score: float | None
-    content_role: str
-    document_id: UUID
-    chunk_index: int
+    source_type: CitationSourceType = CitationSourceType.COURSE
+    retrieval_rank: int | None = None
+    score: float | None = None
+    dense_score: float | None = None
+    reranker_score: float | None = None
+    content_role: str = "unknown"
+    document_id: UUID | None = None
+    chunk_index: int | None = None
     text: str
-    file_name: str
-    file_type: str
-    section_path: list[str]
-    page_numbers: list[int]
-    slide_numbers: list[int]
-    line_start: int | None
-    line_end: int | None
+    file_name: str = ""
+    file_type: str = ""
+    section_path: list[str] = Field(default_factory=list)
+    page_numbers: list[int] = Field(default_factory=list)
+    slide_numbers: list[int] = Field(default_factory=list)
+    line_start: int | None = None
+    line_end: int | None = None
+    title: str | None = None
+    publisher: str | None = None
+    url: str | None = None
+    accessed_at: datetime | None = None
+
+
+class ExternalSearchRead(BaseModel):
+    triggered: bool = False
+    status: ExternalSearchStatus = ExternalSearchStatus.NOT_REQUESTED
+    query: str | None = None
+    result_count: int = 0
+    used_result_count: int = 0
+    failure_reason: str | None = None
 
 
 class AnswerRetrievalRead(BaseModel):
@@ -73,6 +90,8 @@ class AnswerRetrievalRead(BaseModel):
     rewritten_query: str = ""
     context_message_count: int = 0
     rewrite_applied: bool = False
+    answer_scope: AnswerScope = AnswerScope.COURSE_ONLY
+    external_search: ExternalSearchRead = Field(default_factory=ExternalSearchRead)
 
 
 class AnswerTokenUsageRead(BaseModel):
@@ -90,11 +109,13 @@ class CourseAnswerRead(BaseModel):
     answer: str
     status: AnswerStatus
     answer_style: AnswerStyle
+    answer_scope: AnswerScope
     model: str | None
     elapsed_ms: float
     citations: list[AnswerCitationRead]
     retrieval: AnswerRetrievalRead
     usage: AnswerTokenUsageRead | None
+    external_search: ExternalSearchRead
 
 
 class LLMConfigurationRead(BaseModel):
@@ -106,6 +127,7 @@ class LLMConfigurationRead(BaseModel):
     answer_styles: list[AnswerStyle]
     rag_context_max_messages: int
     quick_chat_context_max_messages: int
+    external_search_enabled: bool
 
 
 class QuickChatRequest(BaseModel):

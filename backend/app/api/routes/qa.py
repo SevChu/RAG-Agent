@@ -41,6 +41,7 @@ from app.schemas.qa import (
     AnswerTokenUsageRead,
     CourseAnswerRead,
     CourseAnswerRequest,
+    ExternalSearchRead,
     LLMConfigurationRead,
     QuickChatRequest,
 )
@@ -78,6 +79,7 @@ async def read_llm_configuration(
             answer_styles=list(AnswerStyle),
             rag_context_max_messages=settings.rag_context_max_messages,
             quick_chat_context_max_messages=settings.quick_chat_context_max_messages,
+            external_search_enabled=settings.external_search_enabled,
         )
     )
 
@@ -420,6 +422,14 @@ async def _prepare_course_answer(
         rewritten_query=rewritten_query,
         context_message_count=len(history),
         rewrite_applied=rewritten_query != payload.question,
+        answer_scope=payload.answer_scope,
+        external_search=ExternalSearchRead(
+            failure_reason=(
+                "仅课程资料模式已关闭外部检索。"
+                if payload.answer_scope.value == "course_only"
+                else "Day 1 已建立外部检索基础；混合检索编排将在 Day 2 接入回答链路。"
+            )
+        ),
     )
     return _CourseAnswerWork(
         answer=answer,
@@ -459,11 +469,13 @@ async def _persist_course_answer(
         answer=work.answer.answer,
         status=work.answer.status,
         answer_style=payload.answer_style,
+        answer_scope=payload.answer_scope,
         model=work.answer.model,
         elapsed_ms=work.elapsed_ms,
         citations=work.citations,
         retrieval=work.retrieval,
         usage=work.usage,
+        external_search=work.retrieval.external_search,
     )
 
 
@@ -510,6 +522,7 @@ def _citation_read(
     payload = result.payload
     return AnswerCitationRead(
         source_id=source_id,
+        source_type="course",
         retrieval_rank=retrieval_rank,
         score=result.score,
         dense_score=_optional_float(payload.get("dense_score")),

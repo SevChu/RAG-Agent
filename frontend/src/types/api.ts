@@ -62,16 +62,24 @@ export type UploadProgressHandler = (percentage: number) => void
 
 export type AnswerStyle = 'concise' | 'balanced' | 'detailed'
 export type AnswerStatus = 'answered' | 'insufficient_evidence'
+export type AnswerScope = 'course_and_external' | 'course_only'
+export type CitationSourceType = 'course' | 'external'
+export type ExternalSearchStatus =
+  | 'not_requested'
+  | 'succeeded'
+  | 'no_qualified_results'
+  | 'failed'
 
 export interface AnswerCitation {
   source_id: number
-  retrieval_rank: number
-  score: number
+  source_type: CitationSourceType
+  retrieval_rank: number | null
+  score: number | null
   dense_score: number | null
   reranker_score: number | null
   content_role: string
-  document_id: string
-  chunk_index: number
+  document_id: string | null
+  chunk_index: number | null
   text: string
   file_name: string
   file_type: string
@@ -80,6 +88,19 @@ export interface AnswerCitation {
   slide_numbers: number[]
   line_start: number | null
   line_end: number | null
+  title: string | null
+  publisher: string | null
+  url: string | null
+  accessed_at: string | null
+}
+
+export interface ExternalSearchInfo {
+  triggered: boolean
+  status: ExternalSearchStatus
+  query: string | null
+  result_count: number
+  used_result_count: number
+  failure_reason: string | null
 }
 
 export interface AnswerRetrieval {
@@ -98,6 +119,8 @@ export interface AnswerRetrieval {
   rewritten_query: string
   context_message_count: number
   rewrite_applied: boolean
+  answer_scope: AnswerScope
+  external_search: ExternalSearchInfo
 }
 
 export interface AnswerTokenUsage {
@@ -115,16 +138,19 @@ export interface CourseAnswer {
   answer: string
   status: AnswerStatus
   answer_style: AnswerStyle
+  answer_scope: AnswerScope
   model: string | null
   elapsed_ms: number
   citations: AnswerCitation[]
   retrieval: AnswerRetrieval
   usage: AnswerTokenUsage | null
+  external_search: ExternalSearchInfo
 }
 
 export interface CourseAnswerPayload {
   question: string
   answer_style: AnswerStyle
+  answer_scope: AnswerScope
   document_ids?: string[]
   conversation_id?: string
   model?: string
@@ -139,6 +165,7 @@ export interface LLMConfiguration {
   answer_styles: AnswerStyle[]
   rag_context_max_messages: number
   quick_chat_context_max_messages: number
+  external_search_enabled: boolean
 }
 
 export type ConversationMessageRole = 'user' | 'assistant'

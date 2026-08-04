@@ -191,12 +191,15 @@ async def test_answer_api_returns_verified_citation(
     assert response.status_code == 200
     data = response.json()["data"]
     assert data["status"] == "answered"
-    assert data["answer"].endswith("[1]")
+    assert data["answer"].endswith("[课1]")
+    assert data["answer_scope"] == "course_and_external"
+    assert data["external_search"]["status"] == "not_requested"
     assert data["model"] == "deepseek-test"
     assert data["conversation_id"]
     assert data["user_message_id"]
     assert data["assistant_message_id"]
     assert data["citations"][0]["source_id"] == 1
+    assert data["citations"][0]["source_type"] == "course"
     assert data["citations"][0]["file_name"] == "讲义.md"
     assert data["citations"][0]["line_start"] == 8
     assert data["citations"][0]["content_role"] == "unknown"
@@ -205,6 +208,7 @@ async def test_answer_api_returns_verified_citation(
     assert data["retrieval"]["candidate_top_k"] == 20
     assert data["retrieval"]["retrieval_mode"] == "dense_rerank"
     assert data["retrieval"]["reranker_device"] == "cpu"
+    assert data["retrieval"]["answer_scope"] == "course_and_external"
     assert manager.calls[0]["candidate_k"] == 20
     assert manager.calls[0]["document_ids"] == [document_id]
     assert gateway.calls == 1
@@ -311,7 +315,37 @@ async def test_llm_configuration_api_never_returns_key(
     assert data["answer_styles"] == ["concise", "balanced", "detailed"]
     assert data["rag_context_max_messages"] == 6
     assert data["quick_chat_context_max_messages"] == 10
+    assert data["external_search_enabled"] is True
     assert "api_key" not in data
+
+
+async def test_course_only_scope_is_preserved_and_search_is_not_requested(
+    api_client: AsyncClient,
+    api_settings: Settings,
+) -> None:
+    course_id, document_id = await _create_ready_document(api_client, api_settings)
+    app.dependency_overrides[get_indexing_manager] = lambda: FakeManager(
+        course_id=course_id,
+        document_id=document_id,
+    )
+    app.dependency_overrides[get_chat_completion_gateway] = lambda: FakeGateway()
+
+    response = await api_client.post(
+        f"/api/courses/{course_id}/answers",
+        json={"question": "什么是栈？", "answer_scope": "course_only"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["answer_scope"] == "course_only"
+    assert data["external_search"] == {
+        "triggered": False,
+        "status": "not_requested",
+        "query": None,
+        "result_count": 0,
+        "used_result_count": 0,
+        "failure_reason": "仅课程资料模式已关闭外部检索。",
+    }
 
 
 async def test_course_stream_rewrites_follow_up_and_persists_only_complete_answer(

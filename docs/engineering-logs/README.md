@@ -11,7 +11,7 @@
 | 第 1 周 | 工程骨架 | 已完成 | 已完成计划日 1～5 | [week-01.md](week-01.md) |
 | 第 2 周 | 知识库入库 | 已完成 | 已完成计划日 1～5并通过周验收 | [week-02.md](week-02.md) |
 | 第 3 周 | RAG 问答 | 已完成 | 计划日 1～5 均已完成并通过验收 | [week-03.md](week-03.md) |
-| 第 4 周 | Agent、总结和出题 | 未开始 | — | 待创建 |
+| 第 4 周 | Agent、总结和出题 | 进行中 | 计划日 1 已完成并通过验收 | [week-04.md](week-04.md) |
 | 第 5 周 | 评测与调优 | 未开始 | — | 待创建 |
 | 第 6 周 | 交付与答辩 | 未开始 | — | 待创建 |
 
@@ -19,7 +19,7 @@
 
 | 决策 | 状态 | 计划实施 | 文档 |
 |---|---|---|---|
-| 混合来源回答 | 已确认，尚未实施 | 第 4 周计划日 1～2 | [mixed-source-answering.md](../design-decisions/mixed-source-answering.md) |
+| 混合来源回答 | 计划日 1 基础已实施，计划日 2 编排待实施 | 第 4 周计划日 1～2 | [mixed-source-answering.md](../design-decisions/mixed-source-answering.md) |
 
 ## 记录规范
 
