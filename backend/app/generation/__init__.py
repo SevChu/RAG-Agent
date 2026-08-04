@@ -14,6 +14,7 @@ from app.generation.models import (
     TokenUsage,
 )
 from app.generation.service import GroundedAnswerGenerator, MixedGroundedAnswerGenerator
+from app.generation.summary import GroundedSummaryGenerator
 
 __all__ = [
     "AnswerStatus",
@@ -24,6 +25,7 @@ __all__ = [
     "CitationSourceType",
     "GroundedAnswer",
     "GroundedAnswerGenerator",
+    "GroundedSummaryGenerator",
     "MixedGroundedAnswerGenerator",
     "OpenAICompatibleChatClient",
     "QueryRewriter",

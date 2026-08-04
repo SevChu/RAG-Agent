@@ -27,9 +27,11 @@ from app.external_search import (
     get_external_search_gateway,
 )
 from app.generation import (
+    AnswerScope,
     AnswerStyle,
     ChatCompletionGateway,
     GroundedAnswer,
+    GroundedSummaryGenerator,
     QueryRewriter,
     bounded_history,
     get_chat_completion_gateway,
@@ -38,7 +40,14 @@ from app.generation import (
 from app.indexing import DocumentIndexingManager, get_indexing_manager
 from app.knowledge.models import VectorSearchResult
 from app.models import Conversation, DocumentStatus
-from app.orchestration import ConditionalAnswerGraph
+from app.orchestration import (
+    ConditionalAnswerGraph,
+    CourseTaskType,
+    RequestRoutingGraph,
+    SummaryScopeType,
+    summary_retrieval_query,
+    summary_scope,
+)
 from app.schemas.api import APIResponse
 from app.schemas.qa import (
     AnswerCitationRead,
@@ -71,6 +80,8 @@ class _CourseAnswerWork:
     retrieval: AnswerRetrievalRead
     usage: AnswerTokenUsageRead | None
     elapsed_ms: float
+    task_type: CourseTaskType
+    effective_scope: AnswerScope
 
 
 @router.get("/llm/config", response_model=APIResponse[LLMConfigurationRead])
@@ -340,6 +351,7 @@ async def _prepare_course_answer(
     external_search: ExternalSearchGateway,
 ) -> _CourseAnswerWork:
     started_at = perf_counter()
+    routing = await RequestRoutingGraph().route(payload.question)
     conversation_service = ConversationService(session)
     recent = await conversation_service.recent_completed_messages(
         conversation.id,
@@ -357,8 +369,20 @@ async def _prepare_course_answer(
     )
 
     document_service = DocumentService(session)
+    all_documents = await document_service.list_for_course(course_id)
+    explicit_document_scope = payload.document_ids is not None
     if payload.document_ids is None:
-        candidate_documents = await document_service.list_for_course(course_id)
+        candidate_documents = all_documents
+        if routing.task_type is CourseTaskType.SUMMARY:
+            normalized_request = payload.question.casefold()
+            named_documents = [
+                document
+                for document in candidate_documents
+                if document.original_name.casefold() in normalized_request
+            ]
+            if named_documents:
+                candidate_documents = named_documents
+                explicit_document_scope = True
     else:
         candidate_documents = await document_service.get_many_for_course(
             course_id=course_id,
@@ -375,17 +399,39 @@ async def _prepare_course_answer(
                 + ", ".join(unavailable)
             )
 
+    all_ready_document_count = sum(
+        document.status is DocumentStatus.COMPLETED for document in all_documents
+    )
     ready_document_ids = [
         str(document.id)
         for document in candidate_documents
         if document.status is DocumentStatus.COMPLETED
     ]
+    resolved_summary_scope: SummaryScopeType | None = None
+    summary_scope_description: str | None = None
+    retrieval_query = rewritten_query
+    requested_top_k = settings.rag_answer_top_k
+    candidate_top_k = settings.rag_answer_candidate_k
+    if routing.task_type is CourseTaskType.SUMMARY:
+        resolved_summary_scope, summary_scope_description = summary_scope(
+            payload.question,
+            explicit_document_scope=explicit_document_scope,
+            selected_document_count=len(ready_document_ids),
+            total_ready_document_count=all_ready_document_count,
+        )
+        retrieval_query = summary_retrieval_query(
+            rewritten_query,
+            resolved_summary_scope,
+        )
+        requested_top_k = settings.rag_summary_top_k
+        candidate_top_k = settings.rag_summary_candidate_k
+
     try:
         retrieval = await indexing.answer_search(
             course_id=course_id,
-            query=rewritten_query,
-            candidate_k=settings.rag_answer_candidate_k,
-            top_k=settings.rag_answer_top_k,
+            query=retrieval_query,
+            candidate_k=candidate_top_k,
+            top_k=requested_top_k,
             document_ids=ready_document_ids,
         )
     except (FileNotFoundError, RuntimeError, OSError) as error:
@@ -393,23 +439,61 @@ async def _prepare_course_answer(
             "问答检索暂时不可用，请检查本地 Embedding、Reranker 模型与 Qdrant 存储后重试。"
         ) from error
 
-    graph_result = await ConditionalAnswerGraph(
-        llm=llm,
-        external_search=external_search,
-        min_similarity_score=settings.rag_min_similarity_score,
-        external_trigger_score=settings.external_search_trigger_score,
-        external_search_enabled=settings.external_search_enabled,
-        provider=settings.llm_provider,
-    ).run(
-        question=payload.question,
-        standalone_question=rewritten_query,
-        course_hits=retrieval.hits,
-        style=payload.answer_style,
-        scope=payload.answer_scope,
-        model=selected_model,
-    )
-    answer = graph_result.answer
-    eligible_hits = graph_result.eligible_course_hits
+    external_evidence: tuple[ExternalSearchEvidence, ...] = ()
+    if routing.task_type is CourseTaskType.SUMMARY:
+        assert resolved_summary_scope is not None
+        assert summary_scope_description is not None
+        answer, eligible_hits = await GroundedSummaryGenerator(llm).summarize(
+            request=payload.question,
+            scope=resolved_summary_scope,
+            scope_description=summary_scope_description,
+            hits=retrieval.hits,
+            model=selected_model,
+        )
+        effective_scope = AnswerScope.COURSE_ONLY
+        external_search_read = ExternalSearchRead(
+            decision_reason="知识总结默认仅使用课程资料，未触发外部检索。"
+        )
+    else:
+        graph_result = await ConditionalAnswerGraph(
+            llm=llm,
+            external_search=external_search,
+            min_similarity_score=settings.rag_min_similarity_score,
+            external_trigger_score=settings.external_search_trigger_score,
+            external_search_enabled=settings.external_search_enabled,
+            provider=settings.llm_provider,
+        ).run(
+            question=payload.question,
+            standalone_question=rewritten_query,
+            course_hits=retrieval.hits,
+            style=payload.answer_style,
+            scope=payload.answer_scope,
+            model=selected_model,
+        )
+        answer = graph_result.answer
+        eligible_hits = graph_result.eligible_course_hits
+        external_evidence = graph_result.external_evidence
+        effective_scope = payload.answer_scope
+        external_result = graph_result.external_result
+        external_search_read = ExternalSearchRead(
+            triggered=graph_result.decision.should_search,
+            status=(
+                external_result.status
+                if external_result is not None
+                else "not_requested"
+            ),
+            query=(external_result.query if external_result is not None else None),
+            result_count=(
+                len(external_result.results) if external_result is not None else 0
+            ),
+            used_result_count=len(answer.used_external_source_ids),
+            failure_reason=(
+                external_result.failure_reason if external_result is not None else None
+            ),
+            decision_reason=graph_result.decision.reason,
+            fallback_applied=graph_result.fallback_applied,
+        )
+
     course_citations = [
         _citation_read(
             source_id=source_id,
@@ -421,7 +505,7 @@ async def _prepare_course_answer(
     external_citations = [
         _external_citation_read(
             source_id=source_id,
-            evidence=graph_result.external_evidence[source_id - 1],
+            evidence=external_evidence[source_id - 1],
         )
         for source_id in answer.used_external_source_ids
     ]
@@ -435,22 +519,14 @@ async def _prepare_course_answer(
         if answer.usage is not None
         else None
     )
-    external_result = graph_result.external_result
-    external_search_read = ExternalSearchRead(
-        triggered=graph_result.decision.should_search,
-        status=(external_result.status if external_result is not None else "not_requested"),
-        query=(external_result.query if external_result is not None else None),
-        result_count=(len(external_result.results) if external_result is not None else 0),
-        used_result_count=len(answer.used_external_source_ids),
-        failure_reason=(
-            external_result.failure_reason if external_result is not None else None
-        ),
-        decision_reason=graph_result.decision.reason,
-        fallback_applied=graph_result.fallback_applied,
-    )
     retrieval_read = AnswerRetrievalRead(
-        requested_top_k=settings.rag_answer_top_k,
-        candidate_top_k=settings.rag_answer_candidate_k,
+        retrieval_mode=(
+            "summary_dense_rerank"
+            if routing.task_type is CourseTaskType.SUMMARY
+            else "dense_rerank"
+        ),
+        requested_top_k=requested_top_k,
+        candidate_top_k=candidate_top_k,
         candidate_count=retrieval.dense_candidate_count,
         returned_count=len(retrieval.hits),
         eligible_evidence_count=len(eligible_hits),
@@ -460,12 +536,16 @@ async def _prepare_course_answer(
         reranker_device=retrieval.reranker_device,
         fallback_reason=retrieval.fallback_reason,
         original_question=payload.question,
-        rewritten_query=rewritten_query,
+        rewritten_query=retrieval_query,
         context_message_count=len(history),
-        rewrite_applied=rewritten_query != payload.question,
-        answer_scope=payload.answer_scope,
+        rewrite_applied=retrieval_query != payload.question,
+        answer_scope=effective_scope,
         external_search=external_search_read,
         source_conflict_detected=answer.has_source_conflict,
+        task_type=routing.task_type,
+        router_reason=routing.reason,
+        summary_scope=resolved_summary_scope,
+        summary_scope_description=summary_scope_description,
     )
     return _CourseAnswerWork(
         answer=answer,
@@ -473,6 +553,8 @@ async def _prepare_course_answer(
         retrieval=retrieval_read,
         usage=usage,
         elapsed_ms=round((perf_counter() - started_at) * 1000, 2),
+        task_type=routing.task_type,
+        effective_scope=effective_scope,
     )
 
 
@@ -505,13 +587,14 @@ async def _persist_course_answer(
         answer=work.answer.answer,
         status=work.answer.status,
         answer_style=payload.answer_style,
-        answer_scope=payload.answer_scope,
+        answer_scope=work.effective_scope,
         model=work.answer.model,
         elapsed_ms=work.elapsed_ms,
         citations=work.citations,
         retrieval=work.retrieval,
         usage=work.usage,
         external_search=work.retrieval.external_search,
+        task_type=work.task_type,
     )
 
 

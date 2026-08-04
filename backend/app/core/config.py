@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     llm_temperature: float = Field(default=0.2, ge=0, le=2)
     rag_answer_top_k: int = Field(default=6, ge=1, le=20)
     rag_answer_candidate_k: int = Field(default=20, ge=1, le=100)
+    rag_summary_top_k: int = Field(default=12, ge=1, le=30)
+    rag_summary_candidate_k: int = Field(default=40, ge=1, le=100)
     rag_min_similarity_score: float = Field(default=0.3, ge=-1, le=1)
     rag_context_max_messages: int = Field(default=6, ge=1, le=20)
     rag_context_max_chars: int = Field(default=6000, ge=500, le=30000)

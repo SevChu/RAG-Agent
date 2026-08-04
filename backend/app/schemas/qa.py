@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.external_search import ExternalSearchStatus
 from app.generation import AnswerScope, AnswerStatus, AnswerStyle, CitationSourceType
+from app.orchestration import CourseTaskType, SummaryScopeType
 
 
 class CourseAnswerRequest(BaseModel):
@@ -95,6 +96,10 @@ class AnswerRetrievalRead(BaseModel):
     answer_scope: AnswerScope = AnswerScope.COURSE_ONLY
     external_search: ExternalSearchRead = Field(default_factory=ExternalSearchRead)
     source_conflict_detected: bool = False
+    task_type: CourseTaskType = CourseTaskType.QUESTION
+    router_reason: str = ""
+    summary_scope: SummaryScopeType | None = None
+    summary_scope_description: str | None = None
 
 
 class AnswerTokenUsageRead(BaseModel):
@@ -119,6 +124,7 @@ class CourseAnswerRead(BaseModel):
     retrieval: AnswerRetrievalRead
     usage: AnswerTokenUsageRead | None
     external_search: ExternalSearchRead
+    task_type: CourseTaskType = CourseTaskType.QUESTION
 
 
 class LLMConfigurationRead(BaseModel):

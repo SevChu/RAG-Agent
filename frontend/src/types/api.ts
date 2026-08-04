@@ -63,6 +63,8 @@ export type UploadProgressHandler = (percentage: number) => void
 export type AnswerStyle = 'concise' | 'balanced' | 'detailed'
 export type AnswerStatus = 'answered' | 'insufficient_evidence'
 export type AnswerScope = 'course_and_external' | 'course_only'
+export type CourseTaskType = 'question' | 'summary'
+export type SummaryScopeType = 'course' | 'documents' | 'topic'
 export type CitationSourceType = 'course' | 'external'
 export type ExternalSearchStatus =
   | 'not_requested'
@@ -106,7 +108,7 @@ export interface ExternalSearchInfo {
 }
 
 export interface AnswerRetrieval {
-  retrieval_mode: 'dense_rerank'
+  retrieval_mode: 'dense_rerank' | 'summary_dense_rerank'
   requested_top_k: number
   candidate_top_k: number
   candidate_count: number
@@ -124,6 +126,10 @@ export interface AnswerRetrieval {
   answer_scope: AnswerScope
   external_search: ExternalSearchInfo
   source_conflict_detected: boolean
+  task_type: CourseTaskType
+  router_reason: string
+  summary_scope: SummaryScopeType | null
+  summary_scope_description: string | null
 }
 
 export interface AnswerTokenUsage {
@@ -148,6 +154,7 @@ export interface CourseAnswer {
   retrieval: AnswerRetrieval
   usage: AnswerTokenUsage | null
   external_search: ExternalSearchInfo
+  task_type: CourseTaskType
 }
 
 export interface CourseAnswerPayload {

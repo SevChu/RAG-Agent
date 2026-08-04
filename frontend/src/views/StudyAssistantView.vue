@@ -126,6 +126,18 @@ function externalSearchTitle(message: CourseConversationMessage): string {
   return '条件搜索判断'
 }
 
+function isSummary(message: CourseConversationMessage): boolean {
+  return message.retrieval?.task_type === 'summary'
+}
+
+function resultEyebrow(message: CourseConversationMessage): string {
+  return isSummary(message) ? 'COURSE SUMMARY' : 'GROUNDED ANSWER'
+}
+
+function resultTitle(message: CourseConversationMessage): string {
+  return isSummary(message) ? '课程知识总结' : '资料依据回答'
+}
+
 onMounted(async () => {
   try {
     await Promise.all([
@@ -294,9 +306,9 @@ function submitWithKeyboard(event: KeyboardEvent): void {
   <section class="page-view assistant-page">
     <header class="page-heading">
       <div>
-        <div class="eyebrow"><span /> GROUNDED COURSE Q&amp;A</div>
+        <div class="eyebrow"><span /> ROUTED COURSE AGENT</div>
         <h1>课程学习助手</h1>
-        <p>优先检索课程证据，并按回答范围补充可核验外部来源。</p>
+        <p>直接输入问题或总结要求，Agent 会识别任务并选择对应资料链路。</p>
       </div>
       <span class="context-pill">有限上下文 · 改写后逐题检索</span>
     </header>
@@ -341,7 +353,7 @@ function submitWithKeyboard(event: KeyboardEvent): void {
           />
         </el-select>
 
-        <label for="answer-scope">回答范围</label>
+        <label for="answer-scope">问答来源范围</label>
         <el-select
           id="answer-scope"
           v-model="answerScope"
@@ -359,7 +371,7 @@ function submitWithKeyboard(event: KeyboardEvent): void {
           {{ scopeOptions.find((option) => option.value === answerScope)?.detail }}
         </p>
 
-        <label for="answer-style">回答风格</label>
+        <label for="answer-style">问答回答风格</label>
         <el-select
           id="answer-style"
           v-model="answerStyle"
@@ -374,7 +386,7 @@ function submitWithKeyboard(event: KeyboardEvent): void {
           />
         </el-select>
         <p class="style-detail">
-          {{ styleOptions.find((option) => option.value === answerStyle)?.detail }}
+          {{ styleOptions.find((option) => option.value === answerStyle)?.detail }}；知识总结使用固定结构
         </p>
 
         <label for="answer-model">生成模型</label>
@@ -415,13 +427,13 @@ function submitWithKeyboard(event: KeyboardEvent): void {
         </button>
 
         <div class="guardrail-note">
-          <strong>回答边界</strong>
+          <strong>自动路由边界</strong>
           <p v-if="answerScope === 'course_only'">
             仅使用已完成入库的课程资料；不会发起 Web Search。
           </p>
           <p v-else>
             先检查课程证据覆盖度；必要时自动搜索并生成 [课n]、[外n] 独立引用。
-            搜索失败会保留可用的课程回答。
+            总结请求始终只使用课程资料，搜索失败会保留可用的课程回答。
           </p>
         </div>
       </aside>
@@ -429,10 +441,10 @@ function submitWithKeyboard(event: KeyboardEvent): void {
       <main class="answer-panel">
         <div v-if="!messages.length && !loading" class="empty-answer">
           <span class="assistant-mark" aria-hidden="true">AI</span>
-          <span class="soft-label">READY FOR YOUR QUESTION</span>
+          <span class="soft-label">READY FOR YOUR REQUEST</span>
           <h2>{{ selectedCourse?.name || '请选择一门课程' }}</h2>
           <p>
-            输入课程知识问题。课程引用使用 [课1]，外部引用使用 [外1]，两类来源独立编号。
+            可直接提问，也可输入“总结整个课程”或“梳理某章考试重点”。总结默认仅引用课程资料。
           </p>
         </div>
 
@@ -444,8 +456,8 @@ function submitWithKeyboard(event: KeyboardEvent): void {
             <article v-else class="answer-result">
               <div class="answer-heading">
                 <div>
-                  <span class="soft-label">GROUNDED ANSWER</span>
-                  <h2>资料依据回答</h2>
+                  <span class="soft-label">{{ resultEyebrow(message) }}</span>
+                  <h2>{{ resultTitle(message) }}</h2>
                 </div>
                 <span
                   class="answer-status"
@@ -455,7 +467,9 @@ function submitWithKeyboard(event: KeyboardEvent): void {
                   }"
                 >
                   {{
-                    message.retrieval?.source_conflict_detected
+                    isSummary(message)
+                      ? '课程总结'
+                      : message.retrieval?.source_conflict_detected
                       ? '资料存在差异'
                       : message.answer_status === 'answered'
                         ? '证据已引用'
@@ -466,7 +480,18 @@ function submitWithKeyboard(event: KeyboardEvent): void {
               <div class="markdown-answer" v-html="renderAnswer(message)" />
 
               <div
-                v-if="message.retrieval?.answer_scope === 'course_and_external'"
+                v-if="isSummary(message) && message.retrieval?.summary_scope_description"
+                class="search-status-note searched"
+              >
+                <strong>自动识别为知识总结</strong>
+                <span>{{ message.retrieval.summary_scope_description }}</span>
+              </div>
+
+              <div
+                v-if="
+                  !isSummary(message) &&
+                  message.retrieval?.answer_scope === 'course_and_external'
+                "
                 class="search-status-note"
                 :class="{
                   fallback: message.retrieval.external_search.fallback_applied,
@@ -521,6 +546,7 @@ function submitWithKeyboard(event: KeyboardEvent): void {
 
               <footer v-if="message.retrieval" class="answer-meta">
                 <span>{{ message.model || '未调用模型' }}</span>
+                <span>{{ isSummary(message) ? '知识总结' : '课程问答' }}</span>
                 <span>
                   候选 {{ message.retrieval.candidate_count }} → 重排
                   {{ message.retrieval.returned_count }}
@@ -543,6 +569,9 @@ function submitWithKeyboard(event: KeyboardEvent): void {
                 <span v-if="message.retrieval.external_search.decision_reason">
                   {{ message.retrieval.external_search.decision_reason }}
                 </span>
+                <span v-if="message.retrieval.router_reason">
+                  {{ message.retrieval.router_reason }}
+                </span>
               </footer>
             </article>
           </template>
@@ -553,8 +582,8 @@ function submitWithKeyboard(event: KeyboardEvent): void {
           <article class="answer-result live-answer">
             <div class="answer-heading">
               <div>
-                <span class="soft-label">STREAMING ANSWER</span>
-                <h2>资料依据回答</h2>
+                <span class="soft-label">ROUTING &amp; GENERATING</span>
+                <h2>正在识别任务</h2>
               </div>
               <span class="answer-status" :class="{ refused: streamState !== 'streaming' }">
                 {{
@@ -573,7 +602,7 @@ function submitWithKeyboard(event: KeyboardEvent): void {
             />
             <div v-else class="loading-answer compact" role="status">
               <span class="thinking-orbit" aria-hidden="true" />
-              <strong>正在改写问题、召回并校验证据…</strong>
+              <strong>正在识别任务、召回并校验证据…</strong>
               <p>正文通过引用一致性校验后开始流式显示。</p>
             </div>
             <p v-if="streamingCitations.length" class="stream-citation-note">
@@ -583,13 +612,13 @@ function submitWithKeyboard(event: KeyboardEvent): void {
         </div>
 
         <form class="question-composer" @submit.prevent="submitQuestion">
-          <label for="course-question" class="sr-only">课程问题</label>
+          <label for="course-question" class="sr-only">课程请求</label>
           <textarea
             id="course-question"
             v-model="question"
             maxlength="2000"
             rows="3"
-            placeholder="例如：Dijkstra 算法的执行过程是什么？"
+            placeholder="例如：解释 Dijkstra 算法，或总结第三章的考试重点"
             @keydown="submitWithKeyboard"
           />
           <div class="composer-footer">
@@ -603,7 +632,7 @@ function submitWithKeyboard(event: KeyboardEvent): void {
               停止生成
             </button>
             <button v-else type="submit" class="primary-button" :disabled="!canSubmit">
-              检索并回答
+              提交给 Agent
             </button>
           </div>
         </form>

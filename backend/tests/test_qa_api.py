@@ -46,10 +46,18 @@ async def _create_ready_document(
 
 
 class FakeManager:
-    def __init__(self, *, course_id: str, document_id: str, hits: bool = True) -> None:
+    def __init__(
+        self,
+        *,
+        course_id: str,
+        document_id: str,
+        hits: bool = True,
+        score: float = 0.91,
+    ) -> None:
         self.course_id = course_id
         self.document_id = document_id
         self.hits = hits
+        self.score = score
         self.calls: list[dict[str, object]] = []
 
     async def answer_search(
@@ -74,7 +82,7 @@ class FakeManager:
             (
                 VectorSearchResult(
                     point_id="point-1",
-                    score=0.91,
+                    score=self.score,
                     course_id=self.course_id,
                     document_id=self.document_id,
                     chunk_index=4,
@@ -247,6 +255,42 @@ class MixedGateway:
         raise AssertionError("not used")
 
 
+class SummaryGateway:
+    async def complete(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+    ) -> ChatCompletion:
+        assert "exam_focus" in system_prompt
+        assert "总结范围类型：course" in user_prompt
+        return ChatCompletion(
+            content=(
+                '{"sufficient_evidence":true,'
+                '"core_concepts":"栈遵循后进先出。[课1]",'
+                '"key_knowledge":"插入和删除位于同一端。[课1]",'
+                '"knowledge_relationships":"操作端即栈顶。[课1]",'
+                '"common_mistakes":"不要混淆先进先出。[课1]",'
+                '"examples_and_applications":"可用栈顶操作理解行为。[课1]",'
+                '"review_recommendations":"先定义，再复习操作位置。",'
+                '"exam_focus":"重点掌握后进先出。[课1]",'
+                '"used_source_ids":[1]}'
+            ),
+            model=model,
+            usage=TokenUsage(prompt_tokens=120, completion_tokens=80, total_tokens=200),
+        )
+
+    async def complete_text(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+    ) -> ChatCompletion:
+        raise AssertionError("not used")
+
+
 async def test_answer_api_returns_verified_citation(
     api_client: AsyncClient,
     api_settings: Settings,
@@ -298,6 +342,36 @@ async def test_answer_api_returns_verified_citation(
         "assistant",
     ]
     assert conversation["messages"][1]["citations"][0]["file_name"] == "讲义.md"
+
+
+async def test_course_chat_auto_routes_summary_and_never_searches_external_sources(
+    api_client: AsyncClient,
+    api_settings: Settings,
+) -> None:
+    course_id, document_id = await _create_ready_document(api_client, api_settings)
+    manager = FakeManager(course_id=course_id, document_id=document_id, score=0.02)
+    external = FakeExternalSearch()
+    app.dependency_overrides[get_indexing_manager] = lambda: manager
+    app.dependency_overrides[get_chat_completion_gateway] = lambda: SummaryGateway()
+    app.dependency_overrides[get_external_search_gateway] = lambda: external
+
+    response = await api_client.post(
+        f"/api/courses/{course_id}/answers",
+        json={"question": "请帮我总结整个课程"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["task_type"] == "summary"
+    assert data["answer_scope"] == "course_only"
+    assert data["retrieval"]["task_type"] == "summary"
+    assert data["retrieval"]["retrieval_mode"] == "summary_dense_rerank"
+    assert data["retrieval"]["summary_scope"] == "course"
+    assert data["retrieval"]["requested_top_k"] == 12
+    assert data["external_search"]["triggered"] is False
+    assert external.calls == []
+    assert "## 考试重点" in data["answer"]
+    assert data["citations"][0]["source_type"] == "course"
 
 
 async def test_answer_api_uses_selected_allowed_model(
