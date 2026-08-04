@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from uuid import UUID
 
 from httpx import AsyncClient
@@ -7,6 +8,13 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.core.config import Settings
 from app.db.session import create_database_engine
+from app.external_search import (
+    ExternalSearchEvidence,
+    ExternalSearchResult,
+    ExternalSearchStatus,
+    ExternalSourceQuality,
+    get_external_search_gateway,
+)
 from app.generation import ChatCompletion, TokenUsage, get_chat_completion_gateway
 from app.indexing import get_indexing_manager
 from app.knowledge import VectorSearchResult
@@ -173,6 +181,72 @@ class ContextGateway:
         raise AssertionError("not used")
 
 
+class FakeExternalSearch:
+    def __init__(self, *, succeed: bool = True) -> None:
+        self.succeed = succeed
+        self.calls: list[tuple[str, str]] = []
+
+    async def search(self, *, query: str, model: str) -> ExternalSearchResult:
+        self.calls.append((query, model))
+        results = (
+            ExternalSearchEvidence(
+                rank=1,
+                title="Python 3.14 documentation",
+                publisher="Python Software Foundation",
+                url="https://docs.python.org/3.14/",
+                accessed_at=datetime(2026, 8, 4, tzinfo=UTC),
+                evidence_excerpt="Python 3.14 官方文档描述了当前版本行为。",
+                quality=ExternalSourceQuality.OFFICIAL,
+            ),
+        ) if self.succeed else ()
+        return ExternalSearchResult(
+            query=query,
+            status=(
+                ExternalSearchStatus.SUCCEEDED
+                if self.succeed
+                else ExternalSearchStatus.FAILED
+            ),
+            results=results,
+            raw_result_count=len(results),
+            provider="test",
+            model=model,
+            elapsed_ms=1.0,
+            failure_reason=None if self.succeed else "外部检索服务返回 HTTP 503。",
+        )
+
+
+class MixedGateway:
+    async def complete(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+    ) -> ChatCompletion:
+        assert "[课n]" in system_prompt
+        assert "[外n]" in system_prompt
+        assert "docs.python.org" in user_prompt
+        return ChatCompletion(
+            content=(
+                '{"sufficient_evidence":true,'
+                '"answer":"课程给出栈的定义。[课1] 外部官方文档提供当前补充。[外1]",'
+                '"used_course_source_ids":[1],"used_external_source_ids":[1],'
+                '"has_source_conflict":false}'
+            ),
+            model="deepseek-test",
+            usage=TokenUsage(prompt_tokens=100, completion_tokens=30, total_tokens=130),
+        )
+
+    async def complete_text(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+    ) -> ChatCompletion:
+        raise AssertionError("not used")
+
+
 async def test_answer_api_returns_verified_citation(
     api_client: AsyncClient,
     api_settings: Settings,
@@ -324,11 +398,13 @@ async def test_course_only_scope_is_preserved_and_search_is_not_requested(
     api_settings: Settings,
 ) -> None:
     course_id, document_id = await _create_ready_document(api_client, api_settings)
+    external = FakeExternalSearch()
     app.dependency_overrides[get_indexing_manager] = lambda: FakeManager(
         course_id=course_id,
         document_id=document_id,
     )
     app.dependency_overrides[get_chat_completion_gateway] = lambda: FakeGateway()
+    app.dependency_overrides[get_external_search_gateway] = lambda: external
 
     response = await api_client.post(
         f"/api/courses/{course_id}/answers",
@@ -344,8 +420,96 @@ async def test_course_only_scope_is_preserved_and_search_is_not_requested(
         "query": None,
         "result_count": 0,
         "used_result_count": 0,
-        "failure_reason": "仅课程资料模式已关闭外部检索。",
+        "failure_reason": None,
+        "decision_reason": "仅课程资料模式已关闭外部检索。",
+        "fallback_applied": False,
     }
+    assert external.calls == []
+
+
+async def test_mixed_scope_searches_and_returns_verified_external_citation(
+    api_client: AsyncClient,
+    api_settings: Settings,
+) -> None:
+    course_id, document_id = await _create_ready_document(api_client, api_settings)
+    external = FakeExternalSearch()
+    app.dependency_overrides[get_indexing_manager] = lambda: FakeManager(
+        course_id=course_id,
+        document_id=document_id,
+    )
+    app.dependency_overrides[get_chat_completion_gateway] = lambda: MixedGateway()
+    app.dependency_overrides[get_external_search_gateway] = lambda: external
+
+    response = await api_client.post(
+        f"/api/courses/{course_id}/answers",
+        json={"question": "请联网补充栈的当前官方资料。"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["answer"].endswith("[外1]")
+    assert [item["source_type"] for item in data["citations"]] == [
+        "course",
+        "external",
+    ]
+    assert data["citations"][1]["url"] == "https://docs.python.org/3.14/"
+    assert data["external_search"]["triggered"] is True
+    assert data["external_search"]["status"] == "succeeded"
+    assert data["external_search"]["used_result_count"] == 1
+    assert data["external_search"]["fallback_applied"] is False
+    assert external.calls == [
+        ("请联网补充栈的当前官方资料。", "deepseek-v4-flash")
+    ]
+
+
+async def test_non_temporal_current_node_wording_does_not_force_web_search(
+    api_client: AsyncClient,
+    api_settings: Settings,
+) -> None:
+    course_id, document_id = await _create_ready_document(api_client, api_settings)
+    external = FakeExternalSearch()
+    app.dependency_overrides[get_indexing_manager] = lambda: FakeManager(
+        course_id=course_id,
+        document_id=document_id,
+    )
+    app.dependency_overrides[get_chat_completion_gateway] = lambda: FakeGateway()
+    app.dependency_overrides[get_external_search_gateway] = lambda: external
+
+    response = await api_client.post(
+        f"/api/courses/{course_id}/answers",
+        json={"question": "当前栈顶元素有什么特点？"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["external_search"]["triggered"] is False
+    assert external.calls == []
+
+
+async def test_search_failure_falls_back_to_course_answer(
+    api_client: AsyncClient,
+    api_settings: Settings,
+) -> None:
+    course_id, document_id = await _create_ready_document(api_client, api_settings)
+    external = FakeExternalSearch(succeed=False)
+    app.dependency_overrides[get_indexing_manager] = lambda: FakeManager(
+        course_id=course_id,
+        document_id=document_id,
+    )
+    app.dependency_overrides[get_chat_completion_gateway] = lambda: FakeGateway()
+    app.dependency_overrides[get_external_search_gateway] = lambda: external
+
+    response = await api_client.post(
+        f"/api/courses/{course_id}/answers",
+        json={"question": "请搜索并解释什么是栈？"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["status"] == "answered"
+    assert data["answer"].endswith("[课1]")
+    assert data["external_search"]["status"] == "failed"
+    assert data["external_search"]["fallback_applied"] is True
+    assert data["external_search"]["failure_reason"] == "外部检索服务返回 HTTP 503。"
 
 
 async def test_course_stream_rewrites_follow_up_and_persists_only_complete_answer(

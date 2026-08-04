@@ -8,6 +8,7 @@ dependencies = [
     "alembic>=1.18.5",
     "fastapi[standard-no-fastapi-cloud-cli]>=0.141.1",
     "httpx>=0.28.1",
+    "langgraph>=1.0,<2",
     "orjson>=3.11.9",
     "paddleocr==3.7.0",
     "paddlepaddle==3.3.1",

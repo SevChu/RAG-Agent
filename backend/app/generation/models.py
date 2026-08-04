@@ -46,3 +46,5 @@ class GroundedAnswer:
     used_source_ids: tuple[int, ...]
     model: str | None
     usage: TokenUsage | None = None
+    used_external_source_ids: tuple[int, ...] = ()
+    has_source_conflict: bool = False

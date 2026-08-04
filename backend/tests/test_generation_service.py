@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 
 import pytest
 
 from app.core.exceptions import LLMOutputError
+from app.external_search import ExternalSearchEvidence, ExternalSourceQuality
 from app.generation import (
     AnswerStatus,
     AnswerStyle,
     ChatCompletion,
     GroundedAnswerGenerator,
+    MixedGroundedAnswerGenerator,
     TokenUsage,
 )
 from app.knowledge import VectorSearchResult
@@ -52,6 +55,18 @@ def _hit(*, score: float = 0.88) -> VectorSearchResult:
             "line_end": 10,
             "block_kinds": ["paragraph"],
         },
+    )
+
+
+def _external_evidence() -> ExternalSearchEvidence:
+    return ExternalSearchEvidence(
+        rank=1,
+        title="Python 3.14 documentation",
+        publisher="Python Software Foundation",
+        url="https://docs.python.org/3.14/",
+        accessed_at=datetime(2026, 8, 4, tzinfo=UTC),
+        evidence_excerpt="Python 3.14 是当前文档版本。",
+        quality=ExternalSourceQuality.OFFICIAL,
     )
 
 
@@ -210,3 +225,83 @@ async def test_grounded_answer_uses_visible_citations_as_source_of_truth(
     )
 
     assert answer.used_source_ids == expected_ids
+
+
+async def test_mixed_answer_validates_course_and_external_namespaces() -> None:
+    gateway = FakeGateway(
+        '{"sufficient_evidence":true,'
+        '"answer":"课程解释栈的定义。[课1] 官方文档补充当前版本。[外1]",'
+        '"used_course_source_ids":[1],"used_external_source_ids":[1],'
+        '"has_source_conflict":false}'
+    )
+    generator = MixedGroundedAnswerGenerator(gateway, min_similarity_score=0.3)
+
+    answer, eligible = await generator.answer(
+        question="解释栈并补充当前资料",
+        standalone_question="解释栈并补充当前资料",
+        course_hits=[_hit()],
+        external_evidence=[_external_evidence()],
+        style=AnswerStyle.BALANCED,
+        model="deepseek-v4-flash",
+    )
+
+    assert answer.status is AnswerStatus.ANSWERED
+    assert answer.used_source_ids == (1,)
+    assert answer.used_external_source_ids == (1,)
+    assert eligible == (_hit(),)
+    assert "[课n]" in gateway.calls[0][0]
+    assert "[外n]" in gateway.calls[0][0]
+    assert "docs.python.org" in gateway.calls[0][1]
+
+
+@pytest.mark.parametrize(
+    "answer_text",
+    [
+        "混合回答不能使用模糊编号。[1]",
+        "外部编号不存在。[外2]",
+        "课程编号不存在。[课2]",
+    ],
+)
+async def test_mixed_answer_blocks_invalid_namespaced_citations(
+    answer_text: str,
+) -> None:
+    gateway = FakeGateway(
+        '{"sufficient_evidence":true,'
+        f'"answer":{json.dumps(answer_text, ensure_ascii=False)},'
+        '"used_course_source_ids":[],"used_external_source_ids":[],'
+        '"has_source_conflict":false}'
+    )
+    generator = MixedGroundedAnswerGenerator(gateway, min_similarity_score=0.3)
+
+    with pytest.raises(LLMOutputError):
+        await generator.answer(
+            question="混合问题",
+            standalone_question="混合问题",
+            course_hits=[_hit()],
+            external_evidence=[_external_evidence()],
+            style=AnswerStyle.BALANCED,
+            model="deepseek-v4-flash",
+        )
+
+
+async def test_mixed_answer_requires_parallel_conflict_display() -> None:
+    conflict_answer = "## 资料差异\n课程采用旧版本。[课1] 外部文档说明新版本。[外1]"
+    gateway = FakeGateway(
+        '{"sufficient_evidence":true,'
+        f'"answer":{json.dumps(conflict_answer, ensure_ascii=False)},'
+        '"used_course_source_ids":[1],"used_external_source_ids":[1],'
+        '"has_source_conflict":true}'
+    )
+    generator = MixedGroundedAnswerGenerator(gateway, min_similarity_score=0.3)
+
+    answer, _ = await generator.answer(
+        question="课程与当前文档是否一致？",
+        standalone_question="课程与当前文档是否一致？",
+        course_hits=[_hit()],
+        external_evidence=[_external_evidence()],
+        style=AnswerStyle.DETAILED,
+        model="deepseek-v4-flash",
+    )
+
+    assert answer.has_source_conflict is True
+    assert "## 资料差异" in answer.answer

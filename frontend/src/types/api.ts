@@ -101,6 +101,8 @@ export interface ExternalSearchInfo {
   result_count: number
   used_result_count: number
   failure_reason: string | null
+  decision_reason: string | null
+  fallback_applied: boolean
 }
 
 export interface AnswerRetrieval {
@@ -121,6 +123,7 @@ export interface AnswerRetrieval {
   rewrite_applied: boolean
   answer_scope: AnswerScope
   external_search: ExternalSearchInfo
+  source_conflict_detected: boolean
 }
 
 export interface AnswerTokenUsage {

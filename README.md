@@ -1,8 +1,8 @@
 # 基于 RAG 的计算机专业学习 Agent
 
 > 项目状态：第 1 周和第 2 周均已完成并通过验收；第 3 周计划日 1～5 均已完成并通过验收。
-> 最终产品已确认默认采用“课程资料 + 外部补充”，并保留“仅课程资料”模式；混合来源回答
-> 安排在第 4 周计划日 1～2 实施，当前代码仍保持第 3 周封闭课程 RAG 基线。
+> 第 4 周计划日 1～2 均已完成并通过验收。问答默认采用
+> “课程资料 + 外部补充”，并保留“仅课程资料”模式。
 
 ## 1. 项目简介
 
@@ -57,7 +57,7 @@ flowchart TD
     RETRIEVAL --> QDRANT["Qdrant 向量库"]
     RETRIEVAL --> RERANKER["本地 Reranker"]
     AGENT --> LLM["DeepSeek（OpenAI-compatible API）"]
-    AGENT -.->|"第 4 周计划"| WEB["Web Search（学术来源优先）"]
+    AGENT -->|"条件触发"| WEB["Web Search（学术来源优先）"]
 
     API --> SQLITE["SQLite 元数据"]
     API --> FILES["本地课程文件"]
@@ -625,6 +625,13 @@ Anthropic 兼容 Web Search 适配器，能够解析真实搜索结果、校验�
 证据接入答案生成，条件搜索、`[外n]` 正文引用、冲突说明和失败降级留在计划日 2。
 用户于 2026-08-04 确认计划日 1 验收通过，该计划日据此正式收口。
 
+计划日 2 已接入 LangGraph 条件编排：课程证据达到覆盖阈值时不联网；无合格课程证据、
+低相关度、多子要求、明确外部请求或时效性问题触发 Web Search。搜索成功后由混合生成器
+分别校验 `[课n]` 与 `[外n]`，搜索失败或无合格来源时保留课程回答并显示安全降级状态。
+课程与外部来源存在差异时，生成器要求用“资料差异”并列引用双方证据，前端同步展示差异
+状态。后端 151 项测试以及 Ruff、Mypy strict、前端单元测试、Lint、类型检查和生产构建通过。
+用户于 2026-08-04 确认计划日 2 验收通过，该计划日据此正式收口。
+
 混合来源回答的已确认选择、降级规则、数据契约和验收标准见
 [混合来源回答设计决策](docs/design-decisions/mixed-source-answering.md)。
 
@@ -1038,3 +1045,5 @@ uv run python -m app.ingestion.inspect `
 - [第 3 周计划日 3 验收说明](docs/deliverables/week-03-day-03.md)
 - [第 3 周计划日 4 验收说明](docs/deliverables/week-03-day-04.md)
 - [第 3 周计划日 5 验收说明](docs/deliverables/week-03-day-05.md)
+- [第 4 周计划日 1 验收说明](docs/deliverables/week-04-day-01.md)
+- [第 4 周计划日 2 验收说明](docs/deliverables/week-04-day-02.md)

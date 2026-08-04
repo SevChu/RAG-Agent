@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     external_search_timeout_seconds: float = Field(default=60.0, gt=0)
     external_search_max_uses: int = Field(default=1, ge=1, le=5)
     external_search_max_results: int = Field(default=6, ge=1, le=20)
+    external_search_trigger_score: float = Field(default=0.55, ge=-1, le=1)
 
     database_url: str = "sqlite+aiosqlite:///../data/app.db"
     qdrant_path: Path = Path("../data/qdrant")

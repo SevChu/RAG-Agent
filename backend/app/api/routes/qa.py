@@ -21,11 +21,15 @@ from app.core.exceptions import (
     InvalidInputError,
 )
 from app.db.session import get_session
+from app.external_search import (
+    ExternalSearchEvidence,
+    ExternalSearchGateway,
+    get_external_search_gateway,
+)
 from app.generation import (
     AnswerStyle,
     ChatCompletionGateway,
     GroundedAnswer,
-    GroundedAnswerGenerator,
     QueryRewriter,
     bounded_history,
     get_chat_completion_gateway,
@@ -34,6 +38,7 @@ from app.generation import (
 from app.indexing import DocumentIndexingManager, get_indexing_manager
 from app.knowledge.models import VectorSearchResult
 from app.models import Conversation, DocumentStatus
+from app.orchestration import ConditionalAnswerGraph
 from app.schemas.api import APIResponse
 from app.schemas.qa import (
     AnswerCitationRead,
@@ -54,6 +59,9 @@ SessionDependency = Annotated[AsyncSession, Depends(get_session)]
 SettingsDependency = Annotated[Settings, Depends(get_settings)]
 IndexingDependency = Annotated[DocumentIndexingManager, Depends(get_indexing_manager)]
 LLMDependency = Annotated[ChatCompletionGateway, Depends(get_chat_completion_gateway)]
+ExternalSearchDependency = Annotated[
+    ExternalSearchGateway, Depends(get_external_search_gateway)
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,6 +103,7 @@ async def answer_course_question(
     settings: SettingsDependency,
     indexing: IndexingDependency,
     llm: LLMDependency,
+    external_search: ExternalSearchDependency,
 ) -> APIResponse[CourseAnswerRead]:
     conversation, selected_model = await _resolve_course_request(
         course_id=course_id,
@@ -112,6 +121,7 @@ async def answer_course_question(
         settings=settings,
         indexing=indexing,
         llm=llm,
+        external_search=external_search,
     )
     result = await _persist_course_answer(
         course_id=course_id,
@@ -132,6 +142,7 @@ async def stream_course_answer(
     settings: SettingsDependency,
     indexing: IndexingDependency,
     llm: LLMDependency,
+    external_search: ExternalSearchDependency,
 ) -> StreamingResponse:
     conversation, selected_model = await _resolve_course_request(
         course_id=course_id,
@@ -160,6 +171,7 @@ async def stream_course_answer(
                 settings=settings,
                 indexing=indexing,
                 llm=llm,
+                external_search=external_search,
             )
             for delta in _text_chunks(work.answer.answer):
                 if await request.is_disconnected():
@@ -325,6 +337,7 @@ async def _prepare_course_answer(
     settings: Settings,
     indexing: DocumentIndexingManager,
     llm: ChatCompletionGateway,
+    external_search: ExternalSearchGateway,
 ) -> _CourseAnswerWork:
     started_at = perf_counter()
     conversation_service = ConversationService(session)
@@ -380,17 +393,24 @@ async def _prepare_course_answer(
             "问答检索暂时不可用，请检查本地 Embedding、Reranker 模型与 Qdrant 存储后重试。"
         ) from error
 
-    answer, eligible_hits = await GroundedAnswerGenerator(
-        llm,
+    graph_result = await ConditionalAnswerGraph(
+        llm=llm,
+        external_search=external_search,
         min_similarity_score=settings.rag_min_similarity_score,
-    ).answer(
+        external_trigger_score=settings.external_search_trigger_score,
+        external_search_enabled=settings.external_search_enabled,
+        provider=settings.llm_provider,
+    ).run(
         question=payload.question,
         standalone_question=rewritten_query,
-        hits=retrieval.hits,
+        course_hits=retrieval.hits,
         style=payload.answer_style,
+        scope=payload.answer_scope,
         model=selected_model,
     )
-    citations = [
+    answer = graph_result.answer
+    eligible_hits = graph_result.eligible_course_hits
+    course_citations = [
         _citation_read(
             source_id=source_id,
             retrieval_rank=_retrieval_rank(retrieval.hits, eligible_hits[source_id - 1]),
@@ -398,6 +418,14 @@ async def _prepare_course_answer(
         )
         for source_id in answer.used_source_ids
     ]
+    external_citations = [
+        _external_citation_read(
+            source_id=source_id,
+            evidence=graph_result.external_evidence[source_id - 1],
+        )
+        for source_id in answer.used_external_source_ids
+    ]
+    citations = [*course_citations, *external_citations]
     usage = (
         AnswerTokenUsageRead(
             prompt_tokens=answer.usage.prompt_tokens,
@@ -406,6 +434,19 @@ async def _prepare_course_answer(
         )
         if answer.usage is not None
         else None
+    )
+    external_result = graph_result.external_result
+    external_search_read = ExternalSearchRead(
+        triggered=graph_result.decision.should_search,
+        status=(external_result.status if external_result is not None else "not_requested"),
+        query=(external_result.query if external_result is not None else None),
+        result_count=(len(external_result.results) if external_result is not None else 0),
+        used_result_count=len(answer.used_external_source_ids),
+        failure_reason=(
+            external_result.failure_reason if external_result is not None else None
+        ),
+        decision_reason=graph_result.decision.reason,
+        fallback_applied=graph_result.fallback_applied,
     )
     retrieval_read = AnswerRetrievalRead(
         requested_top_k=settings.rag_answer_top_k,
@@ -423,13 +464,8 @@ async def _prepare_course_answer(
         context_message_count=len(history),
         rewrite_applied=rewritten_query != payload.question,
         answer_scope=payload.answer_scope,
-        external_search=ExternalSearchRead(
-            failure_reason=(
-                "仅课程资料模式已关闭外部检索。"
-                if payload.answer_scope.value == "course_only"
-                else "Day 1 已建立外部检索基础；混合检索编排将在 Day 2 接入回答链路。"
-            )
-        ),
+        external_search=external_search_read,
+        source_conflict_detected=answer.has_source_conflict,
     )
     return _CourseAnswerWork(
         answer=answer,
@@ -538,6 +574,23 @@ def _citation_read(
         slide_numbers=[int(value) for value in payload.get("slide_numbers", [])],
         line_start=_optional_int(payload.get("line_start")),
         line_end=_optional_int(payload.get("line_end")),
+    )
+
+
+def _external_citation_read(
+    *,
+    source_id: int,
+    evidence: ExternalSearchEvidence,
+) -> AnswerCitationRead:
+    return AnswerCitationRead(
+        source_id=source_id,
+        source_type="external",
+        text=evidence.evidence_excerpt,
+        title=evidence.title,
+        publisher=evidence.publisher,
+        url=evidence.url,
+        accessed_at=evidence.accessed_at,
+        content_role="external_evidence",
     )
 
 

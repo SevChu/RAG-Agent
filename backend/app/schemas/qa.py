@@ -72,6 +72,8 @@ class ExternalSearchRead(BaseModel):
     result_count: int = 0
     used_result_count: int = 0
     failure_reason: str | None = None
+    decision_reason: str | None = None
+    fallback_applied: bool = False
 
 
 class AnswerRetrievalRead(BaseModel):
@@ -92,6 +94,7 @@ class AnswerRetrievalRead(BaseModel):
     rewrite_applied: bool = False
     answer_scope: AnswerScope = AnswerScope.COURSE_ONLY
     external_search: ExternalSearchRead = Field(default_factory=ExternalSearchRead)
+    source_conflict_detected: bool = False
 
 
 class AnswerTokenUsageRead(BaseModel):

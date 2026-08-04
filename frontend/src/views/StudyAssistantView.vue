@@ -68,7 +68,7 @@ const scopeOptions: Array<{ value: AnswerScope; label: string; detail: string }>
   {
     value: 'course_and_external',
     label: '课程资料 + 外部补充',
-    detail: '默认范围；Day 1 已完成检索基础，Day 2 接入自动搜索与混合生成',
+    detail: '默认范围；课程证据不足、问题有时效性或明确要求时自动搜索',
   },
   {
     value: 'course_only',
@@ -98,6 +98,32 @@ function citationTitle(citation: AnswerCitation): string {
   return citation.source_type === 'external'
     ? citation.title || citation.publisher || '外部资料'
     : citation.file_name
+}
+
+function externalSearchSummary(message: CourseConversationMessage): string {
+  const search = message.retrieval?.external_search
+  if (!search) return ''
+  if (!search.decision_reason && search.failure_reason) {
+    return `历史回答记录：${search.failure_reason}`
+  }
+  if (search.fallback_applied) {
+    return `外部检索未能提供合格证据，已降级为课程回答。${search.failure_reason || ''}`
+  }
+  if (search.status === 'succeeded') {
+    return `外部检索完成：取得 ${search.result_count} 条合格来源，正文采用 ${search.used_result_count} 条。`
+  }
+  if (search.status === 'failed' || search.status === 'no_qualified_results') {
+    return search.failure_reason || '外部检索没有取得合格来源。'
+  }
+  return search.decision_reason || search.failure_reason || '本次未触发外部检索。'
+}
+
+function externalSearchTitle(message: CourseConversationMessage): string {
+  const search = message.retrieval?.external_search
+  if (!search?.decision_reason && search?.failure_reason) return '历史回答状态'
+  if (search?.fallback_applied) return '已安全降级'
+  if (search?.status === 'succeeded') return '外部检索已完成'
+  return '条件搜索判断'
 }
 
 onMounted(async () => {
@@ -394,7 +420,8 @@ function submitWithKeyboard(event: KeyboardEvent): void {
             仅使用已完成入库的课程资料；不会发起 Web Search。
           </p>
           <p v-else>
-            Day 1 已验证外部搜索与来源解析；Day 2 接入回答链路前，本页仍按课程证据作答。
+            先检查课程证据覆盖度；必要时自动搜索并生成 [课n]、[外n] 独立引用。
+            搜索失败会保留可用的课程回答。
           </p>
         </div>
       </aside>
@@ -422,12 +449,35 @@ function submitWithKeyboard(event: KeyboardEvent): void {
                 </div>
                 <span
                   class="answer-status"
-                  :class="{ refused: message.answer_status === 'insufficient_evidence' }"
+                  :class="{
+                    refused: message.answer_status === 'insufficient_evidence',
+                    conflict: message.retrieval?.source_conflict_detected,
+                  }"
                 >
-                  {{ message.answer_status === 'answered' ? '证据已引用' : '资料不足' }}
+                  {{
+                    message.retrieval?.source_conflict_detected
+                      ? '资料存在差异'
+                      : message.answer_status === 'answered'
+                        ? '证据已引用'
+                        : '资料不足'
+                  }}
                 </span>
               </div>
               <div class="markdown-answer" v-html="renderAnswer(message)" />
+
+              <div
+                v-if="message.retrieval?.answer_scope === 'course_and_external'"
+                class="search-status-note"
+                :class="{
+                  fallback: message.retrieval.external_search.fallback_applied,
+                  searched: message.retrieval.external_search.status === 'succeeded',
+                }"
+              >
+                <strong>
+                  {{ externalSearchTitle(message) }}
+                </strong>
+                <span>{{ externalSearchSummary(message) }}</span>
+              </div>
 
               <section v-if="message.citations.length" class="citation-section">
                 <div class="citation-title">
@@ -490,8 +540,8 @@ function submitWithKeyboard(event: KeyboardEvent): void {
                 <span>
                   {{ message.retrieval.answer_scope === 'course_only' ? '仅课程资料' : '课程 + 外部补充' }}
                 </span>
-                <span v-if="message.retrieval.external_search.failure_reason">
-                  {{ message.retrieval.external_search.failure_reason }}
+                <span v-if="message.retrieval.external_search.decision_reason">
+                  {{ message.retrieval.external_search.decision_reason }}
                 </span>
               </footer>
             </article>
@@ -785,6 +835,11 @@ function submitWithKeyboard(event: KeyboardEvent): void {
   background: #fff3da;
 }
 
+.answer-status.conflict {
+  color: #8b5b12;
+  background: #fff0c9;
+}
+
 .markdown-answer {
   padding: 20px 0;
   font-size: 14px;
@@ -794,6 +849,32 @@ function submitWithKeyboard(event: KeyboardEvent): void {
 
 .markdown-answer :deep(p:first-child) {
   margin-top: 0;
+}
+
+.search-status-note {
+  display: grid;
+  gap: 4px;
+  padding: 11px 13px;
+  margin-bottom: 18px;
+  font-size: 11px;
+  color: var(--ink-muted);
+  background: rgb(244 248 252 / 88%);
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+}
+
+.search-status-note strong {
+  color: var(--ink-strong);
+}
+
+.search-status-note.searched {
+  background: rgb(239 250 247 / 92%);
+  border-color: rgb(36 153 121 / 20%);
+}
+
+.search-status-note.fallback {
+  background: rgb(255 248 232 / 94%);
+  border-color: rgb(196 135 32 / 24%);
 }
 
 .citation-section {
