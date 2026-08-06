@@ -36,6 +36,15 @@ _SUMMARY_ACTION = re.compile(
     r"(?:总结|概括|归纳|梳理|提炼|整理|回顾)(?:一下|下)?",
     re.IGNORECASE,
 )
+_SUMMARY_VERB = re.compile(
+    r"(?:总结|概括|归纳|梳理|提炼|整理|回顾)",
+    re.IGNORECASE,
+)
+_EMBEDDED_SUMMARY_ACTION = re.compile(
+    r"(?:^|[，。！？!?\s])(?:请|麻烦|能否|可以)?\s*(?:帮我|给我)?\s*"
+    r"(?:从|按|以|围绕|针对).{1,50}(?:总结|概括|归纳|梳理|提炼|整理|回顾)",
+    re.IGNORECASE,
+)
 _SUMMARY_ARTIFACT = re.compile(
     r"(?:生成|给出|列出|制作|整理|梳理|总结).{0,12}"
     r"(?:复习提纲|知识框架|知识脉络|考试重点|重点清单|易错点)",
@@ -50,7 +59,9 @@ _SUMMARY_NOUN = re.compile(
     re.IGNORECASE,
 )
 _SUMMARY_AS_SUBJECT = re.compile(
-    r"^(?:总结|概括|归纳).{0,12}(?:是什么|的区别|含义|如何实现|怎么实现)|"
+    r"^(?:请(?:解释|说明|问)?|解释|说明|什么是)?\s*(?:总结|概括|归纳).{0,12}"
+    r"(?:是什么|的区别|含义|如何实现|怎么实现)|"
+    r"^(?:什么是|如何理解|怎么理解).{0,12}(?:总结|概括|归纳)|"
     r"^what\s+is\s+(?:a\s+)?summary\b",
     re.IGNORECASE,
 )
@@ -91,6 +102,8 @@ class RequestRoutingGraph:
             not _SUMMARY_AS_SUBJECT.search(question)
             and (
                 _SUMMARY_ACTION.search(question)
+                or _SUMMARY_VERB.search(question)
+                or _EMBEDDED_SUMMARY_ACTION.search(question)
                 or _SUMMARY_ARTIFACT.search(question)
                 or _ENGLISH_SUMMARY.search(question)
                 or _SUMMARY_NOUN.search(question)

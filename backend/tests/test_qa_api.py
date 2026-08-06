@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -53,11 +54,15 @@ class FakeManager:
         document_id: str,
         hits: bool = True,
         score: float = 0.91,
+        unique_per_call: bool = False,
+        text_size: int | None = None,
     ) -> None:
         self.course_id = course_id
         self.document_id = document_id
         self.hits = hits
         self.score = score
+        self.unique_per_call = unique_per_call
+        self.text_size = text_size
         self.calls: list[dict[str, object]] = []
 
     async def answer_search(
@@ -81,12 +86,20 @@ class FakeManager:
         results = (
             (
                 VectorSearchResult(
-                    point_id="point-1",
+                    point_id=(
+                        f"point-{len(self.calls)}"
+                        if self.unique_per_call
+                        else "point-1"
+                    ),
                     score=self.score,
                     course_id=self.course_id,
                     document_id=self.document_id,
-                    chunk_index=4,
-                    text="栈的插入与删除只能在线性表的一端进行，遵循后进先出。",
+                    chunk_index=3 + len(self.calls) if self.unique_per_call else 4,
+                    text=(
+                        "栈的插入与删除只能在线性表的一端进行，遵循后进先出。"
+                        if self.text_size is None
+                        else "课程证据" * self.text_size
+                    ),
                     payload={
                         "file_name": "讲义.md",
                         "file_type": "md",
@@ -263,22 +276,146 @@ class SummaryGateway:
         user_prompt: str,
         model: str,
     ) -> ChatCompletion:
-        assert "exam_focus" in system_prompt
-        assert "总结范围类型：course" in user_prompt
+        assert "逐节执行 <summary_plan>" in system_prompt
+        assert '"is_default": true' in user_prompt
         return ChatCompletion(
-            content=(
-                '{"sufficient_evidence":true,'
-                '"core_concepts":"栈遵循后进先出。[课1]",'
-                '"key_knowledge":"插入和删除位于同一端。[课1]",'
-                '"knowledge_relationships":"操作端即栈顶。[课1]",'
-                '"common_mistakes":"不要混淆先进先出。[课1]",'
-                '"examples_and_applications":"可用栈顶操作理解行为。[课1]",'
-                '"review_recommendations":"先定义，再复习操作位置。",'
-                '"exam_focus":"重点掌握后进先出。[课1]",'
-                '"used_source_ids":[1]}'
+            content=json.dumps(
+                {
+                    "sufficient_evidence": True,
+                    "title": "数据结构课程总结",
+                    "sections": [
+                        {
+                            "key": key,
+                            "title": title,
+                            "purpose": purpose,
+                            "body": body,
+                            "used_source_ids": [1],
+                            "limitation": None,
+                        }
+                        for key, title, purpose, body in (
+                            (
+                                "core_framework",
+                                "核心框架",
+                                "建立概念骨架",
+                                "课程资料以栈为核心示例。[课1]",
+                            ),
+                            (
+                                "key_mechanisms",
+                                "关键机制与要点",
+                                "说明关键规则",
+                                "栈在同一端完成插入与删除。[课1]",
+                            ),
+                            (
+                                "connections",
+                                "知识联系",
+                                "梳理概念联系",
+                                "栈顶把插入、删除操作与后进先出顺序联系起来。[课1]",
+                            ),
+                            (
+                                "boundaries",
+                                "边界与易错点",
+                                "归纳边界和误区",
+                                "不能把栈的后进先出误写成先进先出。[课1]",
+                            ),
+                            (
+                                "review_priorities",
+                                "复习重点",
+                                "给出复习优先级",
+                                "应优先掌握后进先出及栈顶操作约束。[课1]",
+                            ),
+                        )
+                    ],
+                    "review_advice": None,
+                    "used_source_ids": [1],
+                },
+                ensure_ascii=False,
             ),
             model=model,
             usage=TokenUsage(prompt_tokens=120, completion_tokens=80, total_tokens=200),
+        )
+
+    async def complete_text(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+    ) -> ChatCompletion:
+        raise AssertionError("not used")
+
+
+class ExplicitSummaryGateway:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def complete(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+    ) -> ChatCompletion:
+        self.calls += 1
+        if "课程总结规划器" in system_prompt:
+            content = {
+                "goal": "从 C++ 实现角度总结二叉树遍历",
+                "focuses": ["函数结构", "边界条件"],
+                "audience": "课程学习者",
+                "detail_level": "适中",
+                "length": "简洁",
+                "output_format": "对比说明",
+                "must_include": [],
+                "must_exclude": [],
+                "sections": [
+                    {
+                        "key": "function_structure",
+                        "title": "C++ 遍历函数结构",
+                        "purpose": "说明递归遍历的函数结构",
+                        "retrieval_query": "二叉树 C++ 递归 遍历 函数结构",
+                        "evidence_budget": 3,
+                        "organization": "代码结构清单",
+                        "required_points": ["函数结构"],
+                    },
+                    {
+                        "key": "error_boundaries",
+                        "title": "容易写错的边界条件汇总",
+                        "purpose": "归纳实现中容易写错的边界条件",
+                        "retrieval_query": "二叉树 遍历 空指针 递归 边界 错误",
+                        "evidence_budget": 3,
+                        "organization": "错误检查清单",
+                        "required_points": ["边界条件"],
+                    },
+                ],
+            }
+        else:
+            content = {
+                "sufficient_evidence": True,
+                "title": "二叉树遍历的 C++ 实现",
+                "sections": [
+                    {
+                        "key": "function_structure",
+                        "title": "C++ 遍历函数结构",
+                        "purpose": "说明递归遍历的函数结构",
+                        "body": "函数结构先检查结点，再按遍历次序递归访问子树。[课1]",
+                        "used_source_ids": [1],
+                        "limitation": None,
+                    },
+                    {
+                        "key": "error_boundaries",
+                        "title": "容易写错的边界条件汇总",
+                        "purpose": "归纳实现中容易写错的边界条件",
+                        "body": "边界条件首先处理空结点，避免继续递归访问。[课1]",
+                        "used_source_ids": [2],
+                        "limitation": None,
+                    },
+                ],
+                "review_advice": None,
+                "used_source_ids": [1],
+            }
+        return ChatCompletion(
+            content=json.dumps(content, ensure_ascii=False),
+            model=model,
+            usage=TokenUsage(prompt_tokens=100, completion_tokens=60, total_tokens=160),
         )
 
     async def complete_text(
@@ -306,7 +443,7 @@ async def test_answer_api_returns_verified_citation(
         json={"question": "什么是栈？", "answer_style": "balanced"},
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 200, response.text
     data = response.json()["data"]
     assert data["status"] == "answered"
     assert data["answer"].endswith("[课1]")
@@ -344,12 +481,18 @@ async def test_answer_api_returns_verified_citation(
     assert conversation["messages"][1]["citations"][0]["file_name"] == "讲义.md"
 
 
-async def test_course_chat_auto_routes_summary_and_never_searches_external_sources(
+async def test_course_chat_summarizes_chapter_with_safe_cross_section_evidence(
     api_client: AsyncClient,
     api_settings: Settings,
 ) -> None:
     course_id, document_id = await _create_ready_document(api_client, api_settings)
-    manager = FakeManager(course_id=course_id, document_id=document_id, score=0.02)
+    manager = FakeManager(
+        course_id=course_id,
+        document_id=document_id,
+        score=0.02,
+        unique_per_call=True,
+        text_size=1000,
+    )
     external = FakeExternalSearch()
     app.dependency_overrides[get_indexing_manager] = lambda: manager
     app.dependency_overrides[get_chat_completion_gateway] = lambda: SummaryGateway()
@@ -357,7 +500,7 @@ async def test_course_chat_auto_routes_summary_and_never_searches_external_sourc
 
     response = await api_client.post(
         f"/api/courses/{course_id}/answers",
-        json={"question": "请帮我总结整个课程"},
+        json={"question": "总结第三章"},
     )
 
     assert response.status_code == 200
@@ -366,12 +509,58 @@ async def test_course_chat_auto_routes_summary_and_never_searches_external_sourc
     assert data["answer_scope"] == "course_only"
     assert data["retrieval"]["task_type"] == "summary"
     assert data["retrieval"]["retrieval_mode"] == "summary_dense_rerank"
-    assert data["retrieval"]["summary_scope"] == "course"
+    assert data["retrieval"]["summary_scope"] == "topic"
     assert data["retrieval"]["requested_top_k"] == 12
+    assert data["retrieval"]["summary_plan"]["is_default"] is True
+    assert len(data["retrieval"]["summary_plan"]["sections"]) == 5
+    assert data["retrieval"]["summary_quality"]["passed"] is True
+    assert len(
+        data["retrieval"]["summary_quality"]["cross_section_evidence_reuse"]
+    ) == 4
     assert data["external_search"]["triggered"] is False
     assert external.calls == []
-    assert "## 考试重点" in data["answer"]
+    assert "## 复习重点" in data["answer"]
     assert data["citations"][0]["source_type"] == "course"
+    assert len(manager.calls) == 5
+    assert data["retrieval"]["returned_count"] <= 2
+
+
+async def test_explicit_summary_uses_dynamic_plan_and_section_queries(
+    api_client: AsyncClient,
+    api_settings: Settings,
+) -> None:
+    course_id, document_id = await _create_ready_document(api_client, api_settings)
+    manager = FakeManager(course_id=course_id, document_id=document_id, score=0.02)
+    external = FakeExternalSearch()
+    gateway = ExplicitSummaryGateway()
+    app.dependency_overrides[get_indexing_manager] = lambda: manager
+    app.dependency_overrides[get_chat_completion_gateway] = lambda: gateway
+    app.dependency_overrides[get_external_search_gateway] = lambda: external
+
+    response = await api_client.post(
+        f"/api/courses/{course_id}/answers",
+        json={
+            "question": "从 C++ 实现角度总结二叉树遍历，重点说明函数结构和容易写错的边界。"
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    plan = data["retrieval"]["summary_plan"]
+    assert plan["is_default"] is False
+    assert plan["focuses"] == ["函数结构", "边界条件"]
+    assert [section["title"] for section in plan["sections"]] == [
+        "C++ 遍历函数结构",
+        "容易写错的边界条件汇总",
+    ]
+    assert data["retrieval"]["summary_quality"]["passed"] is True
+    assert data["retrieval"]["summary_quality"][
+        "normalized_source_declarations"
+    ] == ["error_boundaries"]
+    assert len(manager.calls) == 2
+    assert manager.calls[0]["query"] != manager.calls[1]["query"]
+    assert gateway.calls == 2
+    assert external.calls == []
 
 
 async def test_answer_api_uses_selected_allowed_model(

@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import AsyncIterator
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from time import perf_counter
 from typing import Annotated
 from uuid import UUID
@@ -24,15 +24,21 @@ from app.db.session import get_session
 from app.external_search import (
     ExternalSearchEvidence,
     ExternalSearchGateway,
+    ExternalSearchStatus,
     get_external_search_gateway,
 )
 from app.generation import (
     AnswerScope,
     AnswerStyle,
     ChatCompletionGateway,
+    CitationSourceType,
+    DynamicSummaryPlanner,
     GroundedAnswer,
     GroundedSummaryGenerator,
     QueryRewriter,
+    SummaryPlan,
+    SummaryPlanRead,
+    SummaryQualityDiagnostics,
     bounded_history,
     get_chat_completion_gateway,
     quick_chat_prompt,
@@ -48,6 +54,7 @@ from app.orchestration import (
     summary_retrieval_query,
     summary_scope,
 )
+from app.retrieval import RerankedRetrievalResult
 from app.schemas.api import APIResponse
 from app.schemas.qa import (
     AnswerCitationRead,
@@ -412,6 +419,8 @@ async def _prepare_course_answer(
     retrieval_query = rewritten_query
     requested_top_k = settings.rag_answer_top_k
     candidate_top_k = settings.rag_answer_candidate_k
+    summary_plan_read: SummaryPlanRead | None = None
+    summary_quality: SummaryQualityDiagnostics | None = None
     if routing.task_type is CourseTaskType.SUMMARY:
         resolved_summary_scope, summary_scope_description = summary_scope(
             payload.question,
@@ -419,42 +428,64 @@ async def _prepare_course_answer(
             selected_document_count=len(ready_document_ids),
             total_ready_document_count=all_ready_document_count,
         )
-        retrieval_query = summary_retrieval_query(
-            rewritten_query,
-            resolved_summary_scope,
-        )
         requested_top_k = settings.rag_summary_top_k
         candidate_top_k = settings.rag_summary_candidate_k
-
-    try:
-        retrieval = await indexing.answer_search(
-            course_id=course_id,
-            query=retrieval_query,
-            candidate_k=candidate_top_k,
-            top_k=requested_top_k,
-            document_ids=ready_document_ids,
-        )
-    except (FileNotFoundError, RuntimeError, OSError) as error:
-        raise IndexStorageError(
-            "问答检索暂时不可用，请检查本地 Embedding、Reranker 模型与 Qdrant 存储后重试。"
-        ) from error
 
     external_evidence: tuple[ExternalSearchEvidence, ...] = ()
     if routing.task_type is CourseTaskType.SUMMARY:
         assert resolved_summary_scope is not None
         assert summary_scope_description is not None
-        answer, eligible_hits = await GroundedSummaryGenerator(llm).summarize(
+        plan_result = await DynamicSummaryPlanner(llm).plan(
             request=payload.question,
             scope=resolved_summary_scope,
             scope_description=summary_scope_description,
-            hits=retrieval.hits,
             model=selected_model,
         )
+        try:
+            retrieval, section_source_ids = await _retrieve_summary_sections(
+                course_id=course_id,
+                plan=plan_result.plan,
+                indexing=indexing,
+                candidate_k=candidate_top_k,
+                configured_top_k=requested_top_k,
+                max_sources=settings.rag_summary_max_sources,
+                max_context_chars=settings.rag_summary_context_max_chars,
+                document_ids=ready_document_ids,
+            )
+        except (FileNotFoundError, RuntimeError, OSError) as error:
+            raise IndexStorageError(
+                "总结检索暂时不可用，请检查本地 Embedding、Reranker 模型与 Qdrant 存储后重试。"
+            ) from error
+        retrieval_query = retrieval.query
+        summary_result = await GroundedSummaryGenerator(llm).summarize(
+            request=payload.question,
+            plan=plan_result.plan,
+            hits=retrieval.hits,
+            section_source_ids=section_source_ids,
+            model=selected_model,
+            prior_usage=plan_result.usage,
+        )
+        answer = summary_result.answer
+        eligible_hits = summary_result.eligible_hits
+        summary_plan_read = SummaryPlanRead.from_plan(plan_result.plan)
+        summary_quality = summary_result.quality
         effective_scope = AnswerScope.COURSE_ONLY
         external_search_read = ExternalSearchRead(
             decision_reason="知识总结默认仅使用课程资料，未触发外部检索。"
         )
     else:
+        try:
+            retrieval = await indexing.answer_search(
+                course_id=course_id,
+                query=retrieval_query,
+                candidate_k=candidate_top_k,
+                top_k=requested_top_k,
+                document_ids=ready_document_ids,
+            )
+        except (FileNotFoundError, RuntimeError, OSError) as error:
+            raise IndexStorageError(
+                "问答检索暂时不可用，请检查本地 Embedding、Reranker 模型与 Qdrant 存储后重试。"
+            ) from error
         graph_result = await ConditionalAnswerGraph(
             llm=llm,
             external_search=external_search,
@@ -480,7 +511,7 @@ async def _prepare_course_answer(
             status=(
                 external_result.status
                 if external_result is not None
-                else "not_requested"
+                else ExternalSearchStatus.NOT_REQUESTED
             ),
             query=(external_result.query if external_result is not None else None),
             result_count=(
@@ -546,6 +577,8 @@ async def _prepare_course_answer(
         router_reason=routing.reason,
         summary_scope=resolved_summary_scope,
         summary_scope_description=summary_scope_description,
+        summary_plan=summary_plan_read,
+        summary_quality=summary_quality,
     )
     return _CourseAnswerWork(
         answer=answer,
@@ -555,6 +588,103 @@ async def _prepare_course_answer(
         elapsed_ms=round((perf_counter() - started_at) * 1000, 2),
         task_type=routing.task_type,
         effective_scope=effective_scope,
+    )
+
+
+async def _retrieve_summary_sections(
+    *,
+    course_id: UUID,
+    plan: SummaryPlan,
+    indexing: DocumentIndexingManager,
+    candidate_k: int,
+    configured_top_k: int,
+    max_sources: int,
+    max_context_chars: int,
+    document_ids: list[str],
+) -> tuple[RerankedRetrievalResult, dict[str, tuple[int, ...]]]:
+    """Run one qualified retrieval per planned section and unify citation IDs."""
+
+    section_results: list[tuple[str, RerankedRetrievalResult]] = []
+    queries: list[str] = []
+    dense_candidate_count = 0
+    rejected_evidence_count = 0
+    embedding_device: str | None = None
+    reranker_device: str | None = None
+    fallback_reasons: dict[str, None] = {}
+
+    for section in plan.sections:
+        query = summary_retrieval_query(
+            f"{plan.scope_description} {section.retrieval_query}",
+            plan.scope,
+        )
+        queries.append(f"{section.title}: {query}")
+        result = await indexing.answer_search(
+            course_id=course_id,
+            query=query,
+            candidate_k=candidate_k,
+            top_k=min(configured_top_k, section.evidence_budget),
+            document_ids=document_ids,
+        )
+        dense_candidate_count += result.dense_candidate_count
+        rejected_evidence_count += result.rejected_evidence_count
+        embedding_device = embedding_device or result.embedding_device
+        reranker_device = reranker_device or result.reranker_device
+        if result.fallback_reason:
+            fallback_reasons.setdefault(result.fallback_reason, None)
+
+        section_results.append((section.key, result))
+
+    merged_hits: list[VectorSearchResult] = []
+    source_id_by_point: dict[str, int] = {}
+    mutable_section_source_ids: dict[str, list[int]] = {
+        section.key: [] for section in plan.sections
+    }
+    total_context_chars = 0
+    max_result_count = max(
+        (len(result.hits) for _, result in section_results),
+        default=0,
+    )
+    for rank in range(max_result_count):
+        for section_key, result in section_results:
+            if rank >= len(result.hits):
+                continue
+            hit = result.hits[rank]
+            identity = hit.point_id or f"{hit.document_id}:{hit.chunk_index}"
+            source_id = source_id_by_point.get(identity)
+            if source_id is None:
+                if len(merged_hits) >= max_sources:
+                    continue
+                remaining_chars = max_context_chars - total_context_chars
+                if remaining_chars < 400:
+                    continue
+                if len(hit.text) > remaining_chars:
+                    hit = replace(hit, text=hit.text[:remaining_chars])
+                merged_hits.append(hit)
+                total_context_chars += len(hit.text)
+                source_id = len(merged_hits)
+                source_id_by_point[identity] = source_id
+            source_ids = mutable_section_source_ids[section_key]
+            if source_id not in source_ids:
+                source_ids.append(source_id)
+
+    section_source_ids = {
+        key: tuple(source_ids)
+        for key, source_ids in mutable_section_source_ids.items()
+    }
+
+    return (
+        RerankedRetrievalResult(
+            query=" | ".join(queries),
+            hits=tuple(merged_hits),
+            dense_candidate_count=dense_candidate_count,
+            rejected_evidence_count=rejected_evidence_count,
+            embedding_device=embedding_device,
+            reranker_device=reranker_device,
+            fallback_reason=(
+                "；".join(fallback_reasons) if fallback_reasons else None
+            ),
+        ),
+        section_source_ids,
     )
 
 
@@ -641,7 +771,7 @@ def _citation_read(
     payload = result.payload
     return AnswerCitationRead(
         source_id=source_id,
-        source_type="course",
+        source_type=CitationSourceType.COURSE,
         retrieval_rank=retrieval_rank,
         score=result.score,
         dense_score=_optional_float(payload.get("dense_score")),
@@ -667,7 +797,7 @@ def _external_citation_read(
 ) -> AnswerCitationRead:
     return AnswerCitationRead(
         source_id=source_id,
-        source_type="external",
+        source_type=CitationSourceType.EXTERNAL,
         text=evidence.evidence_excerpt,
         title=evidence.title,
         publisher=evidence.publisher,

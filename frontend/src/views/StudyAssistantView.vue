@@ -483,8 +483,55 @@ function submitWithKeyboard(event: KeyboardEvent): void {
                 v-if="isSummary(message) && message.retrieval?.summary_scope_description"
                 class="search-status-note searched"
               >
-                <strong>自动识别为知识总结</strong>
+                <strong>
+                  {{ message.retrieval.summary_plan?.is_default ? '综合总结计划' : '动态总结计划' }}
+                </strong>
                 <span>{{ message.retrieval.summary_scope_description }}</span>
+                <span v-if="message.retrieval.summary_plan">
+                  目标：{{ message.retrieval.summary_plan.goal }} ·
+                  {{ message.retrieval.summary_plan.sections.length }} 个定向章节 ·
+                  {{ message.retrieval.summary_plan.output_format }}
+                </span>
+                <span v-if="message.retrieval.summary_quality">
+                  质量校验：{{ message.retrieval.summary_quality.passed ? '通过' : '存在限制' }} ·
+                  {{ message.retrieval.summary_quality.evidence_backed_section_count }}/{{
+                    message.retrieval.summary_quality.planned_section_count
+                  }} 节有课程证据
+                  <template v-if="message.retrieval.summary_quality.rewritten_sections.length">
+                    · 已局部修复
+                    {{ message.retrieval.summary_quality.rewritten_sections.length }} 节
+                  </template>
+                  <template
+                    v-if="message.retrieval.summary_quality.cross_section_evidence_reuse.length"
+                  >
+                    · 安全复用跨节证据
+                    {{ message.retrieval.summary_quality.cross_section_evidence_reuse.length }} 节
+                  </template>
+                  <template
+                    v-if="message.retrieval.summary_quality.normalized_source_declarations.length"
+                  >
+                    · 已校正引用声明
+                    {{ message.retrieval.summary_quality.normalized_source_declarations.length }} 节
+                  </template>
+                  <template
+                    v-if="message.retrieval.summary_quality.normalized_section_metadata.length"
+                  >
+                    · 已校正章节元数据
+                    {{ message.retrieval.summary_quality.normalized_section_metadata.length }} 节
+                  </template>
+                  <template
+                    v-if="message.retrieval.summary_quality.normalized_citation_namespaces.length"
+                  >
+                    · 已补全课程引用标记
+                    {{ message.retrieval.summary_quality.normalized_citation_namespaces.length }} 节
+                  </template>
+                  <template v-if="message.retrieval.summary_quality.coverage_warnings.length">
+                    · {{ message.retrieval.summary_quality.coverage_warnings.length }} 项表达需人工确认
+                  </template>
+                  <template v-if="message.retrieval.summary_quality.grounding_fallback_sections.length">
+                    · {{ message.retrieval.summary_quality.grounding_fallback_sections.length }} 节已按资料不足处理
+                  </template>
+                </span>
               </div>
 
               <div

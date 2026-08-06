@@ -6,7 +6,14 @@ from uuid import UUID
 from pydantic import BaseModel, Field, field_validator
 
 from app.external_search import ExternalSearchStatus
-from app.generation import AnswerScope, AnswerStatus, AnswerStyle, CitationSourceType
+from app.generation import (
+    AnswerScope,
+    AnswerStatus,
+    AnswerStyle,
+    CitationSourceType,
+    SummaryPlanRead,
+    SummaryQualityDiagnostics,
+)
 from app.orchestration import CourseTaskType, SummaryScopeType
 
 
@@ -100,6 +107,8 @@ class AnswerRetrievalRead(BaseModel):
     router_reason: str = ""
     summary_scope: SummaryScopeType | None = None
     summary_scope_description: str | None = None
+    summary_plan: SummaryPlanRead | None = None
+    summary_quality: SummaryQualityDiagnostics | None = None
 
 
 class AnswerTokenUsageRead(BaseModel):

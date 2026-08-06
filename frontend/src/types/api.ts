@@ -130,6 +130,51 @@ export interface AnswerRetrieval {
   router_reason: string
   summary_scope: SummaryScopeType | null
   summary_scope_description: string | null
+  summary_plan: SummaryPlanInfo | null
+  summary_quality: SummaryQualityInfo | null
+}
+
+export interface SummarySectionPlanInfo {
+  key: string
+  title: string
+  purpose: string
+  retrieval_query: string
+  evidence_budget: number
+  organization: string
+  required_points: string[]
+}
+
+export interface SummaryPlanInfo {
+  goal: string
+  focuses: string[]
+  audience: string
+  detail_level: string
+  length: string
+  output_format: string
+  must_include: string[]
+  must_exclude: string[]
+  is_default: boolean
+  sections: SummarySectionPlanInfo[]
+}
+
+export interface SummaryQualityInfo {
+  planned_section_count: number
+  generated_section_count: number
+  evidence_backed_section_count: number
+  prompt_requirement_count: number
+  covered_requirement_count: number
+  coverage_warnings: string[]
+  citations_valid: boolean
+  exclusions_respected: boolean
+  repeated_section_pairs: string[]
+  rewritten_sections: string[]
+  cross_section_evidence_reuse: string[]
+  normalized_source_declarations: string[]
+  normalized_section_metadata: string[]
+  normalized_citation_namespaces: string[]
+  grounding_fallback_sections: string[]
+  limitations: string[]
+  passed: boolean
 }
 
 export interface AnswerTokenUsage {

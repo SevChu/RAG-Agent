@@ -14,7 +14,14 @@ from app.generation.models import (
     TokenUsage,
 )
 from app.generation.service import GroundedAnswerGenerator, MixedGroundedAnswerGenerator
-from app.generation.summary import GroundedSummaryGenerator
+from app.generation.summary import (
+    DynamicSummaryPlanner,
+    GroundedSummaryGenerator,
+    SummaryPlan,
+    SummaryPlanRead,
+    SummaryQualityDiagnostics,
+    SummarySectionPlan,
+)
 
 __all__ = [
     "AnswerStatus",
@@ -23,12 +30,17 @@ __all__ = [
     "ChatCompletion",
     "ChatCompletionGateway",
     "CitationSourceType",
+    "DynamicSummaryPlanner",
     "GroundedAnswer",
     "GroundedAnswerGenerator",
     "GroundedSummaryGenerator",
     "MixedGroundedAnswerGenerator",
     "OpenAICompatibleChatClient",
     "QueryRewriter",
+    "SummaryPlan",
+    "SummaryPlanRead",
+    "SummaryQualityDiagnostics",
+    "SummarySectionPlan",
     "TokenUsage",
     "bounded_history",
     "get_chat_completion_gateway",
