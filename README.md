@@ -371,9 +371,8 @@ Reranker 数据采用 `(question, chunk, relevance_label)`，相关度建议分�
 | `GET` | `/api/documents/{id}/status` | 查询索引状态 |
 | `DELETE` | `/api/documents/{id}` | 删除资料和向量 |
 | `POST` | `/api/courses/{id}/documents/bulk-delete` | 批量删除课程资料和向量 |
-| `POST` | `/api/chat/stream` | SSE 流式问答，可指定已配置模型 |
-| `POST` | `/api/summaries` | 生成总结 |
-| `POST` | `/api/exams` | 生成试题 |
+| `POST` | `/api/courses/{id}/answers` | 自动路由课程问答、动态总结或混合组卷 |
+| `POST` | `/api/courses/{id}/answers/stream` | 上述课程任务的 SSE 流式入口 |
 | `GET` | `/api/artifacts/{id}` | 查询生成结果 |
 | `POST` | `/api/evaluations/run` | 启动评测 |
 | `GET` | `/api/evaluations/{id}` | 查询评测结果 |
@@ -650,8 +649,16 @@ Anthropic 兼容 Web Search 适配器，能够解析真实搜索结果、校验�
 边界，同一总结范围内的有效课程证据可以安全跨节复用并记录诊断。章节标题、目的和
 `used_source_ids` 等可由计划或正文推导的冗余字段由服务端自动归一化，不因模型重复声明漂移
 拒绝合法正文。只有“总结第三章”一类模糊请求使用稳定综合结构；旧对话 Markdown 无需迁移。
-该实现已通过自动化验证，等待用户实际课程验收。详见
+该实现已通过自动化验证和用户实际课程验收。详见
 [动态总结规划设计决策](docs/design-decisions/dynamic-summary-planning.md)。
+
+计划日 4-B 已补齐同一课程对话入口中的混合组卷：默认 20 题、C++、答案和解析，支持自然语言
+覆盖题量、题型、难度、编程语言与答案开关；教材/题库直接采用或近似改写不超过 30%，外部
+补充题不超过 20%。考试专用检索允许题干作为题材但不把未作答题干当答案证据；服务端分批生成
+后重新校验题型、难度、选择项、编程题字段、引用、重复和来源比例，并逐题审查答案是否受声明
+来源支持。搜索失败降级为课程卷，历史消息保存组卷计划和质量诊断。当前实现与开发侧验证完成，
+用户已于 2026-08-09 按[计划日 4-B 验收说明](docs/deliverables/week-04-day-04-b.md)
+完成实际课程验收。
 
 混合来源回答的已确认选择、降级规则、数据契约和验收标准见
 [混合来源回答设计决策](docs/design-decisions/mixed-source-answering.md)。
@@ -1072,3 +1079,5 @@ uv run python -m app.ingestion.inspect `
 - [第 4 周计划日 3 验收说明](docs/deliverables/week-04-day-03.md)
 - [第 4 周计划日 4 验收说明](docs/deliverables/week-04-day-04.md)
 - [第 4 周计划日 4 动态总结真实模型测试矩阵](docs/deliverables/week-04-day-04-real-summary-matrix.md)
+- [第 4 周计划日 4-B 混合组卷验收说明](docs/deliverables/week-04-day-04-b.md)
+- [混合组卷与来源配额设计决策](docs/design-decisions/mixed-exam-generation.md)

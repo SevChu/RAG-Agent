@@ -124,6 +124,23 @@ class FakeManager:
             reranker_device="cpu",
         )
 
+    async def exam_search(
+        self,
+        *,
+        course_id: UUID,
+        query: str,
+        candidate_k: int,
+        top_k: int,
+        document_ids: list[str],
+    ) -> RerankedRetrievalResult:
+        return await self.answer_search(
+            course_id=course_id,
+            query=query,
+            candidate_k=candidate_k,
+            top_k=top_k,
+            document_ids=document_ids,
+        )
+
 
 class FakeGateway:
     def __init__(self) -> None:
@@ -161,6 +178,70 @@ class FakeGateway:
         model: str,
     ) -> ChatCompletion:
         raise AssertionError("course answer must not use plain text completion")
+
+
+class ExamApiGateway:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def complete(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+    ) -> ChatCompletion:
+        self.calls += 1
+        if "审查器" in system_prompt:
+            return ChatCompletion(
+                content=(
+                    '{"results":[{"number":1,"supported":true,'
+                    '"unsupported_claim":null}]}'
+                ),
+                model=model,
+            )
+        assert "试卷生成器" in system_prompt
+        assert "number=1" in user_prompt
+        return ChatCompletion(
+            content=json.dumps(
+                {
+                    "questions": [
+                        {
+                            "number": 1,
+                            "question_type": "true_false",
+                            "difficulty": "easy",
+                            "knowledge_point": "栈的操作端点",
+                            "prompt": "判断：栈的插入和删除都在栈顶完成。",
+                            "options": [],
+                            "answer": "正确",
+                            "explanation": "栈只允许在栈顶进行插入和删除。",
+                            "source_mode": "course_generated",
+                            "course_source_ids": [1],
+                            "external_source_ids": [],
+                            "input_description": None,
+                            "output_description": None,
+                            "constraints": [],
+                            "samples": [],
+                            "reference_code": None,
+                            "complexity_analysis": None,
+                            "test_case_design": [],
+                        }
+                    ]
+                },
+                ensure_ascii=False,
+            ),
+            model=model,
+            usage=TokenUsage(prompt_tokens=90, completion_tokens=40, total_tokens=130),
+        )
+
+    async def complete_text(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+    ) -> ChatCompletion:
+        raise AssertionError("exam generation must use JSON completion")
 
 
 class ContextGateway:
@@ -479,6 +560,93 @@ async def test_answer_api_returns_verified_citation(
         "assistant",
     ]
     assert conversation["messages"][1]["citations"][0]["file_name"] == "讲义.md"
+
+
+async def test_course_chat_routes_exam_and_persists_hard_limit_diagnostics(
+    api_client: AsyncClient,
+    api_settings: Settings,
+) -> None:
+    course_id, document_id = await _create_ready_document(api_client, api_settings)
+    manager = FakeManager(course_id=course_id, document_id=document_id)
+    gateway = ExamApiGateway()
+    external = FakeExternalSearch()
+    app.dependency_overrides[get_indexing_manager] = lambda: manager
+    app.dependency_overrides[get_chat_completion_gateway] = lambda: gateway
+    app.dependency_overrides[get_external_search_gateway] = lambda: external
+
+    response = await api_client.post(
+        f"/api/courses/{course_id}/answers",
+        json={
+            "question": (
+                "请根据第三章内容出一份仅含1道判断题的单元试卷，"
+                "但不要答案和解析，仅课程资料。"
+            ),
+            "answer_scope": "course_and_external",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert data["task_type"] == "exam"
+    assert data["answer_scope"] == "course_only"
+    assert data["retrieval"]["retrieval_mode"] == "exam_dense_rerank"
+    assert data["retrieval"]["exam_plan"]["question_count"] == 1
+    assert data["retrieval"]["exam_plan"]["programming_language"] == "C++"
+    assert data["retrieval"]["exam_plan"]["max_course_adapted_count"] == 0
+    assert data["retrieval"]["exam_plan"]["max_external_count"] == 0
+    assert data["retrieval"]["exam_quality"]["passed"] is True
+    assert data["retrieval"]["exam_quality"]["generated_question_count"] == 1
+    assert data["external_search"]["triggered"] is False
+    assert external.calls == []
+    assert gateway.calls == 2
+    assert "# 课程试卷" in data["answer"]
+    assert "[课1]" in data["answer"]
+    assert "**答案：**" not in data["answer"]
+    assert "**解析：**" not in data["answer"]
+    assert data["retrieval"]["exam_plan"]["include_answers"] is False
+    assert data["retrieval"]["exam_plan"]["include_explanations"] is False
+
+    conversation_response = await api_client.get(
+        f"/api/courses/{course_id}/conversations/{data['conversation_id']}"
+    )
+    saved = conversation_response.json()["data"]["messages"][1]
+    assert saved["retrieval"]["task_type"] == "exam"
+    assert saved["retrieval"]["exam_quality"]["source_limits_passed"] is True
+
+
+async def test_course_chat_routes_simulation_paper_with_answers_only(
+    api_client: AsyncClient,
+    api_settings: Settings,
+) -> None:
+    course_id, document_id = await _create_ready_document(api_client, api_settings)
+    manager = FakeManager(course_id=course_id, document_id=document_id)
+    gateway = ExamApiGateway()
+    external = FakeExternalSearch()
+    app.dependency_overrides[get_indexing_manager] = lambda: manager
+    app.dependency_overrides[get_chat_completion_gateway] = lambda: gateway
+    app.dependency_overrides[get_external_search_gateway] = lambda: external
+
+    response = await api_client.post(
+        f"/api/courses/{course_id}/answers",
+        json={
+            "question": (
+                "请根据第三章的内容出一份仅含1道判断题的模拟卷，"
+                "但只要答案，暂时不用输出解析。"
+            ),
+            "answer_scope": "course_and_external",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert data["task_type"] == "exam"
+    assert data["retrieval"]["exam_plan"]["question_count"] == 1
+    assert data["retrieval"]["exam_plan"]["include_answers"] is True
+    assert data["retrieval"]["exam_plan"]["include_explanations"] is False
+    assert "# 课程试卷" in data["answer"]
+    assert "**答案：** 正确" in data["answer"]
+    assert "**解析：**" not in data["answer"]
+    assert gateway.calls == 2
 
 
 async def test_course_chat_summarizes_chapter_with_safe_cross_section_evidence(

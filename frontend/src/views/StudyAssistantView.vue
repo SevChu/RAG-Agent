@@ -130,12 +130,37 @@ function isSummary(message: CourseConversationMessage): boolean {
   return message.retrieval?.task_type === 'summary'
 }
 
+function isExam(message: CourseConversationMessage): boolean {
+  return message.retrieval?.task_type === 'exam'
+}
+
 function resultEyebrow(message: CourseConversationMessage): string {
-  return isSummary(message) ? 'COURSE SUMMARY' : 'GROUNDED ANSWER'
+  if (isSummary(message)) return 'COURSE SUMMARY'
+  if (isExam(message)) return 'GROUNDED EXAM'
+  return 'GROUNDED ANSWER'
 }
 
 function resultTitle(message: CourseConversationMessage): string {
-  return isSummary(message) ? '课程知识总结' : '资料依据回答'
+  if (isSummary(message)) return '课程知识总结'
+  if (isExam(message)) return '课程混合试卷'
+  return '资料依据回答'
+}
+
+function quotaSummary(quotas: { key: string; count: number }[]): string {
+  const labels: Record<string, string> = {
+    single_choice: '单选',
+    multiple_choice: '多选',
+    true_false: '判断',
+    short_answer: '简答',
+    programming: '编程',
+    easy: '基础',
+    medium: '中等',
+    hard: '困难',
+  }
+  return quotas
+    .filter((item) => item.count > 0)
+    .map((item) => `${labels[item.key] ?? item.key} ${item.count}`)
+    .join(' / ')
 }
 
 onMounted(async () => {
@@ -308,7 +333,7 @@ function submitWithKeyboard(event: KeyboardEvent): void {
       <div>
         <div class="eyebrow"><span /> ROUTED COURSE AGENT</div>
         <h1>课程学习助手</h1>
-        <p>直接输入问题或总结要求，Agent 会识别任务并选择对应资料链路。</p>
+        <p>直接输入问题、总结或组卷要求，Agent 会识别任务并选择对应资料链路。</p>
       </div>
       <span class="context-pill">有限上下文 · 改写后逐题检索</span>
     </header>
@@ -386,7 +411,7 @@ function submitWithKeyboard(event: KeyboardEvent): void {
           />
         </el-select>
         <p class="style-detail">
-          {{ styleOptions.find((option) => option.value === answerStyle)?.detail }}；知识总结使用固定结构
+          {{ styleOptions.find((option) => option.value === answerStyle)?.detail }}；总结与组卷使用独立结构
         </p>
 
         <label for="answer-model">生成模型</label>
@@ -433,7 +458,7 @@ function submitWithKeyboard(event: KeyboardEvent): void {
           </p>
           <p v-else>
             先检查课程证据覆盖度；必要时自动搜索并生成 [课n]、[外n] 独立引用。
-            总结请求始终只使用课程资料，搜索失败会保留可用的课程回答。
+            总结请求始终只使用课程资料；组卷最多采用 20% 外部补充题，搜索失败会降级为课程卷。
           </p>
         </div>
       </aside>
@@ -444,7 +469,7 @@ function submitWithKeyboard(event: KeyboardEvent): void {
           <span class="soft-label">READY FOR YOUR REQUEST</span>
           <h2>{{ selectedCourse?.name || '请选择一门课程' }}</h2>
           <p>
-            可直接提问，也可输入“总结整个课程”或“梳理某章考试重点”。总结默认仅引用课程资料。
+            可直接提问、总结或输入“按第三章出 20 题，编程题用 C++”。总结默认仅引用课程资料。
           </p>
         </div>
 
@@ -467,7 +492,9 @@ function submitWithKeyboard(event: KeyboardEvent): void {
                   }"
                 >
                   {{
-                    isSummary(message)
+                    isExam(message)
+                      ? '混合试卷'
+                      : isSummary(message)
                       ? '课程总结'
                       : message.retrieval?.source_conflict_detected
                       ? '资料存在差异'
@@ -475,6 +502,45 @@ function submitWithKeyboard(event: KeyboardEvent): void {
                         ? '证据已引用'
                         : '资料不足'
                   }}
+                </span>
+              </div>
+
+              <div
+                v-if="isExam(message) && message.retrieval?.exam_plan"
+                class="search-status-note searched"
+              >
+                <strong>组卷计划与硬性校验</strong>
+                <span>
+                  {{ message.retrieval.exam_plan.question_count }} 题 ·
+                  {{ message.retrieval.exam_plan.programming_language }} ·
+                  题型 {{ quotaSummary(message.retrieval.exam_plan.type_distribution) }} ·
+                  难度 {{ quotaSummary(message.retrieval.exam_plan.difficulty_distribution) }}
+                </span>
+                <span>
+                  教材/题库直接采用 ≤ {{ message.retrieval.exam_plan.max_course_adapted_count }} 题 ·
+                  外部补充 ≤ {{ message.retrieval.exam_plan.max_external_count }} 题
+                </span>
+                <span v-if="message.retrieval.exam_quality">
+                  实际 {{ message.retrieval.exam_quality.generated_question_count }} 题 ·
+                  课程原创 {{ message.retrieval.exam_quality.course_generated_count }} ·
+                  教材改编 {{ message.retrieval.exam_quality.course_adapted_count }} ·
+                  外部补充 {{ message.retrieval.exam_quality.external_supplement_count }} ·
+                  校验{{ message.retrieval.exam_quality.passed ? '通过' : '未通过' }}
+                  <template v-if="message.retrieval.exam_quality.grounding_verified">
+                    · 逐题证据审查通过
+                  </template>
+                  <template v-if="message.retrieval.exam_quality.grounding_repaired_questions.length">
+                    · 已重生成第
+                    {{ message.retrieval.exam_quality.grounding_repaired_questions.join('、') }} 题
+                  </template>
+                  <template v-if="message.retrieval.exam_quality.duplicates_detected">
+                    · 第
+                    {{ message.retrieval.exam_quality.duplicate_question_numbers?.join('、') }}
+                    题重复改写已达上限，请人工复核
+                  </template>
+                  <template v-if="message.retrieval.exam_quality.external_fallback_applied">
+                    · 外部搜索失败后已降级
+                  </template>
                 </span>
               </div>
               <div class="markdown-answer" v-html="renderAnswer(message)" />
@@ -593,7 +659,7 @@ function submitWithKeyboard(event: KeyboardEvent): void {
 
               <footer v-if="message.retrieval" class="answer-meta">
                 <span>{{ message.model || '未调用模型' }}</span>
-                <span>{{ isSummary(message) ? '知识总结' : '课程问答' }}</span>
+                <span>{{ isExam(message) ? '课程试卷' : isSummary(message) ? '知识总结' : '课程问答' }}</span>
                 <span>
                   候选 {{ message.retrieval.candidate_count }} → 重排
                   {{ message.retrieval.returned_count }}
@@ -649,7 +715,7 @@ function submitWithKeyboard(event: KeyboardEvent): void {
             />
             <div v-else class="loading-answer compact" role="status">
               <span class="thinking-orbit" aria-hidden="true" />
-              <strong>正在识别任务、召回并校验证据…</strong>
+              <strong>正在识别任务、召回并校验证据或试题配额…</strong>
               <p>正文通过引用一致性校验后开始流式显示。</p>
             </div>
             <p v-if="streamingCitations.length" class="stream-citation-note">
@@ -665,7 +731,7 @@ function submitWithKeyboard(event: KeyboardEvent): void {
             v-model="question"
             maxlength="2000"
             rows="3"
-            placeholder="例如：解释 Dijkstra 算法，或总结第三章的考试重点"
+            placeholder="例如：解释 Dijkstra；总结第三章；或按第三章出 20 题，编程题用 C++"
             @keydown="submitWithKeyboard"
           />
           <div class="composer-footer">

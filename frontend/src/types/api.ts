@@ -63,7 +63,7 @@ export type UploadProgressHandler = (percentage: number) => void
 export type AnswerStyle = 'concise' | 'balanced' | 'detailed'
 export type AnswerStatus = 'answered' | 'insufficient_evidence'
 export type AnswerScope = 'course_and_external' | 'course_only'
-export type CourseTaskType = 'question' | 'summary'
+export type CourseTaskType = 'question' | 'summary' | 'exam'
 export type SummaryScopeType = 'course' | 'documents' | 'topic'
 export type CitationSourceType = 'course' | 'external'
 export type ExternalSearchStatus =
@@ -108,7 +108,7 @@ export interface ExternalSearchInfo {
 }
 
 export interface AnswerRetrieval {
-  retrieval_mode: 'dense_rerank' | 'summary_dense_rerank'
+  retrieval_mode: 'dense_rerank' | 'summary_dense_rerank' | 'exam_dense_rerank'
   requested_top_k: number
   candidate_top_k: number
   candidate_count: number
@@ -132,6 +132,48 @@ export interface AnswerRetrieval {
   summary_scope_description: string | null
   summary_plan: SummaryPlanInfo | null
   summary_quality: SummaryQualityInfo | null
+  exam_plan: ExamPlanInfo | null
+  exam_quality: ExamQualityInfo | null
+}
+
+export interface ExamQuotaInfo {
+  key: string
+  count: number
+}
+
+export interface ExamPlanInfo {
+  question_count: number
+  programming_language: string
+  include_answers: boolean
+  include_explanations: boolean
+  type_distribution: ExamQuotaInfo[]
+  difficulty_distribution: ExamQuotaInfo[]
+  max_course_adapted_count: number
+  max_external_count: number
+  allow_external: boolean
+}
+
+export interface ExamQualityInfo {
+  requested_question_count: number
+  generated_question_count: number
+  type_distribution: ExamQuotaInfo[]
+  difficulty_distribution: ExamQuotaInfo[]
+  course_generated_count: number
+  course_adapted_count: number
+  external_supplement_count: number
+  max_course_adapted_count: number
+  max_external_count: number
+  programming_language: string
+  answers_included: boolean
+  explanations_included: boolean
+  citations_valid: boolean
+  duplicates_detected: boolean
+  duplicate_question_numbers: number[]
+  source_limits_passed: boolean
+  external_fallback_applied: boolean
+  grounding_verified: boolean
+  grounding_repaired_questions: number[]
+  passed: boolean
 }
 
 export interface SummarySectionPlanInfo {

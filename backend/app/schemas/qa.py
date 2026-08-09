@@ -11,6 +11,8 @@ from app.generation import (
     AnswerStatus,
     AnswerStyle,
     CitationSourceType,
+    ExamPlanRead,
+    ExamQualityDiagnostics,
     SummaryPlanRead,
     SummaryQualityDiagnostics,
 )
@@ -109,6 +111,8 @@ class AnswerRetrievalRead(BaseModel):
     summary_scope_description: str | None = None
     summary_plan: SummaryPlanRead | None = None
     summary_quality: SummaryQualityDiagnostics | None = None
+    exam_plan: ExamPlanRead | None = None
+    exam_quality: ExamQualityDiagnostics | None = None
 
 
 class AnswerTokenUsageRead(BaseModel):

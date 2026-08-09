@@ -8,7 +8,7 @@ import numpy as np
 import torch
 from sentence_transformers import CrossEncoder
 
-from app.knowledge.evidence import assess_evidence
+from app.knowledge.evidence import ContentRole, assess_evidence
 from app.knowledge.models import EmbeddingDevice, VectorSearchResult
 from app.retrieval.models import DenseRetrievalResult, RerankedRetrievalResult
 
@@ -104,6 +104,7 @@ class BgeReranker:
         dense: DenseRetrievalResult,
         *,
         top_k: int,
+        allow_exercise_questions: bool = False,
     ) -> RerankedRetrievalResult:
         if top_k < 1:
             raise ValueError("Reranker top_k must be positive.")
@@ -124,10 +125,16 @@ class BgeReranker:
         for hit, score in zip(dense.hits, scores, strict=True):
             assessment = assess_evidence(hit)
             concept_matched = matches_query_concepts(dense.query, hit.text)
-            eligible = assessment.eligible and concept_matched
+            role_allowed = assessment.eligible or (
+                allow_exercise_questions
+                and assessment.role is ContentRole.EXERCISE_QUESTION
+            )
+            eligible = role_allowed and concept_matched
             rejection_reason = assessment.reason
-            if assessment.eligible and not concept_matched:
+            if role_allowed and not concept_matched:
                 rejection_reason = "片段未出现问题中明确指定的核心概念。"
+            elif role_allowed:
+                rejection_reason = None
             metadata = dict(hit.payload)
             metadata.update(
                 {

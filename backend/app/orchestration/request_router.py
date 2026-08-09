@@ -11,6 +11,7 @@ from langgraph.graph import END, START, StateGraph
 class CourseTaskType(StrEnum):
     QUESTION = "question"
     SUMMARY = "summary"
+    EXAM = "exam"
 
 
 class SummaryScopeType(StrEnum):
@@ -28,6 +29,7 @@ class TaskRoutingDecision:
 class _RoutingState(TypedDict, total=False):
     question: str
     is_summary: bool
+    is_exam: bool
     decision: TaskRoutingDecision
 
 
@@ -70,6 +72,32 @@ _CHAPTER_SCOPE = re.compile(
     r"(?:本章|这一章|当前章节|章节)",
     re.IGNORECASE,
 )
+_EXAM_PAPER = (
+    r"(?:试卷|卷子|"
+    r"(?:模拟|单元|章节|期中|期末|综合|练习|测试|随堂|复习)卷)"
+)
+_EXAM_ACTION = re.compile(
+    r"(?:出题|组卷|命题)|"
+    r"(?:生成|制作|整理|设计|编制|拟定|出).{0,24}"
+    rf"(?:试题|题目|练习题|测试题|模拟题|{_EXAM_PAPER})|"
+    rf"(?:给我|给出|来)\s*(?:一|1)?\s*(?:份|套|张)?\s*{_EXAM_PAPER}|"
+    r"(?:给我|给出|来|出)\s*(?:\d+\s*(?:道|个)?\s*)"
+    r"(?:单选题|多选题|选择题|判断题|简答题|编程题|练习题|试题|题目|题)",
+    re.IGNORECASE,
+)
+_EXAM_ARTIFACT = re.compile(
+    rf"(?:{_EXAM_PAPER}).{{0,16}}\d+\s*(?:道|个)?题|"
+    r"(?:题目清单|题库练习)|"
+    r"\b(?:create|generate|make)\s+(?:an?\s+)?(?:quiz|exam|test|question set)\b",
+    re.IGNORECASE,
+)
+_EXAM_AS_SUBJECT = re.compile(
+    rf"^.{{0,16}}(?:如何|怎么|为什么|为何).{{0,30}}"
+    rf"(?:出题|组卷|命题|生成|制作|设计|编制).{{0,20}}(?:试题|题目|{_EXAM_PAPER})|"
+    rf"^(?:什么是|如何理解|怎么理解).{{0,20}}(?:出题|组卷|命题|{_EXAM_PAPER})|"
+    rf"(?:出题|组卷|命题|{_EXAM_PAPER}).{{0,16}}(?:是什么|的区别|含义|原则|流程|方法)[？?]?$",
+    re.IGNORECASE,
+)
 
 
 class RequestRoutingGraph:
@@ -80,14 +108,16 @@ class RequestRoutingGraph:
         graph.add_node("classify", self._classify)
         graph.add_node("question", self._question)
         graph.add_node("summary", self._summary)
+        graph.add_node("exam", self._exam)
         graph.add_edge(START, "classify")
         graph.add_conditional_edges(
             "classify",
             self._route,
-            {"question": "question", "summary": "summary"},
+            {"question": "question", "summary": "summary", "exam": "exam"},
         )
         graph.add_edge("question", END)
         graph.add_edge("summary", END)
+        graph.add_edge("exam", END)
         self._graph: Any = graph.compile()
 
     async def route(self, question: str) -> TaskRoutingDecision:
@@ -98,8 +128,13 @@ class RequestRoutingGraph:
     @staticmethod
     async def _classify(state: _RoutingState) -> _RoutingState:
         question = state["question"].strip()
+        is_exam = bool(
+            not _EXAM_AS_SUBJECT.search(question)
+            and (_EXAM_ACTION.search(question) or _EXAM_ARTIFACT.search(question))
+        )
         is_summary = bool(
-            not _SUMMARY_AS_SUBJECT.search(question)
+            not is_exam
+            and not _SUMMARY_AS_SUBJECT.search(question)
             and (
                 _SUMMARY_ACTION.search(question)
                 or _SUMMARY_VERB.search(question)
@@ -109,10 +144,12 @@ class RequestRoutingGraph:
                 or _SUMMARY_NOUN.search(question)
             )
         )
-        return {"is_summary": is_summary}
+        return {"is_summary": is_summary, "is_exam": is_exam}
 
     @staticmethod
     def _route(state: _RoutingState) -> str:
+        if state.get("is_exam", False):
+            return "exam"
         return "summary" if state.get("is_summary", False) else "question"
 
     @staticmethod
@@ -132,6 +169,16 @@ class RequestRoutingGraph:
             "decision": TaskRoutingDecision(
                 task_type=CourseTaskType.SUMMARY,
                 reason="检测到总结、复习提纲或考试重点请求，已自动切换为课程总结。",
+            )
+        }
+
+    @staticmethod
+    async def _exam(state: _RoutingState) -> _RoutingState:
+        _ = state["question"]
+        return {
+            "decision": TaskRoutingDecision(
+                task_type=CourseTaskType.EXAM,
+                reason="检测到出题或组卷请求，已自动切换为混合试卷生成。",
             )
         }
 

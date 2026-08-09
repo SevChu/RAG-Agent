@@ -117,6 +117,42 @@ def test_reranker_skips_model_for_empty_candidates(tmp_path: Path) -> None:
     assert model.calls == []
 
 
+def test_exam_rerank_can_retain_exercise_questions_without_changing_qa_default(
+    tmp_path: Path,
+) -> None:
+    model_path = tmp_path / "reranker"
+    model_path.mkdir()
+    model = FakeCrossEncoder([4.0])
+    reranker = BgeReranker(
+        model_path,
+        device="cpu",
+        model_factory=lambda _path, _device, _length: model,
+    )
+    dense = DenseRetrievalResult(
+        query="队列练习题",
+        hits=(
+            _hit(
+                "point-1",
+                dense_score=0.9,
+                text="队列是一种先进先出的线性表（ ）。",
+                section="判断题",
+            ),
+        ),
+        embedding_device="cpu",
+    )
+
+    qa_result = reranker.rerank(dense, top_k=1)
+    exam_result = reranker.rerank(
+        dense,
+        top_k=1,
+        allow_exercise_questions=True,
+    )
+
+    assert qa_result.hits == ()
+    assert exam_result.hits[0].payload["content_role"] == "exercise_question"
+    assert exam_result.hits[0].payload["evidence_eligible"] is True
+
+
 def test_query_term_expansion_is_small_and_deterministic() -> None:
     assert expand_query_terms("二分查找的适用条件") == (
         "二分查找的适用条件\n相关术语：折半查找"

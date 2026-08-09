@@ -33,13 +33,17 @@ from app.generation import (
     ChatCompletionGateway,
     CitationSourceType,
     DynamicSummaryPlanner,
+    ExamPlanRead,
+    ExamQualityDiagnostics,
     GroundedAnswer,
+    GroundedExamGenerator,
     GroundedSummaryGenerator,
     QueryRewriter,
     SummaryPlan,
     SummaryPlanRead,
     SummaryQualityDiagnostics,
     bounded_history,
+    build_exam_plan,
     get_chat_completion_gateway,
     quick_chat_prompt,
 )
@@ -380,7 +384,7 @@ async def _prepare_course_answer(
     explicit_document_scope = payload.document_ids is not None
     if payload.document_ids is None:
         candidate_documents = all_documents
-        if routing.task_type is CourseTaskType.SUMMARY:
+        if routing.task_type in {CourseTaskType.SUMMARY, CourseTaskType.EXAM}:
             normalized_request = payload.question.casefold()
             named_documents = [
                 document
@@ -421,6 +425,8 @@ async def _prepare_course_answer(
     candidate_top_k = settings.rag_answer_candidate_k
     summary_plan_read: SummaryPlanRead | None = None
     summary_quality: SummaryQualityDiagnostics | None = None
+    exam_plan_read: ExamPlanRead | None = None
+    exam_quality: ExamQualityDiagnostics | None = None
     if routing.task_type is CourseTaskType.SUMMARY:
         resolved_summary_scope, summary_scope_description = summary_scope(
             payload.question,
@@ -430,6 +436,9 @@ async def _prepare_course_answer(
         )
         requested_top_k = settings.rag_summary_top_k
         candidate_top_k = settings.rag_summary_candidate_k
+    elif routing.task_type is CourseTaskType.EXAM:
+        requested_top_k = settings.rag_exam_top_k
+        candidate_top_k = settings.rag_exam_candidate_k
 
     external_evidence: tuple[ExternalSearchEvidence, ...] = ()
     if routing.task_type is CourseTaskType.SUMMARY:
@@ -472,6 +481,83 @@ async def _prepare_course_answer(
         effective_scope = AnswerScope.COURSE_ONLY
         external_search_read = ExternalSearchRead(
             decision_reason="知识总结默认仅使用课程资料，未触发外部检索。"
+        )
+    elif routing.task_type is CourseTaskType.EXAM:
+        exam_plan = build_exam_plan(
+            payload.question,
+            allow_external=payload.answer_scope is AnswerScope.COURSE_AND_EXTERNAL,
+        )
+        try:
+            retrieval = await indexing.exam_search(
+                course_id=course_id,
+                query=exam_plan.retrieval_query,
+                candidate_k=candidate_top_k,
+                top_k=requested_top_k,
+                document_ids=ready_document_ids,
+            )
+        except (FileNotFoundError, RuntimeError, OSError) as error:
+            raise IndexStorageError(
+                "出题检索暂时不可用，请检查本地 Embedding、Reranker 模型与 Qdrant 存储后重试。"
+            ) from error
+        retrieval_query = retrieval.query
+        exam_hits = _bounded_exam_hits(
+            retrieval.hits,
+            max_sources=settings.rag_exam_max_sources,
+            max_context_chars=settings.rag_exam_context_max_chars,
+        )
+        external_result = None
+        should_search_exam_external = (
+            exam_plan.allow_external and exam_plan.max_external_count > 0
+        )
+        if should_search_exam_external:
+            external_result = await external_search.search(
+                query=(
+                    f"{payload.question} 高质量课程练习题 官方或大学教学资料 "
+                    f"{exam_plan.programming_language}"
+                ),
+                model=selected_model,
+            )
+            if external_result.status is ExternalSearchStatus.SUCCEEDED:
+                external_evidence = external_result.results
+        exam_result = await GroundedExamGenerator(llm).generate(
+            request=payload.question,
+            plan=exam_plan,
+            course_hits=exam_hits,
+            external_evidence=external_evidence,
+            model=selected_model,
+        )
+        answer = exam_result.answer
+        eligible_hits = exam_result.course_hits
+        exam_plan_read = ExamPlanRead.from_plan(exam_plan)
+        exam_quality = exam_result.quality
+        effective_scope = (
+            AnswerScope.COURSE_AND_EXTERNAL
+            if exam_plan.allow_external
+            else AnswerScope.COURSE_ONLY
+        )
+        external_search_read = ExternalSearchRead(
+            triggered=should_search_exam_external,
+            status=(
+                external_result.status
+                if external_result is not None
+                else ExternalSearchStatus.NOT_REQUESTED
+            ),
+            query=(external_result.query if external_result is not None else None),
+            result_count=(
+                len(external_result.results) if external_result is not None else 0
+            ),
+            used_result_count=len(answer.used_external_source_ids),
+            failure_reason=(
+                external_result.failure_reason if external_result is not None else None
+            ),
+            decision_reason=(
+                "混合组卷允许外部优质题材，但整卷外部补充题不超过 20%。"
+                if should_search_exam_external
+                else "本次题量按 20% 向下取整后没有外部题名额，未触发外部检索。"
+                if exam_plan.allow_external
+                else "本次组卷限定为课程资料，未触发外部检索。"
+            ),
+            fallback_applied=exam_result.quality.external_fallback_applied,
         )
     else:
         try:
@@ -554,6 +640,8 @@ async def _prepare_course_answer(
         retrieval_mode=(
             "summary_dense_rerank"
             if routing.task_type is CourseTaskType.SUMMARY
+            else "exam_dense_rerank"
+            if routing.task_type is CourseTaskType.EXAM
             else "dense_rerank"
         ),
         requested_top_k=requested_top_k,
@@ -579,6 +667,8 @@ async def _prepare_course_answer(
         summary_scope_description=summary_scope_description,
         summary_plan=summary_plan_read,
         summary_quality=summary_quality,
+        exam_plan=exam_plan_read,
+        exam_quality=exam_quality,
     )
     return _CourseAnswerWork(
         answer=answer,
@@ -686,6 +776,25 @@ async def _retrieve_summary_sections(
         ),
         section_source_ids,
     )
+
+
+def _bounded_exam_hits(
+    hits: tuple[VectorSearchResult, ...],
+    *,
+    max_sources: int,
+    max_context_chars: int,
+) -> tuple[VectorSearchResult, ...]:
+    bounded: list[VectorSearchResult] = []
+    used_chars = 0
+    for hit in hits[:max_sources]:
+        remaining = max_context_chars - used_chars
+        if remaining < 400:
+            break
+        if len(hit.text) > remaining:
+            hit = replace(hit, text=hit.text[:remaining])
+        bounded.append(hit)
+        used_chars += len(hit.text)
+    return tuple(bounded)
 
 
 async def _persist_course_answer(

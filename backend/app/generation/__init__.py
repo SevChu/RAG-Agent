@@ -4,6 +4,18 @@ from app.generation.client import (
     get_chat_completion_gateway,
 )
 from app.generation.context import QueryRewriter, bounded_history, quick_chat_prompt
+from app.generation.exam import (
+    ExamDifficulty,
+    ExamGenerationResult,
+    ExamPlan,
+    ExamPlanRead,
+    ExamQualityDiagnostics,
+    ExamQuestionType,
+    ExamQuota,
+    ExamSourceMode,
+    GroundedExamGenerator,
+    build_exam_plan,
+)
 from app.generation.models import (
     AnswerScope,
     AnswerStatus,
@@ -31,8 +43,17 @@ __all__ = [
     "ChatCompletionGateway",
     "CitationSourceType",
     "DynamicSummaryPlanner",
+    "ExamDifficulty",
+    "ExamGenerationResult",
+    "ExamPlan",
+    "ExamPlanRead",
+    "ExamQualityDiagnostics",
+    "ExamQuestionType",
+    "ExamQuota",
+    "ExamSourceMode",
     "GroundedAnswer",
     "GroundedAnswerGenerator",
+    "GroundedExamGenerator",
     "GroundedSummaryGenerator",
     "MixedGroundedAnswerGenerator",
     "OpenAICompatibleChatClient",
@@ -43,6 +64,7 @@ __all__ = [
     "SummarySectionPlan",
     "TokenUsage",
     "bounded_history",
+    "build_exam_plan",
     "get_chat_completion_gateway",
     "quick_chat_prompt",
 ]

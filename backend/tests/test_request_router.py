@@ -39,6 +39,40 @@ async def test_router_keeps_normal_questions_and_summary_term_questions_as_qa() 
         assert decision.task_type is CourseTaskType.QUESTION
 
 
+async def test_router_detects_exam_requests_before_summary_requests() -> None:
+    router = RequestRoutingGraph()
+
+    for request in (
+        "请按第三章出20题",
+        "生成一份包含答案和解析的模拟试卷",
+        "请根据第三章的内容出一份单元试卷，但不要答案和解析。",
+        "请给出一份有关于栈相关知识点的试卷，不用提供答案和解析",
+        "请根据第三章的内容出一份模拟卷，但只要答案，暂时不用输出解析。",
+        "围绕第五章设计一套难度适中的章节卷子",
+        "给我5道判断题和2道C++编程题",
+        "根据刚才的总结组卷，重点考边界条件",
+        "Create a quiz for chapter 3",
+    ):
+        decision = await router.route(request)
+        assert decision.task_type is CourseTaskType.EXAM
+
+    summary = await router.route("总结第三章的考试重点")
+    assert summary.task_type is CourseTaskType.SUMMARY
+
+
+async def test_router_keeps_questions_about_exam_artifacts_as_qa() -> None:
+    router = RequestRoutingGraph()
+
+    for request in (
+        "单元试卷和期末试卷有什么区别？",
+        "试卷通常包含哪些结构？",
+        "教师应该如何设计一份模拟卷？",
+        "组卷的基本原则是什么？",
+    ):
+        decision = await router.route(request)
+        assert decision.task_type is CourseTaskType.QUESTION
+
+
 def test_summary_scope_prefers_explicit_documents_then_topic_then_course() -> None:
     explicit, _ = summary_scope(
         "总结讲义.md",

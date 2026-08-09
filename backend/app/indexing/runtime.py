@@ -233,6 +233,29 @@ class DocumentIndexingPipeline:
         )
         return self.reranker.rerank(dense, top_k=top_k)
 
+    def exam_search(
+        self,
+        *,
+        course_id: UUID,
+        query: str,
+        candidate_k: int,
+        top_k: int,
+        document_ids: list[str],
+    ) -> RerankedRetrievalResult:
+        """Rerank exam material while retaining textbook exercise prompts."""
+
+        dense = self.search(
+            course_id=course_id,
+            query=query,
+            top_k=candidate_k,
+            document_ids=document_ids,
+        )
+        return self.reranker.rerank(
+            dense,
+            top_k=top_k,
+            allow_exercise_questions=True,
+        )
+
     def close(self) -> None:
         self.store.close()
 
@@ -393,6 +416,27 @@ class DocumentIndexingManager:
         async with self._operation_lock:
             return await asyncio.to_thread(
                 self._get_pipeline().answer_search,
+                course_id=course_id,
+                query=query,
+                candidate_k=candidate_k,
+                top_k=top_k,
+                document_ids=document_ids,
+            )
+
+    async def exam_search(
+        self,
+        *,
+        course_id: UUID,
+        query: str,
+        candidate_k: int,
+        top_k: int,
+        document_ids: list[str],
+    ) -> RerankedRetrievalResult:
+        """Retrieve exam material without treating exercise prompts as factual proof."""
+
+        async with self._operation_lock:
+            return await asyncio.to_thread(
+                self._get_pipeline().exam_search,
                 course_id=course_id,
                 query=query,
                 candidate_k=candidate_k,

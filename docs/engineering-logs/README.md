@@ -11,7 +11,7 @@
 | 第 1 周 | 工程骨架 | 已完成 | 已完成计划日 1～5 | [week-01.md](week-01.md) |
 | 第 2 周 | 知识库入库 | 已完成 | 已完成计划日 1～5并通过周验收 | [week-02.md](week-02.md) |
 | 第 3 周 | RAG 问答 | 已完成 | 计划日 1～5 均已完成并通过验收 | [week-03.md](week-03.md) |
-| 第 4 周 | Agent、总结和出题 | 进行中 | 计划日 1～4 均已完成并通过验收；出题尚未开始 | [week-04.md](week-04.md) |
+| 第 4 周 | Agent、总结和出题 | 已完成 | 计划日 1～4-B 均已实施、验证并通过用户验收 | [week-04.md](week-04.md) |
 | 第 5 周 | 评测与调优 | 未开始 | — | 待创建 |
 | 第 6 周 | 交付与答辩 | 未开始 | — | 待创建 |
 
@@ -21,6 +21,7 @@
 |---|---|---|---|
 | 混合来源回答 | 计划日 1～2 均已实施并通过验收 | 第 4 周计划日 1～2 | [mixed-source-answering.md](../design-decisions/mixed-source-answering.md) |
 | 动态总结规划 | 已实施并通过用户验收 | 第 4 周计划日 4 | [dynamic-summary-planning.md](../design-decisions/dynamic-summary-planning.md) |
+| 混合组卷与来源配额 | 已实现并通过用户验收 | 第 4 周计划日 4-B | [mixed-exam-generation.md](../design-decisions/mixed-exam-generation.md) |
 
 ## 记录规范
 
