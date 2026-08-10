@@ -2,6 +2,7 @@ from app.orchestration import (
     CourseTaskType,
     RequestRoutingGraph,
     SummaryScopeType,
+    exam_follow_up_output,
     summary_scope,
 )
 
@@ -71,6 +72,20 @@ async def test_router_keeps_questions_about_exam_artifacts_as_qa() -> None:
     ):
         decision = await router.route(request)
         assert decision.task_type is CourseTaskType.QUESTION
+
+
+def test_exam_follow_up_output_requires_an_output_action() -> None:
+    both = exam_follow_up_output("现在给出答案和解析。")
+    answers_only = exam_follow_up_output("接着公布参考答案，不要解析")
+
+    assert both is not None
+    assert both.include_answers is True
+    assert both.include_explanations is True
+    assert answers_only is not None
+    assert answers_only.include_answers is True
+    assert answers_only.include_explanations is False
+    assert exam_follow_up_output("答案和解析有什么区别？") is None
+    assert exam_follow_up_output("这道题为什么这样解？") is None
 
 
 def test_summary_scope_prefers_explicit_documents_then_topic_then_course() -> None:

@@ -16,6 +16,7 @@ from app.external_search.models import (
     ExternalSearchEvidence,
     ExternalSearchResult,
     ExternalSearchStatus,
+    ExternalSearchTokenUsage,
     ExternalSourceQuality,
 )
 
@@ -252,6 +253,7 @@ class DeepSeekWebSearchAdapter:
             model=str(body.get("model") or model),
             elapsed_ms=round((perf_counter() - started_at) * 1000, 2),
             failure_reason=failure_reason,
+            usage=_parse_usage(body.get("usage")),
         )
 
     def _failed(
@@ -288,6 +290,21 @@ def _search_system_prompt(max_results: int) -> str:
 2. evidence_excerpt 是不超过 300 字的忠实摘要，不得加入搜索内容未支持的事实。
 3. 无合格来源时返回 {{"sources":[]}}。
 """
+
+
+def _parse_usage(value: object) -> ExternalSearchTokenUsage | None:
+    if not isinstance(value, Mapping):
+        return None
+    try:
+        input_tokens = int(value["input_tokens"])
+        output_tokens = int(value["output_tokens"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    return ExternalSearchTokenUsage(
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        total_tokens=input_tokens + output_tokens,
+    )
 
 
 def _raw_search_results(body: object) -> tuple[list[dict[str, Any]], str | None]:

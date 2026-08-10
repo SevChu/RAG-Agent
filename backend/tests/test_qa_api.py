@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID
 
 from httpx import AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.core.config import Settings
@@ -20,8 +23,20 @@ from app.generation import ChatCompletion, TokenUsage, get_chat_completion_gatew
 from app.indexing import get_indexing_manager
 from app.knowledge import VectorSearchResult
 from app.main import app
-from app.models import Document, DocumentStatus
+from app.models import Document, DocumentStatus, Message, MessageRole
 from app.retrieval import RerankedRetrievalResult
+
+
+def _sse_event_data(payload: str, event_name: str) -> dict[str, Any]:
+    for block in payload.split("\n\n"):
+        lines = block.splitlines()
+        if f"event: {event_name}" not in lines:
+            continue
+        data_line = next(line for line in lines if line.startswith("data: "))
+        parsed = json.loads(data_line.removeprefix("data: "))
+        assert isinstance(parsed, dict)
+        return parsed
+    raise AssertionError(f"missing SSE event: {event_name}")
 
 
 async def _create_ready_document(
@@ -192,26 +207,57 @@ class ExamApiGateway:
         model: str,
     ) -> ChatCompletion:
         self.calls += 1
-        if "审查器" in system_prompt:
+        if "严格依据课程资料回答问题" in system_prompt:
             return ChatCompletion(
-                content=(
-                    '{"results":[{"number":1,"supported":true,'
-                    '"unsupported_claim":null}]}'
+                content=json.dumps(
+                    {
+                        "sufficient_evidence": True,
+                        "answer": (
+                            "## 1\n**答案：** 正确\n\n"
+                            "**解析：** 栈只允许在栈顶操作。[课1]"
+                        ),
+                        "used_source_ids": [1],
+                    },
+                    ensure_ascii=False,
+                ),
+                model=model,
+                usage=TokenUsage(
+                    prompt_tokens=100,
+                    completion_tokens=30,
+                    total_tokens=130,
+                ),
+            )
+        if "审查器" in system_prompt:
+            numbers = [int(value) for value in re.findall(r'"number":\s*(\d+)', user_prompt)]
+            return ChatCompletion(
+                content=json.dumps(
+                    {
+                        "results": [
+                            {
+                                "number": number,
+                                "supported": True,
+                                "unsupported_claim": None,
+                            }
+                            for number in dict.fromkeys(numbers)
+                        ]
+                    },
+                    ensure_ascii=False,
                 ),
                 model=model,
             )
         assert "试卷生成器" in system_prompt
         assert "number=1" in user_prompt
+        numbers = [int(value) for value in re.findall(r"number=(\d+)", user_prompt)]
         return ChatCompletion(
             content=json.dumps(
                 {
                     "questions": [
                         {
-                            "number": 1,
+                            "number": number,
                             "question_type": "true_false",
                             "difficulty": "easy",
                             "knowledge_point": "栈的操作端点",
-                            "prompt": "判断：栈的插入和删除都在栈顶完成。",
+                            "prompt": f"判断题 {number}：栈的插入和删除都在栈顶完成。",
                             "options": [],
                             "answer": "正确",
                             "explanation": "栈只允许在栈顶进行插入和删除。",
@@ -226,6 +272,7 @@ class ExamApiGateway:
                             "complexity_analysis": None,
                             "test_case_design": [],
                         }
+                        for number in numbers
                     ]
                 },
                 ensure_ascii=False,
@@ -991,3 +1038,225 @@ async def test_course_stream_rewrites_follow_up_and_persists_only_complete_answe
     assert retrieval["rewritten_query"] == "栈的后进先出特性有什么作用？"
     assert retrieval["context_message_count"] == 2
     assert retrieval["rewrite_applied"] is True
+
+
+async def test_course_stream_routes_and_restores_dynamic_summary(
+    api_client: AsyncClient,
+    api_settings: Settings,
+) -> None:
+    course_id, document_id = await _create_ready_document(api_client, api_settings)
+    manager = FakeManager(
+        course_id=course_id,
+        document_id=document_id,
+        score=0.02,
+        unique_per_call=True,
+        text_size=1000,
+    )
+    external = FakeExternalSearch()
+    app.dependency_overrides[get_indexing_manager] = lambda: manager
+    app.dependency_overrides[get_chat_completion_gateway] = lambda: SummaryGateway()
+    app.dependency_overrides[get_external_search_gateway] = lambda: external
+
+    response = await api_client.post(
+        f"/api/courses/{course_id}/answers/stream",
+        json={"question": "总结第三章"},
+    )
+
+    assert response.status_code == 200
+    assert "event: start" in response.text
+    assert "event: delta" in response.text
+    assert "event: citations" in response.text
+    assert "event: complete" in response.text
+    assert "event: error" not in response.text
+    conversations = (
+        await api_client.get(f"/api/courses/{course_id}/conversations")
+    ).json()["data"]
+    detail = (
+        await api_client.get(
+            f"/api/courses/{course_id}/conversations/{conversations[0]['id']}"
+        )
+    ).json()["data"]
+    assistant = detail["messages"][-1]
+    assert assistant["retrieval"]["task_type"] == "summary"
+    assert assistant["retrieval"]["summary_quality"]["passed"] is True
+    assert assistant["retrieval"]["external_search"]["triggered"] is False
+    assert external.calls == []
+
+
+async def test_course_stream_routes_exam_and_preserves_hidden_answer_contract(
+    api_client: AsyncClient,
+    api_settings: Settings,
+) -> None:
+    course_id, document_id = await _create_ready_document(api_client, api_settings)
+    manager = FakeManager(course_id=course_id, document_id=document_id)
+    external = FakeExternalSearch()
+    app.dependency_overrides[get_indexing_manager] = lambda: manager
+    app.dependency_overrides[get_chat_completion_gateway] = lambda: ExamApiGateway()
+    app.dependency_overrides[get_external_search_gateway] = lambda: external
+
+    response = await api_client.post(
+        f"/api/courses/{course_id}/answers/stream",
+        json={
+            "question": (
+                "请根据第三章出一份仅含1道判断题的单元试卷，"
+                "答案和解析都不要，仅课程资料。"
+            )
+        },
+    )
+
+    assert response.status_code == 200
+    assert "event: complete" in response.text
+    assert "event: error" not in response.text
+    assert "**答案：**" not in response.text
+    assert "**解析：**" not in response.text
+    conversations = (
+        await api_client.get(f"/api/courses/{course_id}/conversations")
+    ).json()["data"]
+    detail = (
+        await api_client.get(
+            f"/api/courses/{course_id}/conversations/{conversations[0]['id']}"
+        )
+    ).json()["data"]
+    assistant = detail["messages"][-1]
+    assert assistant["retrieval"]["task_type"] == "exam"
+    assert assistant["retrieval"]["exam_plan"]["include_answers"] is False
+    assert assistant["retrieval"]["exam_plan"]["include_explanations"] is False
+    assert assistant["retrieval"]["exam_quality"]["grounding_verified"] is True
+    assert "**答案：**" not in assistant["content"]
+    assert "**解析：**" not in assistant["content"]
+    assert external.calls == []
+
+
+async def test_course_stream_replays_same_exam_for_answer_explanation_follow_up(
+    api_client: AsyncClient,
+    api_settings: Settings,
+) -> None:
+    course_id, document_id = await _create_ready_document(api_client, api_settings)
+    manager = FakeManager(course_id=course_id, document_id=document_id)
+    gateway = ExamApiGateway()
+    external = FakeExternalSearch()
+    app.dependency_overrides[get_indexing_manager] = lambda: manager
+    app.dependency_overrides[get_chat_completion_gateway] = lambda: gateway
+    app.dependency_overrides[get_external_search_gateway] = lambda: external
+
+    first = await api_client.post(
+        f"/api/courses/{course_id}/answers/stream",
+        json={
+            "question": (
+                "请根据队列相关内容出一份仅含3道判断题的试卷，"
+                "答案和解析都不要。"
+            )
+        },
+    )
+
+    assert first.status_code == 200
+    assert "event: error" not in first.text
+    first_complete = _sse_event_data(first.text, "complete")
+    first_answer = first_complete["answer"]
+    conversation_id = first_complete["conversation_id"]
+    assert first_answer.count("## ") == 3
+    assert "**答案：**" not in first_answer
+    assert "**解析：**" not in first_answer
+    first_gateway_calls = gateway.calls
+    first_retrieval_calls = len(manager.calls)
+
+    second = await api_client.post(
+        f"/api/courses/{course_id}/answers/stream",
+        json={
+            "question": "现在给出答案和解析。",
+            "conversation_id": conversation_id,
+        },
+    )
+
+    assert second.status_code == 200
+    assert "event: error" not in second.text
+    second_complete = _sse_event_data(second.text, "complete")
+    second_answer = second_complete["answer"]
+    assert second_complete["task_type"] == "exam"
+    assert second_complete["retrieval"]["retrieval_mode"] == "exam_artifact_replay"
+    assert second_complete["retrieval"]["exam_plan"]["include_answers"] is True
+    assert second_complete["retrieval"]["exam_plan"]["include_explanations"] is True
+    assert second_answer.count("**答案：**") == 3
+    assert second_answer.count("**解析：**") == 3
+    for number in range(1, 4):
+        prompt = f"判断题 {number}：栈的插入和删除都在栈顶完成。"
+        assert prompt in first_answer
+        assert prompt in second_answer
+    assert gateway.calls == first_gateway_calls
+    assert len(manager.calls) == first_retrieval_calls
+
+    detail = (
+        await api_client.get(
+            f"/api/courses/{course_id}/conversations/{conversation_id}"
+        )
+    ).json()["data"]
+    assert [message["role"] for message in detail["messages"]] == [
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+    ]
+    assert all(
+        "_exam_artifact" not in (message.get("retrieval") or {})
+        for message in detail["messages"]
+    )
+
+
+async def test_course_stream_answers_legacy_exam_follow_up_without_regenerating(
+    api_client: AsyncClient,
+    api_settings: Settings,
+) -> None:
+    course_id, document_id = await _create_ready_document(api_client, api_settings)
+    manager = FakeManager(course_id=course_id, document_id=document_id)
+    gateway = ExamApiGateway()
+    app.dependency_overrides[get_indexing_manager] = lambda: manager
+    app.dependency_overrides[get_chat_completion_gateway] = lambda: gateway
+
+    first = await api_client.post(
+        f"/api/courses/{course_id}/answers",
+        json={
+            "question": (
+                "请根据队列相关内容出一份仅含1道判断题的试卷，"
+                "答案和解析都不要。"
+            )
+        },
+    )
+    first_data = first.json()["data"]
+    conversation_id = first_data["conversation_id"]
+
+    engine = create_database_engine(api_settings.database_url)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with session_factory() as session:
+        message = (
+            await session.execute(
+                select(Message).where(
+                    Message.conversation_id == UUID(conversation_id),
+                    Message.role == MessageRole.ASSISTANT,
+                )
+            )
+        ).scalar_one()
+        assert message.retrieval is not None
+        legacy_retrieval = dict(message.retrieval)
+        legacy_retrieval.pop("_exam_artifact")
+        message.retrieval = legacy_retrieval
+        await session.commit()
+    await engine.dispose()
+
+    generation_calls = gateway.calls
+    retrieval_calls = len(manager.calls)
+    second = await api_client.post(
+        f"/api/courses/{course_id}/answers/stream",
+        json={
+            "question": "现在给出答案和解析。",
+            "conversation_id": conversation_id,
+        },
+    )
+
+    assert "event: error" not in second.text
+    complete = _sse_event_data(second.text, "complete")
+    assert complete["task_type"] == "exam"
+    assert complete["retrieval"]["retrieval_mode"] == "exam_legacy_context_answer"
+    assert "**答案：** 正确" in complete["answer"]
+    assert "**解析：**" in complete["answer"]
+    assert gateway.calls == generation_calls + 1
+    assert len(manager.calls) == retrieval_calls

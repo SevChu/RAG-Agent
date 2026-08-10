@@ -78,6 +78,7 @@ async def test_adapter_parses_real_contract_and_prioritizes_sources() -> None:
             200,
             json={
                 "model": "deepseek-v4-flash",
+                "usage": {"input_tokens": 120, "output_tokens": 35},
                 "content": [
                     {
                         "type": "server_tool_use",
@@ -109,6 +110,8 @@ async def test_adapter_parses_real_contract_and_prioritizes_sources() -> None:
     assert result.results[1].quality is ExternalSourceQuality.OFFICIAL
     assert result.results[1].url == "https://docs.python.org/3.14/"
     assert [item.rank for item in result.results] == [1, 2]
+    assert result.usage is not None
+    assert result.usage.total_tokens == 155
 
 
 async def test_adapter_reports_tool_error_without_raising() -> None:

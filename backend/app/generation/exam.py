@@ -228,6 +228,7 @@ class ExamGenerationResult:
     answer: GroundedAnswer
     course_hits: tuple[VectorSearchResult, ...]
     quality: ExamQualityDiagnostics
+    questions: tuple[GeneratedExamQuestion, ...] = ()
 
 
 def build_exam_plan(
@@ -354,6 +355,7 @@ class GroundedExamGenerator:
                         plan.allow_external and plan.max_external_count > 0
                     ),
                 ),
+                questions=(),
             )
 
         slots = _question_slots(
@@ -467,6 +469,7 @@ class GroundedExamGenerator:
                     f"证据支持={unsupported or '无'}，"
                     f"重复={sorted(duplicate_repair_numbers) or '无'}，"
                     f"来源比例={sorted(source_limit_repair_numbers) or '无'}。"
+                    f"不支持详情={_unsupported_review_details(review) or '无'}。"
                     "本次整卷已拦截。"
                 )
 
@@ -515,7 +518,7 @@ class GroundedExamGenerator:
                 allow_source_limit_overflow=True,
             )
         repaired_numbers = sorted(repaired_number_set)
-        answer_text = _render_exam(normalized_questions, plan)
+        answer_text = render_exam(normalized_questions, plan)
         course_ids = tuple(
             dict.fromkeys(
                 source_id
@@ -570,6 +573,7 @@ class GroundedExamGenerator:
             ),
             course_hits=hits,
             quality=quality,
+            questions=tuple(normalized_questions),
         )
 
 
@@ -753,6 +757,16 @@ def _parse_batch(content: str, *, slots: Sequence[_QuestionSlot]) -> list[Genera
         if not isinstance(raw, dict):
             raise TypeError("exam batch must be an object")
         raw_questions = raw.get("questions", raw.get("items"))
+        if len(slots) == 1:
+            singular = raw.get("question", raw.get("item"))
+            if isinstance(raw_questions, dict):
+                raw_questions = [raw_questions]
+            elif isinstance(singular, dict):
+                raw_questions = [singular]
+            elif raw_questions is None and any(
+                key in raw for key in ("prompt", "question", "knowledge_point", "topic")
+            ):
+                raw_questions = [raw]
         if not isinstance(raw_questions, list) or len(raw_questions) != len(slots):
             raise TypeError("exam batch question count mismatch")
         normalized_questions = [
@@ -848,6 +862,15 @@ def _normalize_question_payload(
             answer = "正确"
         elif normalized_answer in {"false", "no", "错", "错误"}:
             answer = "错误"
+    options = _normalized_options(
+        item.get("options", item.get("choices")),
+        prompt=prompt,
+    )
+    options = _safely_complete_choice_options(
+        question_type=slot.question_type,
+        options=options,
+        answer=answer,
+    )
     source_mode = item.get("source_mode")
     if source_mode not in {mode.value for mode in ExamSourceMode}:
         source_mode = (
@@ -864,10 +887,7 @@ def _normalize_question_payload(
             item.get("knowledge_point", item.get("topic")) or "课程知识点"
         )[:120],
         "prompt": prompt,
-        "options": _normalized_options(
-            item.get("options", item.get("choices")),
-            prompt=prompt,
-        ),
+        "options": options,
         "answer": answer,
         "explanation": _optional_text(
             item.get("explanation", item.get("analysis"))
@@ -952,6 +972,47 @@ def _normalized_options(value: object, *, prompt: str) -> list[str]:
         label = chr(ord("A") + len(normalized))
         normalized.append(f"{label}. {body}")
     return normalized
+
+
+def _safely_complete_choice_options(
+    *,
+    question_type: ExamQuestionType,
+    options: list[str],
+    answer: object,
+) -> list[str]:
+    if question_type not in {
+        ExamQuestionType.SINGLE_CHOICE,
+        ExamQuestionType.MULTIPLE_CHOICE,
+    } or len(options) != 3:
+        return options
+    if not _answer_selects_existing_option(answer, options):
+        return options
+    return [*options, "D. 以上选项均不正确"]
+
+
+def _answer_selects_existing_option(answer: object, options: Sequence[str]) -> bool:
+    if not isinstance(answer, str) or not answer.strip():
+        return False
+    available_labels = {
+        match.group(1).upper()
+        for option in options
+        if (match := re.match(r"^([A-H])[.、:：)]", option, flags=re.I))
+    }
+    normalized_answer = re.sub(r"^(?:参考)?答案\s*[:：]?\s*", "", answer.strip(), flags=re.I)
+    compact = re.sub(r"[\s,，、;/和与]+", "", normalized_answer).upper()
+    if compact and re.fullmatch(r"[A-H]+", compact):
+        return set(compact).issubset(available_labels)
+    label_match = re.match(r"^([A-H])[.、:：)]", normalized_answer, flags=re.I)
+    if label_match:
+        return label_match.group(1).upper() in available_labels
+    normalized_text = _normalize_similarity_text(normalized_answer)
+    option_bodies = {
+        _normalize_similarity_text(
+            re.sub(r"^[A-H][.、:：)]\s*", "", option, flags=re.I)
+        )
+        for option in options
+    }
+    return bool(normalized_text and normalized_text in option_bodies)
 
 
 def _option_candidates(value: object) -> list[str]:
@@ -1244,6 +1305,11 @@ def _grounding_review_prompt(
             "test_case_design": question.test_case_design,
             "course_source_ids": question.course_source_ids,
             "external_source_ids": question.external_source_ids,
+            "system_completed_option_labels": (
+                ["D"]
+                if question.options[-1:] == ["D. 以上选项均不正确"]
+                else []
+            ),
         }
         for question in questions
     ]
@@ -1264,6 +1330,8 @@ def _grounding_review_prompt(
 栈顶”判断一次具体入栈结果。判断题的待判断命题可以为假，选择题的错误干扰项也不要求作为真命题被
 来源支持；应检查来源能否排除它们并唯一确定正确答案，而不是要求所有选项都是真的。若正确答案依赖
 来源未写明的数据结构类别、实现细节、复杂度、边界或前提，必须 supported=false。返回：
+system_completed_option_labels 表示服务端只在内部答案已经明确落于其他现有选项时补入的逻辑假干扰项；
+不得仅因该干扰项的文字未出现在来源中判定 unsupported，仍须独立核验真正的正确答案和解析。
 {{"results":[{{"number":1,"supported":true,"unsupported_claim":null}}]}}。"""
 
 
@@ -1302,9 +1370,20 @@ def _grounding_repair_system_prompt(
     )
     return (
         "你是试题证据修复器。只重写指定槽位，正确答案必须由给定来源明确支持，或由来源写明规则"
-        "经过有限确定性步骤直接推出；禁止使用常识、隐含前提或模型记忆。选择题干扰项可以是由"
-        "来源明确排除的错误说法。保持题型和难度，只返回合法 json。"
+        "经过有限确定性步骤直接推出；禁止使用常识、隐含前提或模型记忆。每道修复题优先锚定"
+        "一条课程来源中的直接陈述，题干、正确答案、解析和 course_source_ids 必须同步重写；"
+        "解析只能说明该来源如何唯一确定答案，不得附加来源未写明的复杂度、实现或比较结论。"
+        "选择题干扰项可以是由来源明确排除的错误说法。若原题无法修好，应完全换成同难度的"
+        "直接阅读题，而不是保留原结论。保持题型和难度，只返回合法 json。"
         f"待修问题：{problems}{duplicate_problem}{source_limit_problem}"
+    )
+
+
+def _unsupported_review_details(review: Sequence[_GroundingReviewItem]) -> str:
+    return "；".join(
+        f"第{item.number}题：{item.unsupported_claim or '未说明具体原因'}"
+        for item in review
+        if not item.supported
     )
 
 
@@ -1404,7 +1483,9 @@ def _questions_are_near_duplicates(
     return topic_similarity >= 0.9
 
 
-def _render_exam(questions: Sequence[GeneratedExamQuestion], plan: ExamPlan) -> str:
+def render_exam(questions: Sequence[GeneratedExamQuestion], plan: ExamPlan) -> str:
+    """Render a validated exam according to its public answer contract."""
+
     lines = [
         "# 课程试卷",
         "",

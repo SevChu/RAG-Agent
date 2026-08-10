@@ -20,6 +20,13 @@ class ExternalSourceQuality(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
+class ExternalSearchTokenUsage:
+    input_tokens: int
+    output_tokens: int
+    total_tokens: int
+
+
+@dataclass(frozen=True, slots=True)
 class ExternalSearchEvidence:
     rank: int
     title: str
@@ -41,4 +48,4 @@ class ExternalSearchResult:
     model: str
     elapsed_ms: float
     failure_reason: str | None = None
-
+    usage: ExternalSearchTokenUsage | None = None

@@ -29,13 +29,17 @@ from app.external_search import (
 )
 from app.generation import (
     AnswerScope,
+    AnswerStatus,
     AnswerStyle,
     ChatCompletionGateway,
     CitationSourceType,
     DynamicSummaryPlanner,
+    ExamPlan,
     ExamPlanRead,
     ExamQualityDiagnostics,
+    GeneratedExamQuestion,
     GroundedAnswer,
+    GroundedAnswerGenerator,
     GroundedExamGenerator,
     GroundedSummaryGenerator,
     QueryRewriter,
@@ -46,15 +50,17 @@ from app.generation import (
     build_exam_plan,
     get_chat_completion_gateway,
     quick_chat_prompt,
+    render_exam,
 )
 from app.indexing import DocumentIndexingManager, get_indexing_manager
 from app.knowledge.models import VectorSearchResult
-from app.models import Conversation, DocumentStatus
+from app.models import Conversation, DocumentStatus, Message, MessageRole
 from app.orchestration import (
     ConditionalAnswerGraph,
     CourseTaskType,
     RequestRoutingGraph,
     SummaryScopeType,
+    exam_follow_up_output,
     summary_retrieval_query,
     summary_scope,
 )
@@ -74,6 +80,7 @@ from app.services import ConversationService, CourseService, DocumentService
 
 router = APIRouter(tags=["question-answering"])
 _SSE_DELTA_INTERVAL_SECONDS = 0.015
+_EXAM_ARTIFACT_KEY = "_exam_artifact"
 
 SessionDependency = Annotated[AsyncSession, Depends(get_session)]
 SettingsDependency = Annotated[Settings, Depends(get_settings)]
@@ -93,6 +100,7 @@ class _CourseAnswerWork:
     elapsed_ms: float
     task_type: CourseTaskType
     effective_scope: AnswerScope
+    exam_artifact: dict[str, object] | None = None
 
 
 @router.get("/llm/config", response_model=APIResponse[LLMConfigurationRead])
@@ -362,7 +370,6 @@ async def _prepare_course_answer(
     external_search: ExternalSearchGateway,
 ) -> _CourseAnswerWork:
     started_at = perf_counter()
-    routing = await RequestRoutingGraph().route(payload.question)
     conversation_service = ConversationService(session)
     recent = await conversation_service.recent_completed_messages(
         conversation.id,
@@ -373,6 +380,24 @@ async def _prepare_course_answer(
         max_messages=settings.rag_context_max_messages,
         max_chars=settings.rag_context_max_chars,
     )
+    previous_exam = _immediately_preceding_exam(recent)
+    follow_up_output = (
+        exam_follow_up_output(payload.question) if previous_exam is not None else None
+    )
+    if previous_exam is not None and follow_up_output is not None:
+        return await _prepare_persisted_exam_follow_up(
+            previous=previous_exam,
+            question=payload.question,
+            include_answers=follow_up_output.include_answers,
+            include_explanations=follow_up_output.include_explanations,
+            context_message_count=len(history),
+            started_at=started_at,
+            course_id=course_id,
+            llm=llm,
+            model=selected_model,
+        )
+
+    routing = await RequestRoutingGraph().route(payload.question)
     rewritten_query, _ = await QueryRewriter(llm).rewrite(
         question=payload.question,
         history=history,
@@ -427,6 +452,7 @@ async def _prepare_course_answer(
     summary_quality: SummaryQualityDiagnostics | None = None
     exam_plan_read: ExamPlanRead | None = None
     exam_quality: ExamQualityDiagnostics | None = None
+    exam_artifact: dict[str, object] | None = None
     if routing.task_type is CourseTaskType.SUMMARY:
         resolved_summary_scope, summary_scope_description = summary_scope(
             payload.question,
@@ -530,6 +556,15 @@ async def _prepare_course_answer(
         eligible_hits = exam_result.course_hits
         exam_plan_read = ExamPlanRead.from_plan(exam_plan)
         exam_quality = exam_result.quality
+        if exam_result.questions:
+            exam_artifact = {
+                "version": 1,
+                "plan": exam_plan.model_dump(mode="json"),
+                "questions": [
+                    question.model_dump(mode="json")
+                    for question in exam_result.questions
+                ],
+            }
         effective_scope = (
             AnswerScope.COURSE_AND_EXTERNAL
             if exam_plan.allow_external
@@ -678,6 +713,263 @@ async def _prepare_course_answer(
         elapsed_ms=round((perf_counter() - started_at) * 1000, 2),
         task_type=routing.task_type,
         effective_scope=effective_scope,
+        exam_artifact=exam_artifact,
+    )
+
+
+def _immediately_preceding_exam(messages: list[Message]) -> Message | None:
+    if not messages:
+        return None
+    previous = messages[-1]
+    if previous.role is not MessageRole.ASSISTANT or not previous.retrieval:
+        return None
+    if previous.retrieval.get("task_type") != CourseTaskType.EXAM.value:
+        return None
+    return previous
+
+
+async def _prepare_persisted_exam_follow_up(
+    *,
+    previous: Message,
+    question: str,
+    include_answers: bool,
+    include_explanations: bool,
+    context_message_count: int,
+    started_at: float,
+    course_id: UUID,
+    llm: ChatCompletionGateway,
+    model: str,
+) -> _CourseAnswerWork:
+    """Re-render the same validated exam without leaking or regenerating questions."""
+
+    assert previous.retrieval is not None
+    artifact = previous.retrieval.get(_EXAM_ARTIFACT_KEY)
+    if not isinstance(artifact, dict):
+        return await _prepare_legacy_exam_follow_up(
+            previous=previous,
+            question=question,
+            include_explanations=include_explanations,
+            context_message_count=context_message_count,
+            started_at=started_at,
+            course_id=course_id,
+            llm=llm,
+            model=model,
+        )
+    try:
+        plan = ExamPlan.model_validate(artifact["plan"])
+        raw_questions = artifact["questions"]
+        if not isinstance(raw_questions, list) or not raw_questions:
+            raise ValueError("empty exam artifact")
+        questions = tuple(
+            GeneratedExamQuestion.model_validate(item) for item in raw_questions
+        )
+        previous_retrieval = AnswerRetrievalRead.model_validate(previous.retrieval)
+        previous_quality = previous_retrieval.exam_quality
+        if previous_quality is None:
+            raise ValueError("missing exam quality")
+        citations = [
+            AnswerCitationRead.model_validate(item) for item in previous.citations
+        ]
+    except (KeyError, TypeError, ValueError) as error:
+        raise InvalidInputError(
+            "上一份试卷的会话工件不完整，无法安全恢复同一组题。"
+            "请重新发送上一条出题指令后重试。"
+        ) from error
+
+    public_plan = plan.model_copy(
+        update={
+            "include_answers": include_answers,
+            "include_explanations": include_answers and include_explanations,
+        }
+    )
+    quality = previous_quality.model_copy(
+        update={
+            "answers_included": public_plan.include_answers,
+            "explanations_included": public_plan.include_explanations,
+        }
+    )
+    plan_read = ExamPlanRead.from_plan(public_plan)
+    retrieval = previous_retrieval.model_copy(
+        update={
+            "retrieval_mode": "exam_artifact_replay",
+            "original_question": question,
+            "rewritten_query": question,
+            "context_message_count": context_message_count,
+            "rewrite_applied": False,
+            "task_type": CourseTaskType.EXAM,
+            "router_reason": (
+                "检测到对紧邻上一份试卷的答案/解析续写请求，"
+                "已恢复同一试卷的内部工件。"
+            ),
+            "exam_plan": plan_read,
+            "exam_quality": quality,
+        }
+    )
+    course_ids = tuple(
+        dict.fromkeys(
+            source_id
+            for exam_question in questions
+            for source_id in exam_question.course_source_ids
+        )
+    )
+    external_ids = tuple(
+        dict.fromkeys(
+            source_id
+            for exam_question in questions
+            for source_id in exam_question.external_source_ids
+        )
+    )
+    return _CourseAnswerWork(
+        answer=GroundedAnswer(
+            answer=render_exam(questions, public_plan),
+            status=AnswerStatus.ANSWERED,
+            used_source_ids=course_ids,
+            used_external_source_ids=external_ids,
+            model=previous.model,
+        ),
+        citations=citations,
+        retrieval=retrieval,
+        usage=None,
+        elapsed_ms=round((perf_counter() - started_at) * 1000, 2),
+        task_type=CourseTaskType.EXAM,
+        effective_scope=previous_retrieval.answer_scope,
+        exam_artifact=dict(artifact),
+    )
+
+
+async def _prepare_legacy_exam_follow_up(
+    *,
+    previous: Message,
+    question: str,
+    include_explanations: bool,
+    context_message_count: int,
+    started_at: float,
+    course_id: UUID,
+    llm: ChatCompletionGateway,
+    model: str,
+) -> _CourseAnswerWork:
+    """Answer a pre-artifact exam from its visible questions and saved evidence."""
+
+    assert previous.retrieval is not None
+    previous_retrieval = AnswerRetrievalRead.model_validate(previous.retrieval)
+    previous_quality = previous_retrieval.exam_quality
+    previous_plan = previous_retrieval.exam_plan
+    if previous_quality is None or previous_plan is None:
+        raise InvalidInputError(
+            "上一份回复没有完整的试卷上下文，无法确定当前所指题目。"
+            "请重新发送出题指令后重试。"
+        )
+    raw_course_citations = sorted(
+        (
+            AnswerCitationRead.model_validate(item)
+            for item in previous.citations
+            if item.get("source_type", CitationSourceType.COURSE.value)
+            == CitationSourceType.COURSE.value
+        ),
+        key=lambda item: item.source_id,
+    )
+    if not raw_course_citations:
+        raise InvalidInputError(
+            "上一份旧试卷没有可恢复的课程证据，无法安全补充答案。"
+            "请重新发送出题指令后重试。"
+        )
+    course_citations = [
+        citation.model_copy(update={"source_id": index})
+        for index, citation in enumerate(raw_course_citations, start=1)
+    ]
+    hits = tuple(
+        VectorSearchResult(
+            point_id=f"conversation-exam-{previous.id}-{index}",
+            score=1.0,
+            course_id=str(course_id),
+            document_id=str(citation.document_id or UUID(int=0)),
+            chunk_index=citation.chunk_index or 0,
+            text=citation.text,
+            payload={
+                "file_name": citation.file_name,
+                "file_type": citation.file_type,
+                "section_path": citation.section_path,
+                "page_numbers": citation.page_numbers,
+                "slide_numbers": citation.slide_numbers,
+                "line_start": citation.line_start,
+                "line_end": citation.line_end,
+                "content_role": citation.content_role,
+            },
+        )
+        for index, citation in enumerate(course_citations, start=1)
+    )
+    output_contract = (
+        "逐题给出答案和解析"
+        if include_explanations
+        else "逐题只给出答案，不要解析"
+    )
+    grounded, _ = await GroundedAnswerGenerator(
+        llm,
+        min_similarity_score=0.0,
+    ).answer(
+        question=(
+            f"{output_contract}。必须沿用原题号，回答下面这份已经生成的试卷；"
+            "不得另出新题，也不得修改题目。\n\n"
+            f"<previous_exam>\n{previous.content}\n</previous_exam>"
+        ),
+        standalone_question=(
+            f"为紧邻上一份试卷{output_contract}，保持原题号和题目不变。"
+        ),
+        hits=hits,
+        style=AnswerStyle.DETAILED,
+        model=model,
+    )
+    quality = previous_quality.model_copy(
+        update={
+            "answers_included": True,
+            "explanations_included": include_explanations,
+        }
+    )
+    plan_read = previous_plan.model_copy(
+        update={
+            "include_answers": True,
+            "include_explanations": include_explanations,
+        }
+    )
+    retrieval = previous_retrieval.model_copy(
+        update={
+            "retrieval_mode": "exam_legacy_context_answer",
+            "original_question": question,
+            "rewritten_query": question,
+            "context_message_count": context_message_count,
+            "rewrite_applied": False,
+            "answer_scope": AnswerScope.COURSE_ONLY,
+            "task_type": CourseTaskType.EXAM,
+            "router_reason": (
+                "检测到对旧版试卷的答案/解析续写请求；已使用原试卷文本和"
+                "当时保存的课程证据回答，未重新出题。"
+            ),
+            "exam_plan": plan_read,
+            "exam_quality": quality,
+        }
+    )
+    selected_citations = [
+        course_citations[source_id - 1]
+        for source_id in grounded.used_source_ids
+        if 1 <= source_id <= len(course_citations)
+    ]
+    usage = (
+        AnswerTokenUsageRead(
+            prompt_tokens=grounded.usage.prompt_tokens,
+            completion_tokens=grounded.usage.completion_tokens,
+            total_tokens=grounded.usage.total_tokens,
+        )
+        if grounded.usage is not None
+        else None
+    )
+    return _CourseAnswerWork(
+        answer=grounded,
+        citations=selected_citations,
+        retrieval=retrieval,
+        usage=usage,
+        elapsed_ms=round((perf_counter() - started_at) * 1000, 2),
+        task_type=CourseTaskType.EXAM,
+        effective_scope=AnswerScope.COURSE_ONLY,
     )
 
 
@@ -805,6 +1097,11 @@ async def _persist_course_answer(
     work: _CourseAnswerWork,
     service: ConversationService,
 ) -> CourseAnswerRead:
+    retrieval_payload = work.retrieval.model_dump(mode="json")
+    if work.exam_artifact is not None:
+        # Private server-side continuation state. AnswerRetrievalRead ignores this
+        # extra key, so neither answer responses nor conversation history expose it.
+        retrieval_payload[_EXAM_ARTIFACT_KEY] = work.exam_artifact
     user_message, assistant_message = await service.record_exchange(
         conversation=conversation,
         question=payload.question,
@@ -813,7 +1110,7 @@ async def _persist_course_answer(
         answer_style=payload.answer_style.value,
         model=work.answer.model,
         citations=[citation.model_dump(mode="json") for citation in work.citations],
-        retrieval=work.retrieval.model_dump(mode="json"),
+        retrieval=retrieval_payload,
         usage=work.usage.model_dump(mode="json") if work.usage is not None else None,
         elapsed_ms=work.elapsed_ms,
     )

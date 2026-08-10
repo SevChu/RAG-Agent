@@ -591,7 +591,7 @@ async def test_exam_generator_extracts_choices_embedded_in_question_text() -> No
 
 
 @pytest.mark.asyncio
-async def test_exam_generator_retries_short_choice_list_until_batch_is_valid() -> None:
+async def test_exam_generator_safely_completes_three_choice_list() -> None:
     request_text = "出1道单选题，只要答案，不要解析，仅课程资料"
     plan = build_exam_plan(request_text, allow_external=False)
     incomplete = _question(1)
@@ -604,11 +604,7 @@ async def test_exam_generator_retries_short_choice_list_until_batch_is_valid() -
             "explanation": None,
         }
     )
-    repaired = {
-        **incomplete,
-        "options": ["后进先出", "先进先出", "随机访问", "按优先级访问"],
-    }
-    gateway = ExamGateway(_payload(incomplete), _payload(repaired))
+    gateway = ExamGateway(_payload(incomplete))
 
     result = await GroundedExamGenerator(gateway).generate(
         request=request_text,
@@ -619,8 +615,37 @@ async def test_exam_generator_retries_short_choice_list_until_batch_is_valid() -
     )
 
     assert result.answer.status is AnswerStatus.ANSWERED
-    assert "- D. 按优先级访问" in result.answer.answer
-    assert gateway.calls == 3
+    assert "- D. 以上选项均不正确" in result.answer.answer
+    assert '"system_completed_option_labels": ["D"]' in gateway.review_prompts[0]
+    assert gateway.calls == 2
+
+
+async def test_exam_generator_safely_completes_three_multiple_choice_options() -> None:
+    request_text = "出1道多选题，只要答案，不要解析，仅课程资料"
+    plan = build_exam_plan(request_text, allow_external=False)
+    incomplete = _question(1)
+    incomplete.update(
+        {
+            "question_type": "multiple_choice",
+            "prompt": "下列哪些说法符合栈的性质？",
+            "options": ["只能在栈顶操作", "后进先出", "可以判空"],
+            "answer": "A、B",
+            "explanation": None,
+        }
+    )
+    gateway = ExamGateway(_payload(incomplete))
+
+    result = await GroundedExamGenerator(gateway).generate(
+        request=request_text,
+        plan=plan,
+        course_hits=[_course_hit(1)],
+        external_evidence=[],
+        model="deepseek-v4-flash",
+    )
+
+    assert "- D. 以上选项均不正确" in result.answer.answer
+    assert "**答案：** A、B" in result.answer.answer
+    assert gateway.calls == 2
 
 
 @pytest.mark.asyncio
@@ -633,7 +658,7 @@ async def test_exam_generator_bounds_repeated_invalid_choice_retries() -> None:
             "question_type": "single_choice",
             "prompt": "栈遵循哪一种访问次序？",
             "options": ["后进先出", "先进先出", "随机访问"],
-            "answer": "A",
+            "answer": "D",
             "explanation": None,
         }
     )
@@ -808,6 +833,71 @@ async def test_exam_generator_normalizes_safe_real_model_json_variants() -> None
     assert "**答案：** 正确" in result.answer.answer
     assert result.answer.used_source_ids == (1,)
     assert result.quality.passed is True
+
+
+@pytest.mark.parametrize("wrapper", ["direct", "question", "questions"])
+async def test_exam_generator_accepts_single_question_object_variants(
+    wrapper: str,
+) -> None:
+    plan = build_exam_plan("出1道判断题，仅课程", allow_external=False)
+    question = _question(1)
+    if wrapper == "direct":
+        content = json.dumps(question, ensure_ascii=False)
+    else:
+        content = json.dumps({wrapper: question}, ensure_ascii=False)
+    gateway = ExamGateway(content)
+
+    result = await GroundedExamGenerator(gateway).generate(
+        request="出1道判断题，仅课程",
+        plan=plan,
+        course_hits=[_course_hit(1)],
+        external_evidence=[],
+        model="deepseek-v4-flash",
+    )
+
+    assert result.answer.status is AnswerStatus.ANSWERED
+    assert result.quality.generated_question_count == 1
+    assert result.quality.grounding_verified is True
+
+
+async def test_exam_grounding_repair_accepts_a_direct_single_question_object() -> None:
+    plan = build_exam_plan("出1道判断题，仅课程", allow_external=False)
+    repaired = _question(1, prompt="判断：栈只在栈顶插入和删除。")
+    gateway = ExamGateway(
+        _payload(
+            _question(
+                1,
+                prompt="判断：顺序队列出队时一定需要移动全部剩余元素。",
+            )
+        ),
+        json.dumps(repaired, ensure_ascii=False),
+        review_contents=[
+            json.dumps(
+                {
+                    "results": [
+                        {
+                            "number": 1,
+                            "supported": False,
+                            "unsupported_claim": "课程没有支持顺序队列结论。",
+                        }
+                    ]
+                },
+                ensure_ascii=False,
+            ),
+            '{"results":[{"number":1,"supported":true}]}',
+        ],
+    )
+
+    result = await GroundedExamGenerator(gateway).generate(
+        request="出1道判断题，仅课程",
+        plan=plan,
+        course_hits=[_course_hit(1)],
+        external_evidence=[],
+        model="deepseek-v4-flash",
+    )
+
+    assert result.quality.grounding_repaired_questions == [1]
+    assert "栈只在栈顶插入和删除" in result.answer.answer
 
 
 async def test_exam_generator_repairs_only_questions_rejected_by_grounding_review() -> None:

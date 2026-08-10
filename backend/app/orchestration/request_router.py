@@ -26,6 +26,12 @@ class TaskRoutingDecision:
     reason: str
 
 
+@dataclass(frozen=True, slots=True)
+class ExamFollowUpOutput:
+    include_answers: bool
+    include_explanations: bool
+
+
 class _RoutingState(TypedDict, total=False):
     question: str
     is_summary: bool
@@ -98,6 +104,42 @@ _EXAM_AS_SUBJECT = re.compile(
     rf"(?:出题|组卷|命题|{_EXAM_PAPER}).{{0,16}}(?:是什么|的区别|含义|原则|流程|方法)[？?]?$",
     re.IGNORECASE,
 )
+_EXAM_FOLLOW_UP_OUTPUT = re.compile(
+    r"(?:给出|提供|补充|显示|输出|公布|查看|告诉我).{0,20}"
+    r"(?:参考)?(?:答案|解析|讲解)|"
+    r"(?:答案|解析|讲解).{0,12}(?:给出|提供|补充|显示|输出|公布)",
+    re.IGNORECASE,
+)
+_ANSWER_TERM = re.compile(r"(?:参考)?答案", re.IGNORECASE)
+_EXPLANATION_TERM = re.compile(r"解析|讲解", re.IGNORECASE)
+_OMIT_EXPLANATION = re.compile(
+    r"(?:不要|不用|无需|不需要|不含|没有|无).{0,8}(?:解析|讲解)|"
+    r"(?:解析|讲解).{0,8}(?:不要|不用|无需|不需要)",
+    re.IGNORECASE,
+)
+
+
+def exam_follow_up_output(question: str) -> ExamFollowUpOutput | None:
+    """Resolve an output-only continuation for the immediately preceding exam.
+
+    The caller must additionally prove that the latest completed assistant turn is
+    an exam. Keeping that contextual gate outside this text-only helper prevents a
+    standalone question about "answers and explanations" from being misrouted.
+    """
+
+    normalized = " ".join(question.split())
+    if not _EXAM_FOLLOW_UP_OUTPUT.search(normalized):
+        return None
+    asks_for_answer = bool(_ANSWER_TERM.search(normalized))
+    asks_for_explanation = bool(_EXPLANATION_TERM.search(normalized)) and not bool(
+        _OMIT_EXPLANATION.search(normalized)
+    )
+    if not asks_for_answer and not asks_for_explanation:
+        return None
+    return ExamFollowUpOutput(
+        include_answers=True,
+        include_explanations=asks_for_explanation,
+    )
 
 
 class RequestRoutingGraph:

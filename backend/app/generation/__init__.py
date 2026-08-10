@@ -13,8 +13,10 @@ from app.generation.exam import (
     ExamQuestionType,
     ExamQuota,
     ExamSourceMode,
+    GeneratedExamQuestion,
     GroundedExamGenerator,
     build_exam_plan,
+    render_exam,
 )
 from app.generation.models import (
     AnswerScope,
@@ -51,6 +53,7 @@ __all__ = [
     "ExamQuestionType",
     "ExamQuota",
     "ExamSourceMode",
+    "GeneratedExamQuestion",
     "GroundedAnswer",
     "GroundedAnswerGenerator",
     "GroundedExamGenerator",
@@ -65,6 +68,7 @@ __all__ = [
     "TokenUsage",
     "bounded_history",
     "build_exam_plan",
+    "render_exam",
     "get_chat_completion_gateway",
     "quick_chat_prompt",
 ]

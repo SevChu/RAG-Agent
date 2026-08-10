@@ -7,6 +7,7 @@ from app.external_search.models import (
     ExternalSearchEvidence,
     ExternalSearchResult,
     ExternalSearchStatus,
+    ExternalSearchTokenUsage,
     ExternalSourceQuality,
 )
 
@@ -16,6 +17,7 @@ __all__ = [
     "ExternalSearchGateway",
     "ExternalSearchResult",
     "ExternalSearchStatus",
+    "ExternalSearchTokenUsage",
     "ExternalSourceQuality",
     "get_external_search_gateway",
 ]
