@@ -8,6 +8,7 @@ from fastapi import Depends
 from app.core.config import Settings, get_settings
 from app.core.exceptions import LLMConfigurationError, LLMServiceError
 from app.generation.models import ChatCompletion, TokenUsage
+from app.token_usage import TokenUsageRecorder, TokenUsageService, get_token_usage_service
 
 
 class ChatCompletionGateway(Protocol):
@@ -31,8 +32,13 @@ class ChatCompletionGateway(Protocol):
 class OpenAICompatibleChatClient:
     """Minimal async client for an OpenAI-compatible chat-completions API."""
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        usage_recorder: TokenUsageRecorder | None = None,
+    ) -> None:
         self.settings = settings
+        self.usage_recorder = usage_recorder
 
     async def complete(
         self,
@@ -151,15 +157,29 @@ class OpenAICompatibleChatClient:
 
         try:
             body = response.json()
+            if not isinstance(body, dict):
+                raise TypeError
+            response_model = str(body.get("model") or model)
+        except (TypeError, ValueError) as error:
+            raise LLMServiceError("模型服务返回了无法识别的响应。") from error
+
+        usage = _parse_usage(body.get("usage"))
+        if usage is not None and self.usage_recorder is not None:
+            await self.usage_recorder.record(
+                model=response_model,
+                input_cache_hit_tokens=usage.prompt_cache_hit_tokens,
+                input_cache_miss_tokens=usage.prompt_cache_miss_tokens,
+                output_tokens=usage.completion_tokens,
+            )
+
+        try:
             choice = body["choices"][0]
             content = choice["message"]["content"]
-            response_model = str(body.get("model") or model)
         except (KeyError, IndexError, TypeError, ValueError) as error:
             raise LLMServiceError("模型服务返回了无法识别的响应。") from error
         if not isinstance(content, str) or not content.strip():
             raise LLMServiceError("模型服务没有返回回答内容，请重试。")
 
-        usage = _parse_usage(body.get("usage"))
         return ChatCompletion(content=content.strip(), model=response_model, usage=usage)
 
 
@@ -167,10 +187,24 @@ def _parse_usage(value: object) -> TokenUsage | None:
     if not isinstance(value, dict):
         return None
     try:
+        prompt_tokens = int(value["prompt_tokens"])
+        cache_hit_value = value.get("prompt_cache_hit_tokens")
+        cache_miss_value = value.get("prompt_cache_miss_tokens")
+        cache_hit_tokens = int(cache_hit_value) if cache_hit_value is not None else None
+        cache_miss_tokens = int(cache_miss_value) if cache_miss_value is not None else None
+        if cache_hit_tokens is None and cache_miss_tokens is None:
+            cache_hit_tokens = 0
+            cache_miss_tokens = prompt_tokens
+        elif cache_hit_tokens is None:
+            cache_hit_tokens = max(prompt_tokens - (cache_miss_tokens or 0), 0)
+        elif cache_miss_tokens is None:
+            cache_miss_tokens = max(prompt_tokens - cache_hit_tokens, 0)
         return TokenUsage(
-            prompt_tokens=int(value["prompt_tokens"]),
+            prompt_tokens=prompt_tokens,
             completion_tokens=int(value["completion_tokens"]),
             total_tokens=int(value["total_tokens"]),
+            prompt_cache_hit_tokens=max(cache_hit_tokens or 0, 0),
+            prompt_cache_miss_tokens=max(cache_miss_tokens or 0, 0),
         )
     except (KeyError, TypeError, ValueError):
         return None
@@ -192,5 +226,6 @@ def _response_error_detail(response: httpx.Response) -> str:
 
 def get_chat_completion_gateway(
     settings: Annotated[Settings, Depends(get_settings)],
+    usage_service: Annotated[TokenUsageService, Depends(get_token_usage_service)],
 ) -> ChatCompletionGateway:
-    return OpenAICompatibleChatClient(settings)
+    return OpenAICompatibleChatClient(settings, usage_service)

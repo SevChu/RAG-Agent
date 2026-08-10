@@ -40,6 +40,8 @@ class FakeHTTPClient:
                     "prompt_tokens": 10,
                     "completion_tokens": 5,
                     "total_tokens": 15,
+                    "prompt_cache_hit_tokens": 6,
+                    "prompt_cache_miss_tokens": 4,
                 },
             }
         else:
@@ -75,6 +77,9 @@ async def test_json_mode_always_includes_lowercase_json_literal(
     assert "json" in system_content
     assert FakeHTTPClient.payloads[0]["response_format"] == {"type": "json_object"}
     assert completion.content == '{"ok":true}'
+    assert completion.usage is not None
+    assert completion.usage.prompt_cache_hit_tokens == 6
+    assert completion.usage.prompt_cache_miss_tokens == 4
 
 
 async def test_json_client_retries_one_transient_upstream_failure(

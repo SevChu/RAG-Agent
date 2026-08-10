@@ -33,7 +33,12 @@ def test_initial_migration_upgrades_matches_models_and_downgrades(
                 "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'documents'"
             ).fetchone()
 
-        assert {"alembic_version", "courses", "documents"} <= table_names
+        assert {
+            "alembic_version",
+            "courses",
+            "documents",
+            "token_usage_events",
+        } <= table_names
         assert document_ddl is not None
         assert "ON DELETE CASCADE" in document_ddl[0]
         assert "completed" in document_ddl[0]
@@ -50,5 +55,6 @@ def test_initial_migration_upgrades_matches_models_and_downgrades(
             }
         assert "courses" not in remaining_tables
         assert "documents" not in remaining_tables
+        assert "token_usage_events" not in remaining_tables
     finally:
         get_settings.cache_clear()

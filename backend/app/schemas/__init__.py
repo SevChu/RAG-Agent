@@ -26,6 +26,7 @@ from app.schemas.retrieval import (
     RetrievalSearchRead,
     RetrievalSearchRequest,
 )
+from app.schemas.token_usage import ModelTokenUsageRead, TokenUsageSummaryRead
 
 __all__ = [
     "APIError",
@@ -33,6 +34,8 @@ __all__ = [
     "AnswerCitationRead",
     "AnswerRetrievalRead",
     "AnswerTokenUsageRead",
+    "ModelTokenUsageRead",
+    "TokenUsageSummaryRead",
     "CourseCreate",
     "CourseDeleteResult",
     "CourseRead",

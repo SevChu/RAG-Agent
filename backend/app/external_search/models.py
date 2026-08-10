@@ -24,6 +24,8 @@ class ExternalSearchTokenUsage:
     input_tokens: int
     output_tokens: int
     total_tokens: int
+    input_cache_hit_tokens: int = 0
+    input_cache_miss_tokens: int = 0
 
 
 @dataclass(frozen=True, slots=True)

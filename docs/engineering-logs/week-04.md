@@ -1095,3 +1095,77 @@ A/B/C 时只会重新请求同一道题，没有可证明安全的本地恢复�
 - 动态总结模糊请求固定 5 节，明确请求最多 4 节；证据最多 10 条/8000 字符，重复阈值
   `0.76`，结构紧凑重试 1 次。已通过十条真实模型矩阵，仍需用户判断课程表述质量；
 - 混合出题已实施；真实课程默认 20 题的延迟、语义忠实性与难度仍待用户验收及第五周量化。
+
+## 验收后功能增量：设置页 Token 累计统计（2026-08-10）
+
+### 增量目标与范围
+
+第四周完成并提交后，用户新增设置页用量可观测需求：按模型展示累计输入和输出 Token，其中输入
+继续拆分为缓存命中与缓存未命中，并在面板下方提供 Reset。该增量不属于第五周评测集建设，未将
+第五周状态提前改为“进行中”。本次明确不实施费用估算、调用明细列表、按课程筛选、历史调用推算
+和审计预算账本联动。
+
+### 实际完成内容
+
+1. 新增 `token_usage_events` 持久化事件表。每个取得 usage 的上游响应独立写入，按响应真实模型名
+   聚合，避免并发读改写丢失累计，也能覆盖总结规划、出题审查和局部修复等一次业务请求内的多次
+   模型调用。
+2. OpenAI-compatible 生成网关开始解析 `prompt_cache_hit_tokens` 和
+   `prompt_cache_miss_tokens`。上游没有缓存明细时，将全部输入计为未命中，不伪造命中数量。
+3. Anthropic-compatible 外部搜索网关将 `cache_read_input_tokens` 计为命中，将普通输入和
+   `cache_creation_input_tokens` 计为未命中；搜索工具返回错误但响应已经报告 usage 时仍会计入。
+4. 新增 `GET /api/llm/token-usage` 和 `DELETE /api/llm/token-usage`。读取接口同时返回配置模型、
+   历史响应模型和全部模型合计；清零接口只删除统计事件。
+5. 设置页新增分模型面板，展示输入合计、缓存命中、缓存未命中、输出和总计，并标识当前选择模型。
+   Reset 位于面板下方，必须二次确认；取消不会发出删除请求。
+6. 新迁移已应用到当前本地开发数据库，版本为 `20260810_04 (head)`。旧版本没有保存完整缓存
+   明细，因此上线前历史调用不做不准确的回填，累计从该功能启用后开始。
+
+### 关键设计决策
+
+- 统计放在最底层真实模型网关，不从最终回答消息反推。后者会漏掉内部规划、审查、修复和外部
+  搜索，也无法正确区分一次请求中的不同响应模型。
+- 用追加事件而非单行“读取后加总”计数器，换取并发安全和清晰口径；当前个人本地应用的事件量
+  可控，后续如规模扩大可在不改变 API 的前提下做定期汇总。
+- 每条有 usage 的响应独立提交，因为后续内容校验失败并不代表上游 Token 没有被消耗。统计写入
+  异常只记录日志并回滚统计事务，不让可用的模型回答因可观测性故障而失败。
+- Reset 与 `output/week-04/day-05/token-ledger.json` 完全隔离，避免用户清空展示数据时意外绕过
+  真实审计预算上限；课程、资料、向量和会话数据也不在删除范围内。
+
+### 主要改动文件
+
+| 文件 | 作用 |
+|---|---|
+| `backend/app/models/token_usage.py` | 单次上游 usage 事件模型 |
+| `backend/app/token_usage/service.py` | 写入、分模型聚合、零模型补齐和清零服务 |
+| `backend/app/generation/client.py` | 普通生成缓存 usage 解析与底层记录 |
+| `backend/app/external_search/client.py` | 外部搜索缓存 usage 解析与底层记录 |
+| `backend/app/api/routes/token_usage.py` | 设置页读取/清零 API |
+| `backend/migrations/versions/20260810_04_add_token_usage_events.py` | 持久化事件表迁移 |
+| `frontend/src/views/SettingsView.vue` | 分模型统计面板及确认式 Reset |
+| `backend/tests/test_token_usage.py` | 服务累计、API 恒等式和清零回归 |
+| `docs/deliverables/model-token-usage-settings.md` | 功能边界和用户验收步骤 |
+
+### 自动验证与实际接口检查
+
+- 后端全量 Pytest `217 passed`；
+- Ruff 全量通过；Mypy strict 检查 93 个 `app/scripts` 源文件通过；
+- 前端 10 项 Vitest、Oxlint/ESLint、Vue/TypeScript 类型检查和生产构建通过；
+- Alembic 从 base 升级到 head、模型一致性检查、降级回 base 均通过；
+- 在临时 `127.0.0.1:8011` 服务上读取真实本地 API，两个已配置模型均返回完整字段和正确的零值
+  恒等式；临时服务随检查结束关闭；
+- `git diff --check` 通过，没有调用 DeepSeek，也没有新增真实模型 Token 消耗。
+
+### 问题与处理
+
+首次临时 HTTP 探测在启动 3 秒时被拒绝。结合测试进程导入本地检索依赖的耗时，确认是服务尚未
+监听而不是接口失败；改为最多 20 秒的就绪轮询并检查子进程是否提前退出后，约 11 秒取得正常
+响应。该过程没有改动正式前后端监听配置，也没有遗留后台进程。
+
+### 用户验收与 Git
+
+- 用户于 2026-08-10 完成功能验收，并明确授权补写工程日志和创建本地 Git 提交；
+- 验收重点包括分模型展示、输入缓存拆分、输出/合计恒等式和 Reset 数据隔离；
+- 提交基线：`436128a feat: complete week four integration audit`；
+- 本增量提交信息：`feat: add per-model token usage tracking`；
+- 不自动推送远端。

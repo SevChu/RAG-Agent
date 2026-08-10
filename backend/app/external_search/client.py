@@ -19,6 +19,7 @@ from app.external_search.models import (
     ExternalSearchTokenUsage,
     ExternalSourceQuality,
 )
+from app.token_usage import TokenUsageRecorder, TokenUsageService, get_token_usage_service
 
 _TRACKING_QUERY_PREFIXES = ("utm_",)
 _TRACKING_QUERY_NAMES = {"fbclid", "gclid", "mc_cid", "mc_eid"}
@@ -83,9 +84,11 @@ class DeepSeekWebSearchAdapter:
         settings: Settings,
         *,
         transport: httpx.AsyncBaseTransport | None = None,
+        usage_recorder: TokenUsageRecorder | None = None,
     ) -> None:
         self.settings = settings
         self.transport = transport
+        self.usage_recorder = usage_recorder
 
     async def search(self, *, query: str, model: str) -> ExternalSearchResult:
         normalized_query = " ".join(query.split())
@@ -174,6 +177,16 @@ class DeepSeekWebSearchAdapter:
                 reason="外部检索服务返回了无法解析的响应。",
             )
 
+        response_model = str(body.get("model") or model) if isinstance(body, Mapping) else model
+        usage = _parse_usage(body.get("usage")) if isinstance(body, Mapping) else None
+        if usage is not None and self.usage_recorder is not None:
+            await self.usage_recorder.record(
+                model=response_model,
+                input_cache_hit_tokens=usage.input_cache_hit_tokens,
+                input_cache_miss_tokens=usage.input_cache_miss_tokens,
+                output_tokens=usage.output_tokens,
+            )
+
         raw_results, tool_error = _raw_search_results(body)
         if tool_error is not None:
             return self._failed(
@@ -250,10 +263,10 @@ class DeepSeekWebSearchAdapter:
             results=results,
             raw_result_count=len(raw_results),
             provider=self.settings.llm_provider,
-            model=str(body.get("model") or model),
+            model=response_model,
             elapsed_ms=round((perf_counter() - started_at) * 1000, 2),
             failure_reason=failure_reason,
-            usage=_parse_usage(body.get("usage")),
+            usage=usage,
         )
 
     def _failed(
@@ -296,15 +309,42 @@ def _parse_usage(value: object) -> ExternalSearchTokenUsage | None:
     if not isinstance(value, Mapping):
         return None
     try:
-        input_tokens = int(value["input_tokens"])
+        uncached_input_tokens = int(value["input_tokens"])
         output_tokens = int(value["output_tokens"])
     except (KeyError, TypeError, ValueError):
         return None
+    cache_hit_tokens = _optional_usage_int(
+        value,
+        "cache_read_input_tokens",
+        "prompt_cache_hit_tokens",
+    )
+    cache_creation_tokens = _optional_usage_int(value, "cache_creation_input_tokens")
+    explicit_cache_miss_tokens = _optional_usage_int(value, "prompt_cache_miss_tokens")
+    cache_miss_tokens = (
+        explicit_cache_miss_tokens
+        if explicit_cache_miss_tokens is not None
+        else uncached_input_tokens + (cache_creation_tokens or 0)
+    )
+    cache_hit_tokens = cache_hit_tokens or 0
+    input_tokens = cache_hit_tokens + cache_miss_tokens
     return ExternalSearchTokenUsage(
         input_tokens=input_tokens,
         output_tokens=output_tokens,
         total_tokens=input_tokens + output_tokens,
+        input_cache_hit_tokens=cache_hit_tokens,
+        input_cache_miss_tokens=cache_miss_tokens,
     )
+
+
+def _optional_usage_int(value: Mapping[object, object], *names: str) -> int | None:
+    for name in names:
+        item = value.get(name)
+        if item is not None:
+            try:
+                return max(int(str(item)), 0)
+            except (TypeError, ValueError):
+                return None
+    return None
 
 
 def _raw_search_results(body: object) -> tuple[list[dict[str, Any]], str | None]:
@@ -424,5 +464,6 @@ def _publisher_from_host(host: str) -> str:
 
 def get_external_search_gateway(
     settings: Annotated[Settings, Depends(get_settings)],
+    usage_service: Annotated[TokenUsageService, Depends(get_token_usage_service)],
 ) -> ExternalSearchGateway:
-    return DeepSeekWebSearchAdapter(settings)
+    return DeepSeekWebSearchAdapter(settings, usage_recorder=usage_service)

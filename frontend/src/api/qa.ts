@@ -7,11 +7,22 @@ import type {
   CourseAnswer,
   CourseAnswerPayload,
   LLMConfiguration,
+  TokenUsageSummary,
 } from '@/types/api'
 import type { StreamHandlers } from './stream'
 
 export async function fetchLLMConfiguration(): Promise<LLMConfiguration> {
   const response = await http.get<ApiResponse<LLMConfiguration>>('/llm/config')
+  return unwrapResponse(response.data)
+}
+
+export async function fetchTokenUsage(): Promise<TokenUsageSummary> {
+  const response = await http.get<ApiResponse<TokenUsageSummary>>('/llm/token-usage')
+  return unwrapResponse(response.data)
+}
+
+export async function resetTokenUsage(): Promise<TokenUsageSummary> {
+  const response = await http.delete<ApiResponse<TokenUsageSummary>>('/llm/token-usage')
   return unwrapResponse(response.data)
 }
 

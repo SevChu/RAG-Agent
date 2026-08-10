@@ -1,7 +1,7 @@
 # 基于 RAG 的计算机专业学习 Agent
 
 > 项目状态：第 1 周和第 2 周均已完成并通过验收；第 3 周计划日 1～5 均已完成并通过验收。
-> 第 4 周计划日 1～4 均已完成并通过验收。问答默认采用
+> 第 4 周计划日 1～5 均已完成并通过验收。问答默认采用
 > “课程资料 + 外部补充”，并保留“仅课程资料”模式。
 
 ## 1. 项目简介
@@ -526,6 +526,11 @@ RERANKER_MAX_LENGTH=512
 Gateway：前端只能选择后端返回的可用模型，后端再次执行白名单校验，并在回答和会话消息中
 记录上游实际使用的模型。模型选择只影响当前浏览器会话中的后续请求，刷新后恢复
 `LLM_MODEL` 默认值。API Key 始终只保存在后端环境变量中。
+
+设置页同时按实际响应模型持久化展示累计 Token 用量，输入拆分为缓存命中与缓存未命中，并单列
+输出和合计。统计覆盖普通生成、内部修复及外部搜索调用；Reset 只清零 Token 统计，不影响课程、
+资料、对话和独立审计预算账本。详见
+[设置页模型 Token 累计统计验收说明](docs/deliverables/model-token-usage-settings.md)。
 
 课程助手只读取当前课程会话最近 6 条、最多 6000 字符的已完成消息；快速对话使用独立的
 最近 10 条、最多 8000 字符窗口。两类窗口互不读取，新会话不继承旧会话内容。
@@ -1101,4 +1106,5 @@ uv run python -m app.ingestion.inspect `
 - [第 4 周计划日 4 动态总结真实模型测试矩阵](docs/deliverables/week-04-day-04-real-summary-matrix.md)
 - [第 4 周计划日 4-B 混合组卷验收说明](docs/deliverables/week-04-day-04-b.md)
 - [第 4 周计划日 5 集成回归验收说明](docs/deliverables/week-04-day-05.md)
+- [设置页模型 Token 累计统计验收说明](docs/deliverables/model-token-usage-settings.md)
 - [混合组卷与来源配额设计决策](docs/design-decisions/mixed-exam-generation.md)

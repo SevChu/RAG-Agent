@@ -265,6 +265,20 @@ export interface LLMConfiguration {
   external_search_enabled: boolean
 }
 
+export interface ModelTokenUsage {
+  model: string
+  input_cache_hit_tokens: number
+  input_cache_miss_tokens: number
+  input_tokens: number
+  output_tokens: number
+  total_tokens: number
+}
+
+export interface TokenUsageSummary {
+  models: ModelTokenUsage[]
+  total: ModelTokenUsage
+}
+
 export type ConversationMessageRole = 'user' | 'assistant'
 export type ConversationMessageStatus = 'completed' | 'pending' | 'failed' | 'interrupted'
 
