@@ -589,7 +589,8 @@ async function deleteConversation(courseId: string, conversationId: string): Pro
   display: grid;
   flex: 0 0 auto;
   gap: 4px;
-  margin-top: 10px;
+  margin-top: auto;
+  padding-top: 10px;
 }
 
 .settings-link {
