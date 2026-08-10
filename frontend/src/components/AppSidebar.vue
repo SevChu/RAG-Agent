@@ -153,7 +153,7 @@ async function deleteConversation(courseId: string, conversationId: string): Pro
       </RouterLink>
     </nav>
 
-    <template v-if="!collapsed">
+    <div v-show="!collapsed || mobileOpen" class="sidebar-history-scroll">
       <section class="history-section" aria-labelledby="quick-history-heading">
         <button
           type="button"
@@ -237,29 +237,29 @@ async function deleteConversation(courseId: string, conversationId: string): Pro
           </div>
         </div>
       </section>
-    </template>
+    </div>
 
-    <div class="sidebar-spacer" />
+    <div class="sidebar-footer">
+      <button
+        v-if="collapsed"
+        type="button"
+        class="sidebar-link sidebar-collapse-link"
+        aria-label="展开侧边栏"
+        @click="emit('update:collapsed', false)"
+      >
+        <span class="nav-icon" aria-hidden="true">›</span>
+      </button>
 
-    <button
-      v-if="collapsed"
-      type="button"
-      class="sidebar-link sidebar-collapse-link"
-      aria-label="展开侧边栏"
-      @click="emit('update:collapsed', false)"
-    >
-      <span class="nav-icon" aria-hidden="true">›</span>
-    </button>
-
-    <RouterLink
-      to="/settings"
-      class="sidebar-link settings-link"
-      :class="{ active: isSettings }"
-      @click="closeMobile"
-    >
-      <span class="nav-icon" aria-hidden="true">⚙</span>
-      <span v-show="!collapsed">设置</span>
-    </RouterLink>
+      <RouterLink
+        to="/settings"
+        class="sidebar-link settings-link"
+        :class="{ active: isSettings }"
+        @click="closeMobile"
+      >
+        <span class="nav-icon" aria-hidden="true">⚙</span>
+        <span v-show="!collapsed">设置</span>
+      </RouterLink>
+    </div>
   </aside>
 </template>
 
@@ -465,6 +465,36 @@ async function deleteConversation(courseId: string, conversationId: string): Pro
   margin-top: 15px;
 }
 
+.sidebar-history-scroll {
+  min-height: 0;
+  padding-right: 4px;
+  margin-right: -4px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  overscroll-behavior: contain;
+  scrollbar-color: rgb(142 167 199 / 62%) transparent;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.sidebar-history-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar-history-scroll::-webkit-scrollbar-thumb {
+  background: rgb(142 167 199 / 48%);
+  border-radius: 999px;
+}
+
+.sidebar-history-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgb(104 139 181 / 68%);
+}
+
+.sidebar-history-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 .history-heading {
   display: flex;
   width: 100%;
@@ -555,17 +585,19 @@ async function deleteConversation(courseId: string, conversationId: string): Pro
   color: var(--danger);
 }
 
-.sidebar-spacer {
-  flex: 1;
-  min-height: 18px;
+.sidebar-footer {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 4px;
+  margin-top: 10px;
 }
 
 .settings-link {
-  margin-top: 8px;
+  margin-top: 0;
 }
 
 .sidebar-collapse-link {
-  margin-top: 8px;
+  margin-top: 0;
   color: var(--ink-muted);
   cursor: pointer;
   background: transparent;
@@ -613,7 +645,7 @@ async function deleteConversation(courseId: string, conversationId: string): Pro
   }
 
   .app-sidebar.mobile-open .brand-copy,
-  .app-sidebar.mobile-open .history-section,
+  .app-sidebar.mobile-open .sidebar-history-scroll,
   .app-sidebar.mobile-open .sidebar-link span:last-child {
     display: block !important;
   }
