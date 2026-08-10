@@ -54,7 +54,7 @@ export async function streamCourseQuestion(
 
 export async function streamQuickChat(
   conversationId: string,
-  payload: { message: string; model?: string },
+  payload: { message: string; model?: string; web_search?: boolean },
   signal: AbortSignal,
   handlers: StreamHandlers<import('@/types/api').QuickChatComplete>,
 ): Promise<void> {

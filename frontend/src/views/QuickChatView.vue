@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import DOMPurify from 'dompurify'
-import { ElOption, ElSelect } from 'element-plus'
+import { ElOption, ElSelect, ElSwitch } from 'element-plus'
 import MarkdownIt from 'markdown-it'
 import { storeToRefs } from 'pinia'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
@@ -25,6 +25,7 @@ const streamingAnswer = ref('')
 const streamState = ref<'idle' | 'streaming' | 'interrupted' | 'error'>('idle')
 const errorMessage = ref('')
 const loading = ref(false)
+const webSearchEnabled = ref(true)
 let abortController: AbortController | null = null
 
 const activeConversation = computed(() =>
@@ -102,7 +103,11 @@ async function submitMessage(): Promise<void> {
     }
     await streamQuickChat(
       conversationId,
-      { message: submitted, model: selectedModel.value },
+      {
+        message: submitted,
+        model: selectedModel.value,
+        web_search: webSearchEnabled.value,
+      },
       abortController.signal,
       {
         onDelta: (delta) => {
@@ -147,6 +152,18 @@ function render(content: string): string {
   return DOMPurify.sanitize(markdown.render(content))
 }
 
+function quickSearchStatus(item: CourseConversationMessage): string {
+  const search = item.retrieval?.external_search
+  if (!search || item.retrieval?.retrieval_mode !== 'external_web') return ''
+  if (search.status === 'succeeded') {
+    return `已联网检索 ${search.result_count} 个合格来源`
+  }
+  if (search.fallback_applied) {
+    return `联网未取得可用来源，已降级回答：${search.failure_reason ?? '未找到合格结果'}`
+  }
+  return search.decision_reason ?? '本轮未联网'
+}
+
 function submitWithKeyboard(event: KeyboardEvent): void {
   if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
     event.preventDefault()
@@ -161,7 +178,7 @@ function submitWithKeyboard(event: KeyboardEvent): void {
       <div>
         <div class="eyebrow"><span /> QUICK CHAT</div>
         <h1>快速对话</h1>
-        <p>适合临时问题；保留当前会话的有限上下文，但不检索课程资料，也不写入课程对话。</p>
+        <p>适合临时问题；保留当前会话的有限上下文，默认自动联网，但不检索课程资料。</p>
       </div>
       <span class="context-pill temporary-pill">独立有限上下文</span>
     </header>
@@ -172,16 +189,26 @@ function submitWithKeyboard(event: KeyboardEvent): void {
       <div class="chat-toolbar">
         <div>
           <strong>{{ activeConversation?.title ?? '新快速对话' }}</strong>
-          <small>不使用课程知识库 · 不调用外部搜索</small>
+          <small>不使用课程知识库 · 信息型问题自动联网</small>
         </div>
-        <el-select v-model="selectedModel" aria-label="快速对话模型" class="model-select">
-          <el-option
-            v-for="model in configuration?.available_models ?? []"
-            :key="model"
-            :label="model"
-            :value="model"
-          />
-        </el-select>
+        <div class="toolbar-actions">
+          <label class="search-toggle">
+            <span>自动联网</span>
+            <el-switch
+              v-model="webSearchEnabled"
+              aria-label="自动联网搜索"
+              :disabled="!configuration?.external_search_enabled"
+            />
+          </label>
+          <el-select v-model="selectedModel" aria-label="快速对话模型" class="model-select">
+            <el-option
+              v-for="model in configuration?.available_models ?? []"
+              :key="model"
+              :label="model"
+              :value="model"
+            />
+          </el-select>
+        </div>
       </div>
 
       <div class="chat-thread" aria-live="polite">
@@ -189,7 +216,7 @@ function submitWithKeyboard(event: KeyboardEvent): void {
           <span class="conversation-symbol" aria-hidden="true">⌁</span>
           <span class="soft-label">LIGHTWEIGHT CONVERSATION</span>
           <h2>有什么临时问题？</h2>
-          <p>回答来自模型的一般能力，不会伪装成课程资料结论。</p>
+          <p>新信息会自动检索并标注外部来源；普通寒暄和纯创作会直接回答。</p>
         </div>
 
         <template v-for="item in messages" :key="item.id">
@@ -198,6 +225,21 @@ function submitWithKeyboard(event: KeyboardEvent): void {
           </div>
           <article v-else class="quick-message assistant-message">
             <div v-html="render(item.content)" />
+            <p v-if="quickSearchStatus(item)" class="web-status">
+              {{ quickSearchStatus(item) }}
+            </p>
+            <div v-if="item.citations.length" class="web-sources">
+              <a
+                v-for="citation in item.citations"
+                :key="`${item.id}-${citation.source_id}`"
+                :href="citation.url ?? undefined"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <strong>[外{{ citation.source_id }}] {{ citation.title ?? '外部来源' }}</strong>
+                <small>{{ citation.publisher ?? citation.url }}</small>
+              </a>
+            </div>
             <footer>{{ item.model }} · {{ item.elapsed_ms ? `${(item.elapsed_ms / 1000).toFixed(2)} s` : '' }}</footer>
           </article>
         </template>
@@ -206,7 +248,9 @@ function submitWithKeyboard(event: KeyboardEvent): void {
           <div class="quick-message user-message">{{ streamingQuestion }}</div>
           <article class="quick-message assistant-message live-message">
             <div v-if="streamingAnswer" v-html="render(streamingAnswer)" />
-            <p v-else>正在连接模型并读取有限会话上下文…</p>
+            <p v-else>
+              {{ webSearchEnabled ? '正在判断并检索联网信息…' : '正在连接模型并读取有限会话上下文…' }}
+            </p>
             <footer>
               {{
                 streamState === 'streaming'
@@ -241,6 +285,8 @@ function submitWithKeyboard(event: KeyboardEvent): void {
 .conversation-stage { display: flex; min-height: 620px; padding: 24px; flex-direction: column; background: rgb(255 255 255 / 72%); border: 1px solid var(--line); border-radius: 26px; box-shadow: var(--shadow-card); }
 .chat-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding-bottom: 18px; border-bottom: 1px solid var(--line-soft); }
 .chat-toolbar div { display: grid; gap: 4px; }
+.chat-toolbar .toolbar-actions { display: flex; align-items: center; gap: 14px; }
+.search-toggle { display: flex; padding: 7px 10px; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-muted); background: var(--surface-soft); border-radius: 12px; }
 .chat-toolbar strong { color: var(--ink-strong); }
 .chat-toolbar small, .availability-note { font-size: 11px; color: var(--ink-faint); }
 .model-select { width: 220px; }
@@ -255,6 +301,12 @@ function submitWithKeyboard(event: KeyboardEvent): void {
 .assistant-message :deep(p:first-child) { margin-top: 0; }
 .assistant-message :deep(p:last-child) { margin-bottom: 0; }
 .assistant-message footer { margin-top: 10px; font-size: 10px; color: var(--ink-faint); }
+.web-status { padding: 8px 10px; margin: 12px 0 0; font-size: 11px; color: #366a56; background: #edf9f3; border-radius: 10px; }
+.web-sources { display: grid; margin-top: 10px; gap: 7px; }
+.web-sources a { display: grid; padding: 9px 10px; gap: 2px; color: var(--ink); text-decoration: none; background: var(--surface-soft); border: 1px solid var(--line-soft); border-radius: 10px; }
+.web-sources a:hover { border-color: rgb(62 155 255 / 40%); }
+.web-sources strong { font-size: 11px; }
+.web-sources small { overflow: hidden; font-size: 10px; color: var(--ink-faint); text-overflow: ellipsis; white-space: nowrap; }
 .live-message { border-color: rgb(62 155 255 / 32%); }
 .composer-shell { display: flex; padding: 10px; align-items: flex-end; gap: 10px; background: #fff; border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 16px 38px rgb(71 113 168 / 10%); }
 .composer-shell textarea { min-height: 58px; padding: 10px; flex: 1; resize: vertical; color: var(--ink); background: transparent; border: 0; outline: none; }
@@ -264,5 +316,5 @@ function submitWithKeyboard(event: KeyboardEvent): void {
 .availability-note { margin: 10px 4px 0; text-align: right; }
 .temporary-pill { color: #6a58c9; background: var(--violet-soft); }
 .quick-error { padding: 12px 15px; margin-bottom: 18px; color: #a52f4c; background: #fff0f4; border-radius: 13px; }
-@media (max-width: 650px) { .chat-toolbar { align-items: stretch; flex-direction: column; } .model-select { width: 100%; } .conversation-stage { padding: 16px; } .quick-message { max-width: 94%; } }
+@media (max-width: 650px) { .chat-toolbar { align-items: stretch; flex-direction: column; } .chat-toolbar .toolbar-actions { align-items: stretch; flex-direction: column; } .search-toggle { justify-content: space-between; } .model-select { width: 100%; } .conversation-stage { padding: 16px; } .quick-message { max-width: 94%; } }
 </style>

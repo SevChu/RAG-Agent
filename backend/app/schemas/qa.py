@@ -155,6 +155,7 @@ class LLMConfigurationRead(BaseModel):
 class QuickChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
     model: str | None = Field(default=None, min_length=1, max_length=120)
+    web_search: bool = True
 
     @field_validator("message")
     @classmethod

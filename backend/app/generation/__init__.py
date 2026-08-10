@@ -3,7 +3,13 @@ from app.generation.client import (
     OpenAICompatibleChatClient,
     get_chat_completion_gateway,
 )
-from app.generation.context import QueryRewriter, bounded_history, quick_chat_prompt
+from app.generation.context import (
+    QueryRewriter,
+    bounded_history,
+    quick_chat_prompt,
+    quick_chat_search_query,
+    quick_chat_web_search_decision,
+)
 from app.generation.exam import (
     ExamDifficulty,
     ExamGenerationResult,
@@ -71,4 +77,6 @@ __all__ = [
     "render_exam",
     "get_chat_completion_gateway",
     "quick_chat_prompt",
+    "quick_chat_search_query",
+    "quick_chat_web_search_decision",
 ]

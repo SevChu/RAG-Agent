@@ -108,7 +108,11 @@ export interface ExternalSearchInfo {
 }
 
 export interface AnswerRetrieval {
-  retrieval_mode: 'dense_rerank' | 'summary_dense_rerank' | 'exam_dense_rerank'
+  retrieval_mode:
+    | 'dense_rerank'
+    | 'summary_dense_rerank'
+    | 'exam_dense_rerank'
+    | 'external_web'
   requested_top_k: number
   candidate_top_k: number
   candidate_count: number
@@ -333,6 +337,7 @@ export interface StreamStart {
   conversation_id: string
   model: string
   context_max_messages: number
+  web_search_enabled?: boolean
 }
 
 export interface QuickChatComplete {
@@ -343,4 +348,6 @@ export interface QuickChatComplete {
   usage: AnswerTokenUsage | null
   elapsed_ms: number
   context_message_count: number
+  citations: AnswerCitation[]
+  external_search: ExternalSearchInfo
 }

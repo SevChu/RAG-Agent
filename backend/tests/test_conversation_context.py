@@ -3,7 +3,15 @@ from __future__ import annotations
 import json
 from uuid import uuid4
 
-from app.generation import ChatCompletion, QueryRewriter, bounded_history, quick_chat_prompt
+from app.generation import (
+    ChatCompletion,
+    QueryRewriter,
+    bounded_history,
+    quick_chat_prompt,
+    quick_chat_search_query,
+    quick_chat_web_search_decision,
+)
+from app.generation.context import HistoryMessage
 from app.models import Message, MessageRole, MessageStatus
 
 
@@ -90,3 +98,19 @@ def test_quick_chat_prompt_marks_history_as_context_only() -> None:
     assert "<conversation_history>" in prompt
     assert "当前用户消息：继续" in prompt
     assert "快速对话的连贯性" in prompt
+
+
+def test_quick_chat_web_search_defaults_to_information_questions() -> None:
+    assert quick_chat_web_search_decision("Python 最近有什么变化？", enabled=True)[0]
+    assert not quick_chat_web_search_decision("你好", enabled=True)[0]
+    assert not quick_chat_web_search_decision("请不要联网，只按常识回答", enabled=True)[0]
+
+
+def test_quick_chat_search_query_adds_nearest_user_context_for_follow_up() -> None:
+    history = (
+        HistoryMessage(1, MessageRole.USER, "介绍 Python 3.14"),
+        HistoryMessage(2, MessageRole.ASSISTANT, "它是 Python 的新版本。"),
+    )
+    assert quick_chat_search_query("那它现在稳定了吗？", history) == (
+        "对话背景：介绍 Python 3.14\n当前问题：那它现在稳定了吗？"
+    )

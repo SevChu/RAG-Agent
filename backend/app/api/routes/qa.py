@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, replace
 from time import perf_counter
@@ -50,6 +51,8 @@ from app.generation import (
     build_exam_plan,
     get_chat_completion_gateway,
     quick_chat_prompt,
+    quick_chat_search_query,
+    quick_chat_web_search_decision,
     render_exam,
 )
 from app.indexing import DocumentIndexingManager, get_indexing_manager
@@ -81,6 +84,7 @@ from app.services import ConversationService, CourseService, DocumentService
 router = APIRouter(tags=["question-answering"])
 _SSE_DELTA_INTERVAL_SECONDS = 0.015
 _EXAM_ARTIFACT_KEY = "_exam_artifact"
+_QUICK_EXTERNAL_CITATION = re.compile(r"\[外(\d+)]")
 
 SessionDependency = Annotated[AsyncSession, Depends(get_session)]
 SettingsDependency = Annotated[Settings, Depends(get_settings)]
@@ -242,6 +246,7 @@ async def stream_quick_chat_message(
     session: SessionDependency,
     settings: SettingsDependency,
     llm: LLMDependency,
+    external_search: ExternalSearchDependency,
 ) -> StreamingResponse:
     selected_model = _selected_model(payload.model, settings)
     service = ConversationService(session)
@@ -254,6 +259,8 @@ async def stream_quick_chat_message(
                 "conversation_id": str(conversation.id),
                 "model": selected_model,
                 "context_max_messages": settings.quick_chat_context_max_messages,
+                "web_search_enabled": payload.web_search
+                and settings.external_search_enabled,
             },
         )
         try:
@@ -267,15 +274,74 @@ async def stream_quick_chat_message(
                 max_messages=settings.quick_chat_context_max_messages,
                 max_chars=settings.quick_chat_context_max_chars,
             )
+            if not payload.web_search:
+                should_search = False
+                decision_reason = "本轮已关闭联网搜索。"
+            elif not settings.external_search_enabled:
+                should_search = False
+                decision_reason = "外部检索已由服务端配置关闭。"
+            else:
+                should_search, decision_reason = quick_chat_web_search_decision(
+                    payload.message,
+                    enabled=True,
+                )
+            search_query = (
+                quick_chat_search_query(payload.message, history)
+                if should_search
+                else None
+            )
+            search_result = (
+                await external_search.search(query=search_query, model=selected_model)
+                if search_query is not None
+                else None
+            )
+            external_evidence = (
+                search_result.results
+                if search_result is not None
+                and search_result.status is ExternalSearchStatus.SUCCEEDED
+                else ()
+            )
+            search_failure_reason = (
+                search_result.failure_reason
+                if search_result is not None and not external_evidence
+                else None
+            )
+            external_search_read = ExternalSearchRead(
+                triggered=should_search,
+                status=(
+                    search_result.status
+                    if search_result is not None
+                    else ExternalSearchStatus.NOT_REQUESTED
+                ),
+                query=search_query,
+                result_count=len(external_evidence),
+                used_result_count=len(external_evidence),
+                failure_reason=search_failure_reason,
+                decision_reason=decision_reason,
+                fallback_applied=should_search and not external_evidence,
+            )
             completion = await llm.complete_text(
                 system_prompt=(
-                    "你是通用快速对话助手。当前功能不检索课程资料，也不使用 Web Search。"
-                    "不要声称回答来自课程知识库；如信息不确定，应明确说明。"
+                    "你是通用快速对话助手。当前功能不检索课程资料，但可能提供经过筛选的"
+                    "Web Search 证据。不要声称回答来自课程知识库，也不要声称访问了未在"
+                    "证据中出现的网页；如信息不确定，应明确说明。"
                 ),
-                user_prompt=quick_chat_prompt(payload.message, history),
+                user_prompt=quick_chat_prompt(
+                    payload.message,
+                    history,
+                    external_evidence=external_evidence,
+                    search_failure_reason=search_failure_reason,
+                ),
                 model=selected_model,
             )
-            for delta in _text_chunks(completion.content):
+            answer_content, used_external_ids = _sanitize_quick_external_citations(
+                completion.content,
+                available_count=len(external_evidence),
+            )
+            external_search_read = external_search_read.model_copy(
+                update={"used_result_count": len(used_external_ids)}
+            )
+            for delta in _text_chunks(answer_content):
                 if await request.is_disconnected():
                     return
                 yield _sse("delta", {"text": delta})
@@ -292,15 +358,43 @@ async def stream_quick_chat_message(
                 else None
             )
             elapsed_ms = round((perf_counter() - started_at) * 1000, 2)
+            citations = [
+                _external_citation_read(source_id=index, evidence=evidence)
+                for index, evidence in enumerate(external_evidence, start=1)
+            ]
+            retrieval = AnswerRetrievalRead(
+                retrieval_mode="external_web",
+                requested_top_k=settings.external_search_max_results,
+                candidate_top_k=settings.external_search_max_results,
+                candidate_count=(search_result.raw_result_count if search_result else 0),
+                returned_count=len(external_evidence),
+                eligible_evidence_count=len(external_evidence),
+                rejected_evidence_count=max(
+                    (search_result.raw_result_count if search_result else 0)
+                    - len(external_evidence),
+                    0,
+                ),
+                scope_document_count=0,
+                embedding_device=None,
+                reranker_device=None,
+                fallback_reason=search_failure_reason,
+                original_question=payload.message,
+                rewritten_query=search_query or payload.message,
+                context_message_count=len(history),
+                rewrite_applied=bool(search_query and search_query != payload.message),
+                answer_scope=AnswerScope.COURSE_AND_EXTERNAL,
+                external_search=external_search_read,
+                router_reason=decision_reason,
+            )
             user_message, assistant_message = await service.record_exchange(
                 conversation=conversation,
                 question=payload.message,
-                answer=completion.content,
+                answer=answer_content,
                 answer_status=None,
                 answer_style=None,
                 model=completion.model,
-                citations=[],
-                retrieval=None,
+                citations=[item.model_dump(mode="json") for item in citations],
+                retrieval=retrieval.model_dump(mode="json"),
                 usage=usage,
                 elapsed_ms=elapsed_ms,
             )
@@ -314,6 +408,8 @@ async def stream_quick_chat_message(
                     "usage": usage,
                     "elapsed_ms": elapsed_ms,
                     "context_message_count": len(history),
+                    "citations": [item.model_dump(mode="json") for item in citations],
+                    "external_search": external_search_read.model_dump(mode="json"),
                 },
             )
         except DomainError as error:
@@ -1157,6 +1253,25 @@ def _error_event(error: DomainError) -> str:
 
 def _text_chunks(text: str, size: int = 24) -> list[str]:
     return [text[index : index + size] for index in range(0, len(text), size)]
+
+
+def _sanitize_quick_external_citations(
+    content: str,
+    *,
+    available_count: int,
+) -> tuple[str, tuple[int, ...]]:
+    """Remove hallucinated Web citation labels without blocking a quick-chat answer."""
+
+    used_ids: dict[int, None] = {}
+
+    def replace(match: re.Match[str]) -> str:
+        source_id = int(match.group(1))
+        if 1 <= source_id <= available_count:
+            used_ids.setdefault(source_id, None)
+            return match.group(0)
+        return ""
+
+    return _QUICK_EXTERNAL_CITATION.sub(replace, content).strip(), tuple(used_ids)
 
 
 def _retrieval_rank(
