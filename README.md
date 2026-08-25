@@ -1,20 +1,27 @@
-# 基于 RAG 的计算机专业学习 Agent
+# Agentic：基于 RAG 的通用智能体实验平台
 
-> 项目状态：第 1 周和第 2 周均已完成并通过验收；第 3 周计划日 1～5 均已完成并通过验收。
-> 第 4 周计划日 1～5 均已完成并通过验收。问答默认采用
-> “课程资料 + 外部补充”，并保留“仅课程资料”模式。
+> **GitHub 仓库**：[SevChu/RAG-Agent](https://github.com/SevChu/RAG-Agent)（公开可见、非开源）
+>
+> **About**：基于 FastAPI、Vue 3、LangGraph、BGE-M3、Qdrant 与多模型 OpenAI 兼容接口构建的本地优先 RAG Agent 实验平台；目标是通过可追溯知识检索、模型微调与评测/评分算法优化，打造较为通用且回答质量较高的 Agent。
+>
+> **许可**：Copyright © 2026 Severus Chu。All rights reserved. 查看源码不等于获得开源许可，详见 [LICENSE](LICENSE)。
+
+> 项目状态：第 1～4 周的资料入库、RAG 问答、联网补充、总结、内容生成和会话能力已经完成。
+> 第 5 周开始从课程学习产品迁移为“通用智能体 + 资料空间”，并以公开 Benchmark、经典评分
+> 算法基线和后续逐智能体微调为主要研究方向。
 
 ## 1. 项目简介
 
-本项目是一个面向计算机专业学生的课程学习 Agent。系统通过 RAG（Retrieval-Augmented Generation，检索增强生成）技术，将课程讲义、教材、课件和个人笔记构建为可检索知识库，并在此基础上提供：
+Agentic 是一个本地优先、资料可追溯、支持评测与后续微调的通用智能体实验平台。系统通过 RAG（Retrieval-Augmented Generation，检索增强生成）技术，将文档、报告、课件和个人笔记构建为相互隔离的可检索资料空间，并在此基础上提供：
 
-- 带资料引用的学科问答；
-- 按文档、章节或知识点生成学习总结；
-- 生成选择题、判断题、简答题和编程题；
-- 保存学习记录和生成结果；
-- 评测并优化 RAG 的检索与回答质量。
+- 带资料引用的通用问答；
+- 按文档、章节或主题生成资料总结；
+- 信息提取、资料比较和结构化内容生成；
+- 保存智能体对话和生成结果；
+- 使用公开 Benchmark 与自有金标数据评测并优化检索和评分算法；
+- 为每个智能体绑定独立配置、评测套件和后续微调 Adapter。
 
-第一版面向单个学生，支持多个相互隔离的课程空间，不实现账号、权限、资料共享和在线代码判题。
+第一版仍为本地单用户系统，支持多个相互隔离的资料空间；原有学习辅导和组卷能力作为可选能力模板保留，不实现账号、权限、资料共享和在线代码执行。
 
 ## 2. 项目目标
 
@@ -505,6 +512,17 @@ LLM_BASE_URL=https://api.deepseek.com
 LLM_API_KEY=
 LLM_MODEL=deepseek-v4-flash
 LLM_AVAILABLE_MODELS=deepseek-v4-flash,deepseek-v4-pro
+
+# 以下三组为预留接口；每组同时填写 API_KEY 和 MODELS 后自动启用
+QWEN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+QWEN_API_KEY=
+QWEN_MODELS=
+KIMI_BASE_URL=https://api.moonshot.cn/v1
+KIMI_API_KEY=
+KIMI_MODELS=
+GLM_BASE_URL=https://open.bigmodel.cn/api/paas/v4
+GLM_API_KEY=
+GLM_MODELS=
 LLM_REQUEST_TIMEOUT_SECONDS=90
 LLM_MAX_OUTPUT_TOKENS=1600
 LLM_TEMPERATURE=0.2
@@ -515,17 +533,30 @@ RAG_CONTEXT_MAX_MESSAGES=6
 RAG_CONTEXT_MAX_CHARS=6000
 QUICK_CHAT_CONTEXT_MAX_MESSAGES=10
 QUICK_CHAT_CONTEXT_MAX_CHARS=8000
+EXTERNAL_SEARCH_ENABLED=true
+# 可选：为 DeepSeek 服务端 Web Search 单独指定模型；留空时使用 DeepSeek 白名单第一项
+EXTERNAL_SEARCH_MODEL=
 RERANKER_MODEL_PATH=../data/models/reranker/bge-reranker-v2-m3
 RERANKER_DEVICE=auto
 RERANKER_BATCH_SIZE=4
 RERANKER_MAX_LENGTH=512
 ```
 
-`LLM_MODEL` 表示默认模型，`LLM_AVAILABLE_MODELS` 表示允许用户切换的模型白名单。模型名称
-只从配置读取，不写死在业务逻辑中。计划日 4 已贯通设置页、课程助手、问答请求和 LLM
-Gateway：前端只能选择后端返回的可用模型，后端再次执行白名单校验，并在回答和会话消息中
-记录上游实际使用的模型。模型选择只影响当前浏览器会话中的后续请求，刷新后恢复
-`LLM_MODEL` 默认值。API Key 始终只保存在后端环境变量中。
+`LLM_MODEL` 表示默认模型，`LLM_AVAILABLE_MODELS` 表示 DeepSeek 的模型白名单；Qwen、Kimi、
+GLM 分别使用各自的 `*_MODELS` 白名单。模型名称只从配置读取，不写死在业务逻辑中。设置页、
+智能体对话和快速对话会按供应商分组展示模型；只有同时填写该供应商的 API Key 和模型列表后，
+对应模型才可选择。后端根据模型白名单解析供应商，并使用该供应商自己的 Base URL 与 API Key，
+不会把密钥发送到前端。模型选择只影响当前浏览器会话中的后续请求，刷新后恢复 `LLM_MODEL`
+默认值；修改 `.env` 后需要重启后端。
+
+当前预留的三个地址均为官方 OpenAI-compatible Chat Completions 地址。Qwen Key 与 Base URL 具有
+地域对应关系，若 Key 创建在新加坡或专属 Workspace，应按阿里云文档替换 `QWEN_BASE_URL`。
+DeepSeek 服务端 Web Search 仍使用 DeepSeek 默认模型；切换 Qwen、Kimi 或 GLM 只改变最终生成
+模型，不会把其他供应商的模型名发送到 DeepSeek 搜索接口。
+
+官方接入文档：[Qwen Base URL](https://help.aliyun.com/en/model-studio/base-url)、
+[Kimi 快速开始](https://platform.kimi.com/docs/overview)、
+[GLM OpenAI API 兼容](https://docs.bigmodel.cn/cn/guide/develop/openai/introduction)。
 
 设置页同时按实际响应模型持久化展示累计 Token 用量，输入拆分为缓存命中与缓存未命中，并单列
 输出和合计。统计覆盖普通生成、内部修复及外部搜索调用；Reset 只清零 Token 统计，不影响课程、
@@ -691,11 +722,17 @@ Anthropic 兼容 Web Search 适配器，能够解析真实搜索结果、校验�
 混合来源回答的已确认选择、降级规则、数据契约和验收标准见
 [混合来源回答设计决策](docs/design-decisions/mixed-source-answering.md)。
 
-### 第 5 周：评测与调优
+### 第 5 周：通用智能体迁移与公开 Benchmark 基线
 
-- 完成不少于 50 条的测试集；
-- 运行基础与改进 RAG 对比实验；
-- 输出检索、忠实性、引用和拒答指标。
+- 完成 Agentic、资料空间、空间资料和智能体对话的第一阶段产品迁移；
+- 建立公开 Benchmark 注册表、审批状态和统一 Dataset Adapter；
+- 在获批数据上运行 BM25、Dense、融合检索和 Reranker 经典基线；
+- 运行 Exact Match、Token F1、ROUGE-L、BERTScore、RAGAS 和 RAG Triad 评分基线；
+- 使用公开标注评估评分器的准确性、相关性、校准、稳定性、延迟和成本；
+- 保留现有 100 条本地候选数据，最终仍建设自有人工金标测试集。
+
+详细安排见[第 5 周实施计划](docs/deliverables/week-05-plan.md)和
+[通用智能体平台迁移设计决策](docs/design-decisions/general-agent-platform.md)。
 
 ### 第 6 周：交付与答辩
 
@@ -1109,5 +1146,9 @@ uv run python -m app.ingestion.inspect `
 - [第 4 周计划日 4 动态总结真实模型测试矩阵](docs/deliverables/week-04-day-04-real-summary-matrix.md)
 - [第 4 周计划日 4-B 混合组卷验收说明](docs/deliverables/week-04-day-04-b.md)
 - [第 4 周计划日 5 集成回归验收说明](docs/deliverables/week-04-day-05.md)
+- [第 5 周工程日志：通用智能体迁移与公开 Benchmark 基线](docs/engineering-logs/week-05.md)
+- [第 5 周实施计划](docs/deliverables/week-05-plan.md)
+- [第 5 周计划日 1 验收说明](docs/deliverables/week-05-day-01.md)
 - [设置页模型 Token 累计统计验收说明](docs/deliverables/model-token-usage-settings.md)
 - [混合组卷与来源配额设计决策](docs/design-decisions/mixed-exam-generation.md)
+- [通用智能体平台迁移设计决策](docs/design-decisions/general-agent-platform.md)

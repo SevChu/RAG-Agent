@@ -1,6 +1,6 @@
 # 工程日志索引
 
-本目录记录“基于 RAG 的计算机专业学习 Agent”的实施过程。
+本目录记录 Agentic 从课程学习 Agent 演进为通用智能体实验平台的实施过程。
 
 日志按照项目计划周独立保存，计划日不等同于自然日。每个计划日同时记录实际完成日期，以便将计划进度、代码提交和真实时间对应起来。
 
@@ -12,7 +12,7 @@
 | 第 2 周 | 知识库入库 | 已完成 | 已完成计划日 1～5并通过周验收 | [week-02.md](week-02.md) |
 | 第 3 周 | RAG 问答 | 已完成 | 计划日 1～5 均已完成并通过验收 | [week-03.md](week-03.md) |
 | 第 4 周 | Agent、总结和出题 | 已完成 | 计划日 1～5、Token 统计及独立会话默认联网增量均已验收 | [week-04.md](week-04.md) |
-| 第 5 周 | 评测与调优 | 未开始 | — | 待创建 |
+| 第 5 周 | 通用智能体迁移与公开 Benchmark 基线 | 进行中 | 计划日 1 产品定位与界面语义迁移 | [week-05.md](week-05.md) |
 | 第 6 周 | 交付与答辩 | 未开始 | — | 待创建 |
 
 ## 跨周设计决策
@@ -22,6 +22,8 @@
 | 混合来源回答 | 计划日 1～2 均已实施并通过验收 | 第 4 周计划日 1～2 | [mixed-source-answering.md](../design-decisions/mixed-source-answering.md) |
 | 动态总结规划 | 已实施并通过用户验收 | 第 4 周计划日 4 | [dynamic-summary-planning.md](../design-decisions/dynamic-summary-planning.md) |
 | 混合组卷与来源配额 | 已实现并通过用户验收 | 第 4 周计划日 4-B | [mixed-exam-generation.md](../design-decisions/mixed-exam-generation.md) |
+| 通用智能体平台迁移 | 第一阶段实施中 | 第 5 周计划日 1 | [general-agent-platform.md](../design-decisions/general-agent-platform.md) |
+| 资料空间记忆与同会话长上下文 | 已完成旧方案设计，调整为后续独立里程碑 | 后续阶段 | [course-memory-and-long-context.md](../design-decisions/course-memory-and-long-context.md) |
 
 ## 记录规范
 

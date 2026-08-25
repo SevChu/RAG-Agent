@@ -64,10 +64,10 @@ function translateApiMessage(code: string, fallback: string): string {
       return '该资料已在等待或处理中，请勿重复提交'
     }
     if (fallback.toLowerCase().includes('file')) {
-      return '该课程中已存在内容完全相同的资料'
+      return '该资料空间中已存在内容完全相同的资料'
     }
     if (fallback.toLowerCase().includes('course')) {
-      return '课程名称已存在，请使用其他名称'
+      return '资料空间名称已存在，请使用其他名称'
     }
   }
 

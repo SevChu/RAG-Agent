@@ -26,8 +26,8 @@ describe('API response helpers', () => {
   })
 
   it.each([
-    ['A course with this name already exists.', '课程名称已存在，请使用其他名称'],
-    ['This file already exists in the course.', '该课程中已存在内容完全相同的资料'],
+    ['A course with this name already exists.', '资料空间名称已存在，请使用其他名称'],
+    ['This file already exists in the course.', '该资料空间中已存在内容完全相同的资料'],
   ])('distinguishes conflict messages by resource', (apiMessage, expectedMessage) => {
     expect(
       toFriendlyApiError({

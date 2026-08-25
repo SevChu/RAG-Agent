@@ -91,6 +91,12 @@ class DeepSeekWebSearchAdapter:
         self.usage_recorder = usage_recorder
 
     async def search(self, *, query: str, model: str) -> ExternalSearchResult:
+        selected_provider = self.settings.provider_for_model(model)
+        if selected_provider is None or selected_provider.id != "deepseek":
+            deepseek = self.settings.llm_providers[0]
+            model = self.settings.external_search_model.strip() or (
+                deepseek.models[0] if deepseek.models else self.settings.llm_model
+            )
         normalized_query = " ".join(query.split())
         started_at = perf_counter()
         if not normalized_query:
@@ -228,9 +234,7 @@ class DeepSeekWebSearchAdapter:
                         evidence_excerpt=" ".join(summary.evidence_excerpt.split()),
                         quality=quality,
                         page_age=(
-                            str(item["page_age"])
-                            if item.get("page_age") is not None
-                            else None
+                            str(item["page_age"]) if item.get("page_age") is not None else None
                         ),
                     ),
                 )
@@ -252,9 +256,7 @@ class DeepSeekWebSearchAdapter:
             for rank, (_, evidence) in enumerate(limited, start=1)
         )
         status = (
-            ExternalSearchStatus.SUCCEEDED
-            if results
-            else ExternalSearchStatus.NO_QUALIFIED_RESULTS
+            ExternalSearchStatus.SUCCEEDED if results else ExternalSearchStatus.NO_QUALIFIED_RESULTS
         )
         failure_reason = None if results else "未取得可核验且质量合格的外部来源。"
         return ExternalSearchResult(
@@ -437,9 +439,8 @@ def _is_excluded_host(host: str) -> bool:
 def _source_quality(host: str) -> ExternalSourceQuality:
     if any(marker in host for marker in _ACADEMIC_HOST_MARKERS):
         return ExternalSourceQuality.ACADEMIC
-    if (
-        host.endswith((".edu", ".edu.cn", ".ac.uk", ".gov", ".gov.cn"))
-        or any(marker in host for marker in _INSTITUTIONAL_HOST_MARKERS)
+    if host.endswith((".edu", ".edu.cn", ".ac.uk", ".gov", ".gov.cn")) or any(
+        marker in host for marker in _INSTITUTIONAL_HOST_MARKERS
     ):
         return ExternalSourceQuality.INSTITUTIONAL
     if host.startswith(("docs.", "developer.")) or any(

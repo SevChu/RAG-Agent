@@ -101,11 +101,7 @@ class FakeManager:
         results = (
             (
                 VectorSearchResult(
-                    point_id=(
-                        f"point-{len(self.calls)}"
-                        if self.unique_per_call
-                        else "point-1"
-                    ),
+                    point_id=(f"point-{len(self.calls)}" if self.unique_per_call else "point-1"),
                     score=self.score,
                     course_id=self.course_id,
                     document_id=self.document_id,
@@ -212,10 +208,7 @@ class ExamApiGateway:
                 content=json.dumps(
                     {
                         "sufficient_evidence": True,
-                        "answer": (
-                            "## 1\n**答案：** 正确\n\n"
-                            "**解析：** 栈只允许在栈顶操作。[课1]"
-                        ),
+                        "answer": ("## 1\n**答案：** 正确\n\n**解析：** 栈只允许在栈顶操作。[课1]"),
                         "used_source_ids": [1],
                     },
                     ensure_ascii=False,
@@ -305,9 +298,7 @@ class ContextGateway:
         if "检索查询改写器" in system_prompt:
             self.rewrite_prompts.append(user_prompt)
             return ChatCompletion(
-                content=(
-                    '{"standalone_query":"栈的后进先出特性有什么作用？"}'
-                ),
+                content=('{"standalone_query":"栈的后进先出特性有什么作用？"}'),
                 model=model,
             )
         return ChatCompletion(
@@ -338,22 +329,24 @@ class FakeExternalSearch:
     async def search(self, *, query: str, model: str) -> ExternalSearchResult:
         self.calls.append((query, model))
         results = (
-            ExternalSearchEvidence(
-                rank=1,
-                title="Python 3.14 documentation",
-                publisher="Python Software Foundation",
-                url="https://docs.python.org/3.14/",
-                accessed_at=datetime(2026, 8, 4, tzinfo=UTC),
-                evidence_excerpt="Python 3.14 官方文档描述了当前版本行为。",
-                quality=ExternalSourceQuality.OFFICIAL,
-            ),
-        ) if self.succeed else ()
+            (
+                ExternalSearchEvidence(
+                    rank=1,
+                    title="Python 3.14 documentation",
+                    publisher="Python Software Foundation",
+                    url="https://docs.python.org/3.14/",
+                    accessed_at=datetime(2026, 8, 4, tzinfo=UTC),
+                    evidence_excerpt="Python 3.14 官方文档描述了当前版本行为。",
+                    quality=ExternalSourceQuality.OFFICIAL,
+                ),
+            )
+            if self.succeed
+            else ()
+        )
         return ExternalSearchResult(
             query=query,
             status=(
-                ExternalSearchStatus.SUCCEEDED
-                if self.succeed
-                else ExternalSearchStatus.FAILED
+                ExternalSearchStatus.SUCCEEDED if self.succeed else ExternalSearchStatus.FAILED
             ),
             results=results,
             raw_result_count=len(results),
@@ -625,8 +618,7 @@ async def test_course_chat_routes_exam_and_persists_hard_limit_diagnostics(
         f"/api/courses/{course_id}/answers",
         json={
             "question": (
-                "请根据第三章内容出一份仅含1道判断题的单元试卷，"
-                "但不要答案和解析，仅课程资料。"
+                "请根据第三章内容出一份仅含1道判断题的单元试卷，但不要答案和解析，仅课程资料。"
             ),
             "answer_scope": "course_and_external",
         },
@@ -677,8 +669,7 @@ async def test_course_chat_routes_simulation_paper_with_answers_only(
         f"/api/courses/{course_id}/answers",
         json={
             "question": (
-                "请根据第三章的内容出一份仅含1道判断题的模拟卷，"
-                "但只要答案，暂时不用输出解析。"
+                "请根据第三章的内容出一份仅含1道判断题的模拟卷，但只要答案，暂时不用输出解析。"
             ),
             "answer_scope": "course_and_external",
         },
@@ -729,9 +720,7 @@ async def test_course_chat_summarizes_chapter_with_safe_cross_section_evidence(
     assert data["retrieval"]["summary_plan"]["is_default"] is True
     assert len(data["retrieval"]["summary_plan"]["sections"]) == 5
     assert data["retrieval"]["summary_quality"]["passed"] is True
-    assert len(
-        data["retrieval"]["summary_quality"]["cross_section_evidence_reuse"]
-    ) == 4
+    assert len(data["retrieval"]["summary_quality"]["cross_section_evidence_reuse"]) == 4
     assert data["external_search"]["triggered"] is False
     assert external.calls == []
     assert "## 复习重点" in data["answer"]
@@ -754,9 +743,7 @@ async def test_explicit_summary_uses_dynamic_plan_and_section_queries(
 
     response = await api_client.post(
         f"/api/courses/{course_id}/answers",
-        json={
-            "question": "从 C++ 实现角度总结二叉树遍历，重点说明函数结构和容易写错的边界。"
-        },
+        json={"question": "从 C++ 实现角度总结二叉树遍历，重点说明函数结构和容易写错的边界。"},
     )
 
     assert response.status_code == 200, response.text
@@ -769,9 +756,9 @@ async def test_explicit_summary_uses_dynamic_plan_and_section_queries(
         "容易写错的边界条件汇总",
     ]
     assert data["retrieval"]["summary_quality"]["passed"] is True
-    assert data["retrieval"]["summary_quality"][
-        "normalized_source_declarations"
-    ] == ["error_boundaries"]
+    assert data["retrieval"]["summary_quality"]["normalized_source_declarations"] == [
+        "error_boundaries"
+    ]
     assert len(manager.calls) == 2
     assert manager.calls[0]["query"] != manager.calls[1]["query"]
     assert gateway.calls == 2
@@ -868,7 +855,17 @@ async def test_llm_configuration_api_never_returns_key(
     assert data["rag_context_max_messages"] == 6
     assert data["quick_chat_context_max_messages"] == 10
     assert data["external_search_enabled"] is True
+    assert [provider["id"] for provider in data["providers"]] == [
+        "deepseek",
+        "qwen",
+        "kimi",
+        "glm",
+    ]
+    assert data["providers"][0]["configured"] is False
+    assert data["providers"][1]["api_key_env"] == "QWEN_API_KEY"
+    assert data["providers"][1]["models_env"] == "QWEN_MODELS"
     assert "api_key" not in data
+    assert all("api_key" not in provider for provider in data["providers"])
 
 
 async def test_course_only_scope_is_preserved_and_search_is_not_requested(
@@ -935,9 +932,7 @@ async def test_mixed_scope_searches_and_returns_verified_external_citation(
     assert data["external_search"]["status"] == "succeeded"
     assert data["external_search"]["used_result_count"] == 1
     assert data["external_search"]["fallback_applied"] is False
-    assert external.calls == [
-        ("请联网补充栈的当前官方资料。", "deepseek-v4-flash")
-    ]
+    assert external.calls == [("请联网补充栈的当前官方资料。", "deepseek-v4-flash")]
 
 
 async def test_non_temporal_current_node_wording_does_not_force_web_search(
@@ -1023,9 +1018,7 @@ async def test_course_stream_rewrites_follow_up_and_persists_only_complete_answe
     assert manager.calls[-1]["query"] == "栈的后进先出特性有什么作用？"
     assert len(gateway.rewrite_prompts) == 1
     detail = (
-        await api_client.get(
-            f"/api/courses/{course_id}/conversations/{conversation_id}"
-        )
+        await api_client.get(f"/api/courses/{course_id}/conversations/{conversation_id}")
     ).json()["data"]
     assert [message["role"] for message in detail["messages"]] == [
         "user",
@@ -1068,13 +1061,9 @@ async def test_course_stream_routes_and_restores_dynamic_summary(
     assert "event: citations" in response.text
     assert "event: complete" in response.text
     assert "event: error" not in response.text
-    conversations = (
-        await api_client.get(f"/api/courses/{course_id}/conversations")
-    ).json()["data"]
+    conversations = (await api_client.get(f"/api/courses/{course_id}/conversations")).json()["data"]
     detail = (
-        await api_client.get(
-            f"/api/courses/{course_id}/conversations/{conversations[0]['id']}"
-        )
+        await api_client.get(f"/api/courses/{course_id}/conversations/{conversations[0]['id']}")
     ).json()["data"]
     assistant = detail["messages"][-1]
     assert assistant["retrieval"]["task_type"] == "summary"
@@ -1098,8 +1087,7 @@ async def test_course_stream_routes_exam_and_preserves_hidden_answer_contract(
         f"/api/courses/{course_id}/answers/stream",
         json={
             "question": (
-                "请根据第三章出一份仅含1道判断题的单元试卷，"
-                "答案和解析都不要，仅课程资料。"
+                "请根据第三章出一份仅含1道判断题的单元试卷，答案和解析都不要，仅课程资料。"
             )
         },
     )
@@ -1109,13 +1097,9 @@ async def test_course_stream_routes_exam_and_preserves_hidden_answer_contract(
     assert "event: error" not in response.text
     assert "**答案：**" not in response.text
     assert "**解析：**" not in response.text
-    conversations = (
-        await api_client.get(f"/api/courses/{course_id}/conversations")
-    ).json()["data"]
+    conversations = (await api_client.get(f"/api/courses/{course_id}/conversations")).json()["data"]
     detail = (
-        await api_client.get(
-            f"/api/courses/{course_id}/conversations/{conversations[0]['id']}"
-        )
+        await api_client.get(f"/api/courses/{course_id}/conversations/{conversations[0]['id']}")
     ).json()["data"]
     assistant = detail["messages"][-1]
     assert assistant["retrieval"]["task_type"] == "exam"
@@ -1141,12 +1125,7 @@ async def test_course_stream_replays_same_exam_for_answer_explanation_follow_up(
 
     first = await api_client.post(
         f"/api/courses/{course_id}/answers/stream",
-        json={
-            "question": (
-                "请根据队列相关内容出一份仅含3道判断题的试卷，"
-                "答案和解析都不要。"
-            )
-        },
+        json={"question": ("请根据队列相关内容出一份仅含3道判断题的试卷，答案和解析都不要。")},
     )
 
     assert first.status_code == 200
@@ -1186,9 +1165,7 @@ async def test_course_stream_replays_same_exam_for_answer_explanation_follow_up(
     assert len(manager.calls) == first_retrieval_calls
 
     detail = (
-        await api_client.get(
-            f"/api/courses/{course_id}/conversations/{conversation_id}"
-        )
+        await api_client.get(f"/api/courses/{course_id}/conversations/{conversation_id}")
     ).json()["data"]
     assert [message["role"] for message in detail["messages"]] == [
         "user",
@@ -1197,8 +1174,7 @@ async def test_course_stream_replays_same_exam_for_answer_explanation_follow_up(
         "assistant",
     ]
     assert all(
-        "_exam_artifact" not in (message.get("retrieval") or {})
-        for message in detail["messages"]
+        "_exam_artifact" not in (message.get("retrieval") or {}) for message in detail["messages"]
     )
 
 
@@ -1214,12 +1190,7 @@ async def test_course_stream_answers_legacy_exam_follow_up_without_regenerating(
 
     first = await api_client.post(
         f"/api/courses/{course_id}/answers",
-        json={
-            "question": (
-                "请根据队列相关内容出一份仅含1道判断题的试卷，"
-                "答案和解析都不要。"
-            )
-        },
+        json={"question": ("请根据队列相关内容出一份仅含1道判断题的试卷，答案和解析都不要。")},
     )
     first_data = first.json()["data"]
     conversation_id = first_data["conversation_id"]

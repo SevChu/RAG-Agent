@@ -11,6 +11,8 @@ from app.generation.client import OpenAICompatibleChatClient
 
 class FakeHTTPClient:
     payloads: list[dict[str, Any]] = []
+    urls: list[str] = []
+    headers: list[dict[str, str]] = []
     statuses: list[int] = [200]
 
     def __init__(self, *, timeout: float) -> None:
@@ -30,6 +32,8 @@ class FakeHTTPClient:
         json: dict[str, Any],
     ) -> httpx.Response:
         self.payloads.append(json)
+        self.urls.append(url)
+        self.headers.append(headers)
         status = self.statuses.pop(0)
         request = httpx.Request("POST", url, headers=headers)
         if status == 200:
@@ -51,6 +55,8 @@ class FakeHTTPClient:
 
 def _client(monkeypatch: MonkeyPatch, *, statuses: list[int]) -> OpenAICompatibleChatClient:
     FakeHTTPClient.payloads = []
+    FakeHTTPClient.urls = []
+    FakeHTTPClient.headers = []
     FakeHTTPClient.statuses = list(statuses)
     monkeypatch.setattr("app.generation.client.httpx.AsyncClient", FakeHTTPClient)
     settings = Settings(
@@ -95,3 +101,59 @@ async def test_json_client_retries_one_transient_upstream_failure(
 
     assert completion.content == '{"ok":true}'
     assert len(FakeHTTPClient.payloads) == 2
+
+
+async def test_qwen_model_uses_its_own_endpoint_and_key_without_deepseek_parameters(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    FakeHTTPClient.payloads = []
+    FakeHTTPClient.urls = []
+    FakeHTTPClient.headers = []
+    FakeHTTPClient.statuses = [200]
+    monkeypatch.setattr("app.generation.client.httpx.AsyncClient", FakeHTTPClient)
+    settings = Settings(
+        _env_file=None,
+        llm_api_key="deepseek-key",
+        llm_available_models="deepseek-test",
+        qwen_api_key="qwen-key",
+        qwen_models="qwen-test",
+        qwen_base_url="https://qwen.example/v1",
+    )
+    client = OpenAICompatibleChatClient(settings)
+
+    completion = await client.complete_text(
+        system_prompt="You are helpful.",
+        user_prompt="test",
+        model="qwen-test",
+    )
+
+    assert completion.model == "qwen-test"
+    assert FakeHTTPClient.urls == ["https://qwen.example/v1/chat/completions"]
+    assert FakeHTTPClient.headers[0]["Authorization"] == "Bearer qwen-key"
+    assert "thinking" not in FakeHTTPClient.payloads[0]
+
+
+def test_settings_reserve_all_providers_and_merge_model_allowlists() -> None:
+    settings = Settings(
+        _env_file=None,
+        llm_available_models="deepseek-test",
+        qwen_models="qwen-test",
+        kimi_models="kimi-test",
+        glm_models="glm-test",
+    )
+
+    assert [provider.id for provider in settings.llm_providers] == [
+        "deepseek",
+        "qwen",
+        "kimi",
+        "glm",
+    ]
+    assert settings.available_models == [
+        "deepseek-test",
+        "qwen-test",
+        "kimi-test",
+        "glm-test",
+    ]
+    kimi = settings.provider_for_model("kimi-test")
+    assert kimi is not None
+    assert kimi.api_key_env == "KIMI_API_KEY"

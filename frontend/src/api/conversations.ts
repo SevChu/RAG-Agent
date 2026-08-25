@@ -16,15 +16,11 @@ export async function fetchCourseConversations(): Promise<CourseConversationSumm
 }
 
 export async function fetchQuickConversations(): Promise<QuickConversationSummary[]> {
-  const response = await http.get<ApiResponse<QuickConversationSummary[]>>(
-    '/quick-conversations',
-  )
+  const response = await http.get<ApiResponse<QuickConversationSummary[]>>('/quick-conversations')
   return unwrapResponse(response.data)
 }
 
-export async function createQuickConversation(
-  title?: string,
-): Promise<QuickConversationSummary> {
+export async function createQuickConversation(title?: string): Promise<QuickConversationSummary> {
   const response = await http.post<ApiResponse<QuickConversationSummary>>(
     '/quick-conversations',
     title ? { title } : {},

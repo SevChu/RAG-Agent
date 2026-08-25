@@ -76,10 +76,16 @@ class OpenAICompatibleChatClient:
         model: str,
         json_mode: bool,
     ) -> ChatCompletion:
-        api_key = self.settings.llm_api_key.strip()
+        provider = self.settings.provider_for_model(model)
+        if provider is None:
+            raise LLMConfigurationError(
+                f"模型 {model} 未绑定到任何供应商，请检查各供应商的模型白名单。"
+            )
+        api_key = provider.api_key.strip()
         if not api_key:
             raise LLMConfigurationError(
-                "尚未配置 LLM API Key。请在项目根目录 .env 中填写 LLM_API_KEY，然后重启后端服务。"
+                f"尚未配置 {provider.name} API Key。请在项目根目录 .env 中填写 "
+                f"{provider.api_key_env}，然后重启后端服务。"
             )
 
         effective_system_prompt = (
@@ -99,14 +105,12 @@ class OpenAICompatibleChatClient:
         }
         if json_mode:
             payload["response_format"] = {"type": "json_object"}
-        if self.settings.llm_provider.strip().lower() == "deepseek":
+        if provider.id == "deepseek":
             payload["thinking"] = {"type": "disabled"}
 
-        url = f"{self.settings.llm_base_url.rstrip('/')}/chat/completions"
+        url = f"{provider.base_url.rstrip('/')}/chat/completions"
         response: httpx.Response | None = None
-        async with httpx.AsyncClient(
-            timeout=self.settings.llm_request_timeout_seconds
-        ) as client:
+        async with httpx.AsyncClient(timeout=self.settings.llm_request_timeout_seconds) as client:
             for attempt in range(2):
                 try:
                     response = await client.post(
@@ -125,7 +129,7 @@ class OpenAICompatibleChatClient:
                     if attempt == 0:
                         continue
                     raise LLMServiceError(
-                        "无法连接到模型服务，请检查网络和 LLM_BASE_URL。"
+                        f"无法连接到 {provider.name} 模型服务，请检查网络和对应 Base URL。"
                     ) from error
                 if response.status_code == 429 or response.status_code >= 500:
                     if attempt == 0:
@@ -142,14 +146,11 @@ class OpenAICompatibleChatClient:
         if response.status_code == 400:
             detail = _response_error_detail(response)
             if any(
-                marker in detail.casefold()
-                for marker in ("context", "token", "maximum", "length")
+                marker in detail.casefold() for marker in ("context", "token", "maximum", "length")
             ):
                 raise LLMServiceError("模型输入上下文过长，请缩小总结范围后重试。")
             suffix = f"（上游原因：{detail}）" if detail else ""
-            raise LLMServiceError(
-                f"模型请求格式或参数未被上游服务接受{suffix}，请稍后重试。"
-            )
+            raise LLMServiceError(f"模型请求格式或参数未被上游服务接受{suffix}，请稍后重试。")
         if response.is_error:
             raise LLMServiceError(
                 f"模型服务返回异常状态（HTTP {response.status_code}），请稍后重试。"

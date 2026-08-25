@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ElAlert, ElMessage, ElMessageBox, ElOption, ElSelect } from 'element-plus'
+import { ElAlert, ElMessage, ElMessageBox, ElOption, ElOptionGroup, ElSelect } from 'element-plus'
 import { storeToRefs } from 'pinia'
 import { onMounted, ref } from 'vue'
 
@@ -9,7 +9,8 @@ import { useLLMStore } from '@/stores/llm'
 import type { TokenUsageSummary } from '@/types/api'
 
 const llmStore = useLLMStore()
-const { configuration, selectedModel, loading } = storeToRefs(llmStore)
+const { configuration, selectedModel, selectedProvider, selectedModelConfigured, loading } =
+  storeToRefs(llmStore)
 const errorMessage = ref('')
 const tokenUsage = ref<TokenUsageSummary | null>(null)
 const usageLoading = ref(false)
@@ -33,7 +34,7 @@ async function loadUsage(): Promise<void> {
 async function handleReset(): Promise<void> {
   try {
     await ElMessageBox.confirm(
-      '此操作只清零累计 token 统计，不会删除课程、资料或对话。清零后无法恢复。',
+      '此操作只清零累计 token 统计，不会删除资料空间、资料或对话。清零后无法恢复。',
       '确认清零 token 统计？',
       {
         confirmButtonText: '确认清零',
@@ -79,9 +80,9 @@ onMounted(async () => {
     <section class="settings-card">
       <div class="setting-icon" aria-hidden="true">AI</div>
       <div>
-        <span class="soft-label">MODEL PROVIDER</span>
-        <h2>{{ configuration?.provider || 'DeepSeek' }}</h2>
-        <p>兼容 OpenAI API · {{ configuration?.base_url || '正在读取配置' }}</p>
+        <span class="soft-label">CURRENT PROVIDER</span>
+        <h2>{{ selectedProvider?.name || '正在读取供应商' }}</h2>
+        <p>兼容 OpenAI API · {{ selectedProvider?.base_url || '正在读取配置' }}</p>
       </div>
       <el-select
         v-model="selectedModel"
@@ -90,13 +91,44 @@ onMounted(async () => {
         class="model-select"
         aria-label="默认生成模型"
       >
-        <el-option
-          v-for="model in configuration?.available_models ?? []"
-          :key="model"
-          :label="model"
-          :value="model"
-        />
+        <el-option-group
+          v-for="provider in configuration?.providers.filter((item) => item.models.length) ?? []"
+          :key="provider.id"
+          :label="provider.name"
+        >
+          <el-option
+            v-for="model in provider.models"
+            :key="`${provider.id}:${model}`"
+            :label="model"
+            :value="model"
+            :disabled="!provider.configured"
+          />
+        </el-option-group>
       </el-select>
+    </section>
+
+    <section class="provider-grid" aria-label="模型供应商接口状态">
+      <article
+        v-for="provider in configuration?.providers ?? []"
+        :key="provider.id"
+        class="provider-card"
+        :class="{ ready: provider.configured }"
+      >
+        <div class="provider-heading">
+          <div class="provider-mark">{{ provider.name.slice(0, 2).toUpperCase() }}</div>
+          <div>
+            <span>OPENAI COMPATIBLE</span>
+            <h3>{{ provider.name }}</h3>
+          </div>
+          <span class="provider-status">{{ provider.configured ? '已配置' : '待配置' }}</span>
+        </div>
+        <p class="provider-url">{{ provider.base_url }}</p>
+        <p v-if="provider.models.length" class="provider-models">
+          {{ provider.models.join(' · ') }}
+        </p>
+        <p v-else class="provider-models muted">尚未指定模型</p>
+        <small>{{ provider.api_key_env }} + {{ provider.models_env }}</small>
+      </article>
     </section>
 
     <section class="usage-card" :aria-busy="usageLoading">
@@ -104,7 +136,7 @@ onMounted(async () => {
         <div>
           <span class="soft-label">TOKEN USAGE</span>
           <h2>累计 Token 消耗</h2>
-          <p>统计所有已返回 usage 的模型调用，包括生成、总结、出题、内部修复与外部搜索。</p>
+          <p>统计所有已返回 usage 的模型调用，包括回答、总结、内容生成、内部修复与外部搜索。</p>
         </div>
         <div class="usage-total">
           <span>全部模型</span>
@@ -133,8 +165,12 @@ onMounted(async () => {
               <span>输入 Token</span>
               <strong>{{ formatTokens(item.input_tokens) }}</strong>
               <div class="cache-breakdown">
-                <span>缓存命中 <b>{{ formatTokens(item.input_cache_hit_tokens) }}</b></span>
-                <span>缓存未命中 <b>{{ formatTokens(item.input_cache_miss_tokens) }}</b></span>
+                <span
+                  >缓存命中 <b>{{ formatTokens(item.input_cache_hit_tokens) }}</b></span
+                >
+                <span
+                  >缓存未命中 <b>{{ formatTokens(item.input_cache_miss_tokens) }}</b></span
+                >
               </div>
             </div>
             <div class="usage-metric">
@@ -162,17 +198,19 @@ onMounted(async () => {
       </div>
     </section>
 
+    <el-alert v-if="errorMessage" :title="errorMessage" type="error" :closable="false" show-icon />
     <el-alert
-      v-if="errorMessage"
-      :title="errorMessage"
-      type="error"
+      v-else-if="selectedProvider && !selectedModelConfigured"
+      :title="`${selectedProvider.name} 接口待配置`"
+      :description="`请在项目根目录 .env 中填写 ${selectedProvider.api_key_env} 和 ${selectedProvider.models_env}，然后重启后端。密钥不会返回前端。`"
+      type="warning"
       :closable="false"
       show-icon
     />
     <el-alert
       v-else
       title="模型切换已生效"
-      :description="`课程学习助手的后续请求会使用 ${selectedModel || '后端默认模型'}；刷新页面后恢复后端默认值 ${configuration?.model || ''}。API Key 仍仅通过本地环境变量管理。`"
+      :description="`智能体对话的后续请求会使用 ${selectedModel || '后端默认模型'}；刷新页面后恢复后端默认值 ${configuration?.model || ''}。API Key 仍仅通过本地环境变量管理。`"
       type="success"
       :closable="false"
       show-icon
@@ -219,6 +257,89 @@ onMounted(async () => {
 
 .model-select {
   width: 100%;
+}
+
+.provider-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.provider-card {
+  min-width: 0;
+  padding: 17px;
+  background: rgb(255 255 255 / 68%);
+  border: 1px solid var(--line-soft);
+  border-radius: 18px;
+}
+
+.provider-card.ready {
+  background: linear-gradient(145deg, rgb(240 250 255 / 90%), rgb(247 245 255 / 82%));
+  border-color: rgb(62 155 255 / 26%);
+}
+
+.provider-heading {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.provider-mark {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  font-size: 9px;
+  font-weight: 850;
+  color: var(--primary-deep);
+  background: var(--primary-soft);
+  border-radius: 11px;
+  place-items: center;
+}
+
+.provider-heading span,
+.provider-card small {
+  font-size: 8px;
+  font-weight: 750;
+  color: var(--ink-muted);
+}
+
+.provider-heading h3 {
+  margin: 2px 0 0;
+  font-size: 14px;
+  color: var(--ink-strong);
+}
+
+.provider-status {
+  padding: 4px 7px;
+  color: var(--ink-muted);
+  background: rgb(128 146 166 / 10%);
+  border-radius: 999px;
+}
+
+.provider-card.ready .provider-status {
+  color: var(--success);
+  background: rgb(23 178 106 / 10%);
+}
+
+.provider-url,
+.provider-models {
+  overflow: hidden;
+  margin: 12px 0 0;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-muted);
+}
+
+.provider-models {
+  margin: 6px 0 10px;
+  color: var(--ink);
+}
+
+.provider-models.muted {
+  color: var(--ink-muted);
 }
 
 .usage-card {
@@ -408,6 +529,12 @@ onMounted(async () => {
   opacity: 0.5;
 }
 
+@media (max-width: 980px) {
+  .provider-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 680px) {
   .settings-card {
     grid-template-columns: auto 1fr;
@@ -415,6 +542,10 @@ onMounted(async () => {
 
   .model-select {
     grid-column: 1 / -1;
+  }
+
+  .provider-grid {
+    grid-template-columns: 1fr;
   }
 
   .usage-heading,

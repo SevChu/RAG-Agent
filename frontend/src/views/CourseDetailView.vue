@@ -55,8 +55,7 @@ let statusPollTimer: number | undefined
 
 const acceptedTypesText = ACCEPTED_FILE_EXTENSIONS.map((item) => item.toUpperCase()).join(' / ')
 const allDocumentsSelected = computed(
-  () =>
-    documents.value.length > 0 && selectedDocumentIds.value.length === documents.value.length,
+  () => documents.value.length > 0 && selectedDocumentIds.value.length === documents.value.length,
 )
 const someDocumentsSelected = computed(
   () => selectedDocumentIds.value.length > 0 && !allDocumentsSelected.value,
@@ -247,9 +246,7 @@ async function confirmDeleteDocument(document: CourseDocument): Promise<void> {
 
 function toggleAllDocuments(event: Event): void {
   const target = event.target as HTMLInputElement
-  selectedDocumentIds.value = target.checked
-    ? documents.value.map((document) => document.id)
-    : []
+  selectedDocumentIds.value = target.checked ? documents.value.map((document) => document.id) : []
 }
 
 async function confirmBulkDelete(): Promise<void> {
@@ -297,7 +294,7 @@ function uploadStateLabel(item: UploadItem): string {
   <section class="page-view">
     <button type="button" class="back-button" @click="router.push('/courses')">
       <span aria-hidden="true">←</span>
-      返回课程空间
+      返回资料空间
     </button>
 
     <el-skeleton v-if="loading" :rows="6" animated class="detail-skeleton" />
@@ -320,7 +317,7 @@ function uploadStateLabel(item: UploadItem): string {
         <div>
           <div class="eyebrow"><span /> COURSE MATERIALS</div>
           <h1>{{ course.name }}</h1>
-          <p>{{ course.description || '管理这门课程的教材、课件和学习笔记。' }}</p>
+          <p>{{ course.description || '管理此空间的文档、资料和知识库内容。' }}</p>
         </div>
         <button type="button" class="primary-button" @click="openUploadDialog">
           <span aria-hidden="true">↑</span>
@@ -331,10 +328,10 @@ function uploadStateLabel(item: UploadItem): string {
       <div class="material-summary">
         <div class="summary-mark" aria-hidden="true">▤</div>
         <div>
-          <strong>{{ documents.length }} 份课程资料</strong>
+          <strong>{{ documents.length }} 份空间资料</strong>
           <span>支持 {{ acceptedTypesText }}，单个文件最大 100 MB</span>
         </div>
-        <span class="course-memory-label">课程独立空间</span>
+        <span class="course-memory-label">资料隔离空间</span>
       </div>
 
       <section class="material-panel" aria-labelledby="materials-heading">
@@ -470,8 +467,8 @@ function uploadStateLabel(item: UploadItem): string {
 
         <div v-else class="materials-empty">
           <span aria-hidden="true">↥</span>
-          <h3>课程资料库还是空的</h3>
-          <p>上传教材、课件或学习笔记，为后续知识库入库做好准备。</p>
+          <h3>资料空间还是空的</h3>
+          <p>上传文档、报告、课件或笔记，为智能体建立可检索知识库。</p>
           <button type="button" class="secondary-button" @click="openUploadDialog">选择资料</button>
         </div>
       </section>
@@ -479,7 +476,7 @@ function uploadStateLabel(item: UploadItem): string {
 
     <el-dialog
       v-model="uploadDialogVisible"
-      title="上传课程资料"
+      title="上传空间资料"
       width="min(640px, calc(100vw - 28px))"
       :close-on-click-modal="!uploading"
       :close-on-press-escape="!uploading"

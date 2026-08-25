@@ -44,12 +44,7 @@ export async function streamCourseQuestion(
   signal: AbortSignal,
   handlers: StreamHandlers<CourseAnswer>,
 ): Promise<void> {
-  await postEventStream(
-    `/courses/${courseId}/answers/stream`,
-    payload,
-    signal,
-    handlers,
-  )
+  await postEventStream(`/courses/${courseId}/answers/stream`, payload, signal, handlers)
 }
 
 export async function streamQuickChat(

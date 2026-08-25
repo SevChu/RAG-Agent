@@ -1,9 +1,27 @@
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+@dataclass(frozen=True, slots=True)
+class LLMProviderConfig:
+    """Resolved runtime configuration for one OpenAI-compatible provider."""
+
+    id: str
+    name: str
+    base_url: str
+    api_key: str
+    models: tuple[str, ...]
+    api_key_env: str
+    models_env: str
+
+    @property
+    def configured(self) -> bool:
+        return bool(self.api_key.strip() and self.models)
 
 
 class Settings(BaseSettings):
@@ -15,7 +33,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    app_name: str = "基于 RAG 的计算机专业学习 Agent"
+    app_name: str = "Agentic"
     app_env: str = "development"
     debug: bool = True
     cors_origins: str = "http://127.0.0.1:5173,http://localhost:5173"
@@ -25,6 +43,15 @@ class Settings(BaseSettings):
     llm_api_key: str = ""
     llm_model: str = "deepseek-v4-flash"
     llm_available_models: str = "deepseek-v4-flash,deepseek-v4-pro"
+    qwen_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    qwen_api_key: str = ""
+    qwen_models: str = ""
+    kimi_base_url: str = "https://api.moonshot.cn/v1"
+    kimi_api_key: str = ""
+    kimi_models: str = ""
+    glm_base_url: str = "https://open.bigmodel.cn/api/paas/v4"
+    glm_api_key: str = ""
+    glm_models: str = ""
     llm_request_timeout_seconds: float = Field(default=90.0, gt=0)
     llm_max_output_tokens: int = Field(default=1600, gt=0)
     llm_temperature: float = Field(default=0.2, ge=0, le=2)
@@ -44,6 +71,7 @@ class Settings(BaseSettings):
     quick_chat_context_max_messages: int = Field(default=10, ge=1, le=30)
     quick_chat_context_max_chars: int = Field(default=8000, ge=500, le=40000)
     external_search_enabled: bool = True
+    external_search_model: str = ""
     external_search_timeout_seconds: float = Field(default=60.0, gt=0)
     external_search_max_uses: int = Field(default=1, ge=1, le=5)
     external_search_max_results: int = Field(default=6, ge=1, le=20)
@@ -66,7 +94,62 @@ class Settings(BaseSettings):
 
     @property
     def available_models(self) -> list[str]:
-        return [model.strip() for model in self.llm_available_models.split(",") if model.strip()]
+        models: dict[str, None] = {}
+        for provider in self.llm_providers:
+            for model in provider.models:
+                models.setdefault(model, None)
+        return list(models)
+
+    @property
+    def llm_providers(self) -> tuple[LLMProviderConfig, ...]:
+        return (
+            LLMProviderConfig(
+                id=self.llm_provider.strip().lower() or "deepseek",
+                name="DeepSeek",
+                base_url=self.llm_base_url.strip(),
+                api_key=self.llm_api_key,
+                models=self._models(self.llm_available_models),
+                api_key_env="LLM_API_KEY",
+                models_env="LLM_AVAILABLE_MODELS",
+            ),
+            LLMProviderConfig(
+                id="qwen",
+                name="Qwen",
+                base_url=self.qwen_base_url.strip(),
+                api_key=self.qwen_api_key,
+                models=self._models(self.qwen_models),
+                api_key_env="QWEN_API_KEY",
+                models_env="QWEN_MODELS",
+            ),
+            LLMProviderConfig(
+                id="kimi",
+                name="Kimi",
+                base_url=self.kimi_base_url.strip(),
+                api_key=self.kimi_api_key,
+                models=self._models(self.kimi_models),
+                api_key_env="KIMI_API_KEY",
+                models_env="KIMI_MODELS",
+            ),
+            LLMProviderConfig(
+                id="glm",
+                name="GLM",
+                base_url=self.glm_base_url.strip(),
+                api_key=self.glm_api_key,
+                models=self._models(self.glm_models),
+                api_key_env="GLM_API_KEY",
+                models_env="GLM_MODELS",
+            ),
+        )
+
+    def provider_for_model(self, model: str) -> LLMProviderConfig | None:
+        return next(
+            (provider for provider in self.llm_providers if model in provider.models),
+            None,
+        )
+
+    @staticmethod
+    def _models(value: str) -> tuple[str, ...]:
+        return tuple(dict.fromkeys(item.strip() for item in value.split(",") if item.strip()))
 
     @property
     def allowed_cors_origins(self) -> list[str]:

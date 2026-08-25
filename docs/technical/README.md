@@ -1,0 +1,89 @@
+# Agentic 1.0.0 技术文档
+
+本目录描述 Agentic 1.0.0 的**当前实现**。逐周工程日志用于解释系统如何演进，本目录则用于回答“系统现在是什么、如何运行、模块如何协作、接口如何使用、哪里仍有限制”。若历史计划与当前代码不一致，以当前代码、数据库迁移和本目录为准。
+
+## 文档适用对象
+
+- 使用者：配置模型、启动服务、创建资料空间并使用智能体。
+- 开发者：理解模块边界、扩展解析器、检索器、生成器或前端页面。
+- 研究者：复现实验、接入 Benchmark、比较评分算法或规划微调工作流。
+- 维护者：迁移数据库、备份本地数据、定位索引和模型故障。
+
+## 推荐阅读路线
+
+### 第一次运行
+
+1. 阅读根目录 [README](../../README.md) 的快速开始。
+2. 按[配置参考](configuration.md)创建根目录 `.env`。
+3. 按[运行与排障](operations.md)检查本地模型、迁移和健康状态。
+4. 需要直接调用后端时阅读 [API 参考](api-reference.md)。
+
+### 开发和维护
+
+1. [系统架构](architecture.md)
+2. [资料与 RAG 管线](data-and-rag-pipeline.md)
+3. [智能体与生成链路](agent-and-generation.md)
+4. [开发与测试](development-and-testing.md)
+5. [运行与排障](operations.md)
+
+### 发布与后续研究
+
+1. [1.0.0 基线说明](version-1.0.0.md)
+2. [第五周实施计划](../deliverables/week-05-plan.md)
+3. [通用智能体平台迁移设计决策](../design-decisions/general-agent-platform.md)
+4. [第 1～5 周工程日志](../engineering-logs/README.md)
+
+## 文档地图
+
+| 文件 | 主要问题 |
+|---|---|
+| [architecture.md](architecture.md) | 系统由哪些组件组成，数据和请求如何流动？ |
+| [configuration.md](configuration.md) | 每个环境变量是什么意思，如何切换模型？ |
+| [api-reference.md](api-reference.md) | 后端提供哪些 REST/SSE 接口和错误码？ |
+| [data-and-rag-pipeline.md](data-and-rag-pipeline.md) | 文件如何变成可检索、可引用的证据？ |
+| [agent-and-generation.md](agent-and-generation.md) | 问答、总结、组卷和联网如何路由与校验？ |
+| [development-and-testing.md](development-and-testing.md) | 如何开发、迁移、测试和运行本地评测？ |
+| [operations.md](operations.md) | 如何启动、备份、恢复和排查常见故障？ |
+| [version-1.0.0.md](version-1.0.0.md) | 1.0.0 冻结了什么，还有哪些发布前事项？ |
+
+## 当前实现摘要
+
+| 维度 | 1.0.0 状态 |
+|---|---|
+| 产品形态 | 本地单用户、资料驱动的通用智能体实验平台 |
+| 资料空间 | 已实现；内部继续使用 `Course` / `course_id` / `/courses` 兼容标识 |
+| 文件格式 | PDF、PPTX、DOCX、Markdown、TXT |
+| 入库 | 自动解析、OCR 回退、结构化分块、Embedding、Qdrant 写入 |
+| 检索 | BGE-M3 Dense 候选召回 + BGE Reranker + 证据门控 |
+| 生成任务 | 普通问答、动态总结、混合组卷、快速对话 |
+| 外部信息 | 条件触发的 DeepSeek 服务端 Web Search |
+| 模型接口 | DeepSeek、Qwen、Kimi、GLM 的 OpenAI-compatible 预留/运行接口 |
+| 会话 | 快速对话和资料空间对话分别持久化 |
+| 可观测性 | 文档处理进度、引用元数据、检索诊断、Token 累计 |
+| 评测 | 本地候选数据与可恢复执行器已实现；公开 Benchmark 未获批下载 |
+| 微调 | 规划中；1.0.0 没有训练任务或微调界面 |
+
+## 事实来源优先级
+
+文档维护时按以下顺序判定事实：
+
+1. `backend/app`、`frontend/src` 当前代码；
+2. `backend/migrations/versions` 数据库迁移；
+3. `.env.example`、`backend/pyproject.toml`、`frontend/package.json`；
+4. 本目录的当前态文档；
+5. `docs/design-decisions` 中已采纳的设计；
+6. `docs/engineering-logs` 和 `docs/deliverables` 中的历史记录与计划。
+
+## 术语兼容说明
+
+产品界面已迁移为通用智能体语义，但为避免一次性破坏数据库和接口，1.0.0 保留了一层内部兼容命名：
+
+| 用户可见术语 | 1.0.0 内部标识 | 说明 |
+|---|---|---|
+| 资料空间 | `Course`、`course_id`、`/api/courses` | 数据与 API 尚未重命名 |
+| 空间资料 | `Document` | 上传文件及其索引状态 |
+| 智能体对话 | course conversation | 绑定一个资料空间的对话 |
+| 快速对话 | quick conversation | 不访问资料空间向量库 |
+| 内容生成/组卷 | exam task | 历史能力名称继续保留 |
+
+这种兼容是明确的 1.0.0 设计边界，不代表产品仍局限于课程学习。后续只有在提供数据库迁移、API 兼容层和前端回归后，才应重命名内部领域对象。

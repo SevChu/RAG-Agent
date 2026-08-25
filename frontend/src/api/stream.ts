@@ -32,10 +32,12 @@ export async function postEventStream<TComplete>(
         const body = (await response.json().catch(() => null)) as {
           error?: StreamError
         } | null
-        throw body?.error ?? {
-          code: `HTTP_${response.status}`,
-          message: `流式请求失败（HTTP ${response.status}）`,
-        }
+        throw (
+          body?.error ?? {
+            code: `HTTP_${response.status}`,
+            message: `流式请求失败（HTTP ${response.status}）`,
+          }
+        )
       }
     },
     async onmessage(message) {

@@ -66,11 +66,7 @@ export type AnswerScope = 'course_and_external' | 'course_only'
 export type CourseTaskType = 'question' | 'summary' | 'exam'
 export type SummaryScopeType = 'course' | 'documents' | 'topic'
 export type CitationSourceType = 'course' | 'external'
-export type ExternalSearchStatus =
-  | 'not_requested'
-  | 'succeeded'
-  | 'no_qualified_results'
-  | 'failed'
+export type ExternalSearchStatus = 'not_requested' | 'succeeded' | 'no_qualified_results' | 'failed'
 
 export interface AnswerCitation {
   source_id: number
@@ -108,11 +104,7 @@ export interface ExternalSearchInfo {
 }
 
 export interface AnswerRetrieval {
-  retrieval_mode:
-    | 'dense_rerank'
-    | 'summary_dense_rerank'
-    | 'exam_dense_rerank'
-    | 'external_web'
+  retrieval_mode: 'dense_rerank' | 'summary_dense_rerank' | 'exam_dense_rerank' | 'external_web'
   requested_top_k: number
   candidate_top_k: number
   candidate_count: number
@@ -257,6 +249,16 @@ export interface CourseAnswerPayload {
   model?: string
 }
 
+export interface LLMProviderConfiguration {
+  id: string
+  name: string
+  base_url: string
+  models: string[]
+  configured: boolean
+  api_key_env: string
+  models_env: string
+}
+
 export interface LLMConfiguration {
   provider: string
   base_url: string
@@ -267,6 +269,7 @@ export interface LLMConfiguration {
   rag_context_max_messages: number
   quick_chat_context_max_messages: number
   external_search_enabled: boolean
+  providers: LLMProviderConfiguration[]
 }
 
 export interface ModelTokenUsage {

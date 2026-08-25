@@ -80,10 +80,7 @@ export const useConversationsStore = defineStore('conversations', () => {
     return conversation
   }
 
-  async function deleteCourseConversation(
-    courseId: string,
-    conversationId: string,
-  ): Promise<void> {
+  async function deleteCourseConversation(courseId: string, conversationId: string): Promise<void> {
     await removeCourseConversation(courseId, conversationId)
     courseConversations.value = courseConversations.value.filter(
       (conversation) => conversation.id !== conversationId,

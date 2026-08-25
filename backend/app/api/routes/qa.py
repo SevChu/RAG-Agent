@@ -77,6 +77,7 @@ from app.schemas.qa import (
     CourseAnswerRequest,
     ExternalSearchRead,
     LLMConfigurationRead,
+    LLMProviderRead,
     QuickChatRequest,
 )
 from app.services import ConversationService, CourseService, DocumentService
@@ -90,9 +91,7 @@ SessionDependency = Annotated[AsyncSession, Depends(get_session)]
 SettingsDependency = Annotated[Settings, Depends(get_settings)]
 IndexingDependency = Annotated[DocumentIndexingManager, Depends(get_indexing_manager)]
 LLMDependency = Annotated[ChatCompletionGateway, Depends(get_chat_completion_gateway)]
-ExternalSearchDependency = Annotated[
-    ExternalSearchGateway, Depends(get_external_search_gateway)
-]
+ExternalSearchDependency = Annotated[ExternalSearchGateway, Depends(get_external_search_gateway)]
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,17 +110,30 @@ class _CourseAnswerWork:
 async def read_llm_configuration(
     settings: SettingsDependency,
 ) -> APIResponse[LLMConfigurationRead]:
+    default_provider = settings.provider_for_model(settings.llm_model)
     return APIResponse(
         data=LLMConfigurationRead(
-            provider=settings.llm_provider,
-            base_url=settings.llm_base_url,
+            provider=(default_provider.id if default_provider else settings.llm_provider),
+            base_url=(default_provider.base_url if default_provider else settings.llm_base_url),
             model=settings.llm_model,
             available_models=settings.available_models,
-            configured=bool(settings.llm_api_key.strip()),
+            configured=bool(default_provider and default_provider.configured),
             answer_styles=list(AnswerStyle),
             rag_context_max_messages=settings.rag_context_max_messages,
             quick_chat_context_max_messages=settings.quick_chat_context_max_messages,
             external_search_enabled=settings.external_search_enabled,
+            providers=[
+                LLMProviderRead(
+                    id=provider.id,
+                    name=provider.name,
+                    base_url=provider.base_url,
+                    models=list(provider.models),
+                    configured=provider.configured,
+                    api_key_env=provider.api_key_env,
+                    models_env=provider.models_env,
+                )
+                for provider in settings.llm_providers
+            ],
         )
     )
 
@@ -259,8 +271,7 @@ async def stream_quick_chat_message(
                 "conversation_id": str(conversation.id),
                 "model": selected_model,
                 "context_max_messages": settings.quick_chat_context_max_messages,
-                "web_search_enabled": payload.web_search
-                and settings.external_search_enabled,
+                "web_search_enabled": payload.web_search and settings.external_search_enabled,
             },
         )
         try:
@@ -286,9 +297,7 @@ async def stream_quick_chat_message(
                     enabled=True,
                 )
             search_query = (
-                quick_chat_search_query(payload.message, history)
-                if should_search
-                else None
+                quick_chat_search_query(payload.message, history) if should_search else None
             )
             search_result = (
                 await external_search.search(query=search_query, model=selected_model)
@@ -628,9 +637,7 @@ async def _prepare_course_answer(
             max_context_chars=settings.rag_exam_context_max_chars,
         )
         external_result = None
-        should_search_exam_external = (
-            exam_plan.allow_external and exam_plan.max_external_count > 0
-        )
+        should_search_exam_external = exam_plan.allow_external and exam_plan.max_external_count > 0
         if should_search_exam_external:
             external_result = await external_search.search(
                 query=(
@@ -657,14 +664,11 @@ async def _prepare_course_answer(
                 "version": 1,
                 "plan": exam_plan.model_dump(mode="json"),
                 "questions": [
-                    question.model_dump(mode="json")
-                    for question in exam_result.questions
+                    question.model_dump(mode="json") for question in exam_result.questions
                 ],
             }
         effective_scope = (
-            AnswerScope.COURSE_AND_EXTERNAL
-            if exam_plan.allow_external
-            else AnswerScope.COURSE_ONLY
+            AnswerScope.COURSE_AND_EXTERNAL if exam_plan.allow_external else AnswerScope.COURSE_ONLY
         )
         external_search_read = ExternalSearchRead(
             triggered=should_search_exam_external,
@@ -674,9 +678,7 @@ async def _prepare_course_answer(
                 else ExternalSearchStatus.NOT_REQUESTED
             ),
             query=(external_result.query if external_result is not None else None),
-            result_count=(
-                len(external_result.results) if external_result is not None else 0
-            ),
+            result_count=(len(external_result.results) if external_result is not None else 0),
             used_result_count=len(answer.used_external_source_ids),
             failure_reason=(
                 external_result.failure_reason if external_result is not None else None
@@ -731,9 +733,7 @@ async def _prepare_course_answer(
                 else ExternalSearchStatus.NOT_REQUESTED
             ),
             query=(external_result.query if external_result is not None else None),
-            result_count=(
-                len(external_result.results) if external_result is not None else 0
-            ),
+            result_count=(len(external_result.results) if external_result is not None else 0),
             used_result_count=len(answer.used_external_source_ids),
             failure_reason=(
                 external_result.failure_reason if external_result is not None else None
@@ -856,20 +856,15 @@ async def _prepare_persisted_exam_follow_up(
         raw_questions = artifact["questions"]
         if not isinstance(raw_questions, list) or not raw_questions:
             raise ValueError("empty exam artifact")
-        questions = tuple(
-            GeneratedExamQuestion.model_validate(item) for item in raw_questions
-        )
+        questions = tuple(GeneratedExamQuestion.model_validate(item) for item in raw_questions)
         previous_retrieval = AnswerRetrievalRead.model_validate(previous.retrieval)
         previous_quality = previous_retrieval.exam_quality
         if previous_quality is None:
             raise ValueError("missing exam quality")
-        citations = [
-            AnswerCitationRead.model_validate(item) for item in previous.citations
-        ]
+        citations = [AnswerCitationRead.model_validate(item) for item in previous.citations]
     except (KeyError, TypeError, ValueError) as error:
         raise InvalidInputError(
-            "上一份试卷的会话工件不完整，无法安全恢复同一组题。"
-            "请重新发送上一条出题指令后重试。"
+            "上一份试卷的会话工件不完整，无法安全恢复同一组题。请重新发送上一条出题指令后重试。"
         ) from error
 
     public_plan = plan.model_copy(
@@ -894,8 +889,7 @@ async def _prepare_persisted_exam_follow_up(
             "rewrite_applied": False,
             "task_type": CourseTaskType.EXAM,
             "router_reason": (
-                "检测到对紧邻上一份试卷的答案/解析续写请求，"
-                "已恢复同一试卷的内部工件。"
+                "检测到对紧邻上一份试卷的答案/解析续写请求，已恢复同一试卷的内部工件。"
             ),
             "exam_plan": plan_read,
             "exam_quality": quality,
@@ -952,8 +946,7 @@ async def _prepare_legacy_exam_follow_up(
     previous_plan = previous_retrieval.exam_plan
     if previous_quality is None or previous_plan is None:
         raise InvalidInputError(
-            "上一份回复没有完整的试卷上下文，无法确定当前所指题目。"
-            "请重新发送出题指令后重试。"
+            "上一份回复没有完整的试卷上下文，无法确定当前所指题目。请重新发送出题指令后重试。"
         )
     raw_course_citations = sorted(
         (
@@ -966,8 +959,7 @@ async def _prepare_legacy_exam_follow_up(
     )
     if not raw_course_citations:
         raise InvalidInputError(
-            "上一份旧试卷没有可恢复的课程证据，无法安全补充答案。"
-            "请重新发送出题指令后重试。"
+            "上一份旧试卷没有可恢复的课程证据，无法安全补充答案。请重新发送出题指令后重试。"
         )
     course_citations = [
         citation.model_copy(update={"source_id": index})
@@ -994,11 +986,7 @@ async def _prepare_legacy_exam_follow_up(
         )
         for index, citation in enumerate(course_citations, start=1)
     )
-    output_contract = (
-        "逐题给出答案和解析"
-        if include_explanations
-        else "逐题只给出答案，不要解析"
-    )
+    output_contract = "逐题给出答案和解析" if include_explanations else "逐题只给出答案，不要解析"
     grounded, _ = await GroundedAnswerGenerator(
         llm,
         min_similarity_score=0.0,
@@ -1008,9 +996,7 @@ async def _prepare_legacy_exam_follow_up(
             "不得另出新题，也不得修改题目。\n\n"
             f"<previous_exam>\n{previous.content}\n</previous_exam>"
         ),
-        standalone_question=(
-            f"为紧邻上一份试卷{output_contract}，保持原题号和题目不变。"
-        ),
+        standalone_question=(f"为紧邻上一份试卷{output_contract}，保持原题号和题目不变。"),
         hits=hits,
         style=AnswerStyle.DETAILED,
         model=model,
@@ -1146,8 +1132,7 @@ async def _retrieve_summary_sections(
                 source_ids.append(source_id)
 
     section_source_ids = {
-        key: tuple(source_ids)
-        for key, source_ids in mutable_section_source_ids.items()
+        key: tuple(source_ids) for key, source_ids in mutable_section_source_ids.items()
     }
 
     return (
@@ -1158,9 +1143,7 @@ async def _retrieve_summary_sections(
             rejected_evidence_count=rejected_evidence_count,
             embedding_device=embedding_device,
             reranker_device=reranker_device,
-            fallback_reason=(
-                "；".join(fallback_reasons) if fallback_reasons else None
-            ),
+            fallback_reason=("；".join(fallback_reasons) if fallback_reasons else None),
         ),
         section_source_ids,
     )

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import DOMPurify from 'dompurify'
-import { ElAlert, ElOption, ElSelect } from 'element-plus'
+import { ElAlert, ElOption, ElOptionGroup, ElSelect } from 'element-plus'
 import MarkdownIt from 'markdown-it'
 import { storeToRefs } from 'pinia'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
@@ -25,7 +25,12 @@ const router = useRouter()
 const store = useCoursesStore()
 const conversationsStore = useConversationsStore()
 const llmStore = useLLMStore()
-const { configuration: llmConfiguration, selectedModel } = storeToRefs(llmStore)
+const {
+  configuration: llmConfiguration,
+  selectedModel,
+  selectedProvider,
+  selectedModelConfigured,
+} = storeToRefs(llmStore)
 const selectedCourseId = ref('')
 const answerStyle = ref<AnswerStyle>('balanced')
 const answerScope = ref<AnswerScope>('course_and_external')
@@ -45,7 +50,7 @@ const selectedCourse = computed(() =>
 )
 const activeConversation = computed(() =>
   activeConversationId.value
-    ? conversationsStore.details[activeConversationId.value] ?? null
+    ? (conversationsStore.details[activeConversationId.value] ?? null)
     : null,
 )
 const messages = computed(() => activeConversation.value?.messages ?? [])
@@ -54,7 +59,7 @@ const canSubmit = computed(
     Boolean(selectedCourseId.value) &&
     Boolean(question.value.trim()) &&
     Boolean(selectedModel.value) &&
-    Boolean(llmConfiguration.value?.configured) &&
+    selectedModelConfigured.value &&
     !loading.value,
 )
 
@@ -67,13 +72,13 @@ const styleOptions: Array<{ value: AnswerStyle; label: string; detail: string }>
 const scopeOptions: Array<{ value: AnswerScope; label: string; detail: string }> = [
   {
     value: 'course_and_external',
-    label: '课程资料 + 外部补充',
-    detail: '默认范围；课程证据不足、问题有时效性或明确要求时自动搜索',
+    label: '空间资料 + 外部补充',
+    detail: '默认范围；空间证据不足、问题有时效性或明确要求时自动搜索',
   },
   {
     value: 'course_only',
-    label: '仅课程资料',
-    detail: '完全关闭 Web Search，只允许已入库课程资料支撑回答',
+    label: '仅空间资料',
+    detail: '完全关闭 Web Search，只允许已入库空间资料支撑回答',
   },
 ]
 
@@ -107,7 +112,7 @@ function externalSearchSummary(message: CourseConversationMessage): string {
     return `历史回答记录：${search.failure_reason}`
   }
   if (search.fallback_applied) {
-    return `外部检索未能提供合格证据，已降级为课程回答。${search.failure_reason || ''}`
+    return `外部检索未能提供合格证据，已降级为资料回答。${search.failure_reason || ''}`
   }
   if (search.status === 'succeeded') {
     return `外部检索完成：取得 ${search.result_count} 条合格来源，正文采用 ${search.used_result_count} 条。`
@@ -141,8 +146,8 @@ function resultEyebrow(message: CourseConversationMessage): string {
 }
 
 function resultTitle(message: CourseConversationMessage): string {
-  if (isSummary(message)) return '课程知识总结'
-  if (isExam(message)) return '课程混合试卷'
+  if (isSummary(message)) return '资料总结'
+  if (isExam(message)) return '内容生成结果'
   return '资料依据回答'
 }
 
@@ -209,7 +214,7 @@ async function restoreConversationFromRoute(): Promise<void> {
     if (!summary) {
       throw {
         code: 'NOT_FOUND',
-        message: '找不到该课程对话，记录可能已经被删除。',
+        message: '找不到该空间对话，记录可能已经被删除。',
       }
     }
     selectedCourseId.value = summary.course_id
@@ -252,9 +257,7 @@ async function submitQuestion(): Promise<void> {
   try {
     let conversationId = activeConversationId.value
     if (!conversationId) {
-      const conversation = await conversationsStore.createCourseConversation(
-        selectedCourseId.value,
-      )
+      const conversation = await conversationsStore.createCourseConversation(selectedCourseId.value)
       conversationId = conversation.id
       activeConversationId.value = conversation.id
       await router.replace(`/assistant/${conversation.id}`)
@@ -331,17 +334,17 @@ function submitWithKeyboard(event: KeyboardEvent): void {
   <section class="page-view assistant-page">
     <header class="page-heading">
       <div>
-        <div class="eyebrow"><span /> ROUTED COURSE AGENT</div>
-        <h1>课程学习助手</h1>
-        <p>直接输入问题、总结或组卷要求，Agent 会识别任务并选择对应资料链路。</p>
+        <div class="eyebrow"><span /> ROUTED KNOWLEDGE AGENT</div>
+        <h1>智能体对话</h1>
+        <p>直接输入问题、总结或内容生成要求，Agent 会识别任务并选择对应资料链路。</p>
       </div>
       <span class="context-pill">有限上下文 · 改写后逐题检索</span>
     </header>
 
     <el-alert
-      v-if="llmConfiguration && !llmConfiguration.configured"
-      title="尚未配置 LLM API Key"
-      description="请在项目根目录 .env 中填写 LLM_API_KEY 并重启后端；密钥不会发送到前端。"
+      v-if="selectedProvider && !selectedModelConfigured"
+      :title="`${selectedProvider.name} 接口待配置`"
+      :description="`请在项目根目录 .env 中填写 ${selectedProvider.api_key_env} 和 ${selectedProvider.models_env} 并重启后端；密钥不会发送到前端。`"
       type="warning"
       :closable="false"
       show-icon
@@ -361,11 +364,11 @@ function submitWithKeyboard(event: KeyboardEvent): void {
         <span class="soft-label">ANSWER SETTINGS</span>
         <h2>回答设置</h2>
 
-        <label for="assistant-course">课程范围</label>
+        <label for="assistant-course">资料空间</label>
         <el-select
           id="assistant-course"
           v-model="selectedCourseId"
-          placeholder="请选择课程"
+          placeholder="请选择资料空间"
           size="large"
           class="control-select"
           @change="startNewConversation"
@@ -379,12 +382,7 @@ function submitWithKeyboard(event: KeyboardEvent): void {
         </el-select>
 
         <label for="answer-scope">问答来源范围</label>
-        <el-select
-          id="answer-scope"
-          v-model="answerScope"
-          size="large"
-          class="control-select"
-        >
+        <el-select id="answer-scope" v-model="answerScope" size="large" class="control-select">
           <el-option
             v-for="option in scopeOptions"
             :key="option.value"
@@ -397,12 +395,7 @@ function submitWithKeyboard(event: KeyboardEvent): void {
         </p>
 
         <label for="answer-style">问答回答风格</label>
-        <el-select
-          id="answer-style"
-          v-model="answerStyle"
-          size="large"
-          class="control-select"
-        >
+        <el-select id="answer-style" v-model="answerStyle" size="large" class="control-select">
           <el-option
             v-for="option in styleOptions"
             :key="option.value"
@@ -411,22 +404,27 @@ function submitWithKeyboard(event: KeyboardEvent): void {
           />
         </el-select>
         <p class="style-detail">
-          {{ styleOptions.find((option) => option.value === answerStyle)?.detail }}；总结与组卷使用独立结构
+          {{
+            styleOptions.find((option) => option.value === answerStyle)?.detail
+          }}；总结与内容生成使用独立结构
         </p>
 
         <label for="answer-model">生成模型</label>
-        <el-select
-          id="answer-model"
-          v-model="selectedModel"
-          size="large"
-          class="control-select"
-        >
-          <el-option
-            v-for="model in llmConfiguration?.available_models ?? []"
-            :key="model"
-            :label="model"
-            :value="model"
-          />
+        <el-select id="answer-model" v-model="selectedModel" size="large" class="control-select">
+          <el-option-group
+            v-for="provider in llmConfiguration?.providers.filter((item) => item.models.length) ??
+            []"
+            :key="provider.id"
+            :label="provider.name"
+          >
+            <el-option
+              v-for="model in provider.models"
+              :key="`${provider.id}:${model}`"
+              :label="model"
+              :value="model"
+              :disabled="!provider.configured"
+            />
+          </el-option-group>
         </el-select>
 
         <div class="model-card">
@@ -434,11 +432,8 @@ function submitWithKeyboard(event: KeyboardEvent): void {
             <span>本次请求模型</span>
             <strong>{{ selectedModel || '正在读取配置' }}</strong>
           </div>
-          <span
-            class="config-status"
-            :class="{ ready: llmConfiguration?.configured }"
-          >
-            {{ llmConfiguration?.configured ? '已配置' : '待配置' }}
+          <span class="config-status" :class="{ ready: selectedModelConfigured }">
+            {{ selectedModelConfigured ? '已配置' : '待配置' }}
           </span>
         </div>
 
@@ -448,17 +443,17 @@ function submitWithKeyboard(event: KeyboardEvent): void {
           class="secondary-button new-conversation-button"
           @click="startNewConversation"
         >
-          新建课程对话
+          新建空间对话
         </button>
 
         <div class="guardrail-note">
           <strong>自动路由边界</strong>
           <p v-if="answerScope === 'course_only'">
-            仅使用已完成入库的课程资料；不会发起 Web Search。
+            仅使用已完成入库的空间资料；不会发起 Web Search。
           </p>
           <p v-else>
-            先检查课程证据覆盖度；必要时自动搜索并生成 [课n]、[外n] 独立引用。
-            总结请求始终只使用课程资料；组卷最多采用 20% 外部补充题，搜索失败会降级为课程卷。
+            先检查空间证据覆盖度；必要时自动搜索并生成 [课n]、[外n] 独立引用。
+            总结请求始终只使用空间资料；内容生成最多采用 20% 外部补充，搜索失败会降级为仅空间资料。
           </p>
         </div>
       </aside>
@@ -467,10 +462,8 @@ function submitWithKeyboard(event: KeyboardEvent): void {
         <div v-if="!messages.length && !loading" class="empty-answer">
           <span class="assistant-mark" aria-hidden="true">AI</span>
           <span class="soft-label">READY FOR YOUR REQUEST</span>
-          <h2>{{ selectedCourse?.name || '请选择一门课程' }}</h2>
-          <p>
-            可直接提问、总结或输入“按第三章出 20 题，编程题用 C++”。总结默认仅引用课程资料。
-          </p>
+          <h2>{{ selectedCourse?.name || '请选择一个资料空间' }}</h2>
+          <p>可直接提问、总结或输入“比较两份方案并生成检查清单”。总结默认仅引用空间资料。</p>
         </div>
 
         <div v-if="messages.length" class="message-thread">
@@ -493,14 +486,14 @@ function submitWithKeyboard(event: KeyboardEvent): void {
                 >
                   {{
                     isExam(message)
-                      ? '混合试卷'
+                      ? '内容生成'
                       : isSummary(message)
-                      ? '课程总结'
-                      : message.retrieval?.source_conflict_detected
-                      ? '资料存在差异'
-                      : message.answer_status === 'answered'
-                        ? '证据已引用'
-                        : '资料不足'
+                        ? '资料总结'
+                        : message.retrieval?.source_conflict_detected
+                          ? '资料存在差异'
+                          : message.answer_status === 'answered'
+                            ? '证据已引用'
+                            : '资料不足'
                   }}
                 </span>
               </div>
@@ -509,27 +502,30 @@ function submitWithKeyboard(event: KeyboardEvent): void {
                 v-if="isExam(message) && message.retrieval?.exam_plan"
                 class="search-status-note searched"
               >
-                <strong>组卷计划与硬性校验</strong>
+                <strong>内容生成计划与硬性校验</strong>
                 <span>
                   {{ message.retrieval.exam_plan.question_count }} 题 ·
-                  {{ message.retrieval.exam_plan.programming_language }} ·
-                  题型 {{ quotaSummary(message.retrieval.exam_plan.type_distribution) }} ·
-                  难度 {{ quotaSummary(message.retrieval.exam_plan.difficulty_distribution) }}
+                  {{ message.retrieval.exam_plan.programming_language }} · 题型
+                  {{ quotaSummary(message.retrieval.exam_plan.type_distribution) }} · 难度
+                  {{ quotaSummary(message.retrieval.exam_plan.difficulty_distribution) }}
                 </span>
                 <span>
-                  教材/题库直接采用 ≤ {{ message.retrieval.exam_plan.max_course_adapted_count }} 题 ·
+                  空间资料直接采用 ≤ {{ message.retrieval.exam_plan.max_course_adapted_count }} 题 ·
                   外部补充 ≤ {{ message.retrieval.exam_plan.max_external_count }} 题
                 </span>
                 <span v-if="message.retrieval.exam_quality">
-                  实际 {{ message.retrieval.exam_quality.generated_question_count }} 题 ·
-                  课程原创 {{ message.retrieval.exam_quality.course_generated_count }} ·
-                  教材改编 {{ message.retrieval.exam_quality.course_adapted_count }} ·
-                  外部补充 {{ message.retrieval.exam_quality.external_supplement_count }} ·
-                  校验{{ message.retrieval.exam_quality.passed ? '通过' : '未通过' }}
+                  实际 {{ message.retrieval.exam_quality.generated_question_count }} 题 · 资料原创
+                  {{ message.retrieval.exam_quality.course_generated_count }} · 教材改编
+                  {{ message.retrieval.exam_quality.course_adapted_count }} · 外部补充
+                  {{ message.retrieval.exam_quality.external_supplement_count }} · 校验{{
+                    message.retrieval.exam_quality.passed ? '通过' : '未通过'
+                  }}
                   <template v-if="message.retrieval.exam_quality.grounding_verified">
                     · 逐题证据审查通过
                   </template>
-                  <template v-if="message.retrieval.exam_quality.grounding_repaired_questions.length">
+                  <template
+                    v-if="message.retrieval.exam_quality.grounding_repaired_questions.length"
+                  >
                     · 已重生成第
                     {{ message.retrieval.exam_quality.grounding_repaired_questions.join('、') }} 题
                   </template>
@@ -562,7 +558,8 @@ function submitWithKeyboard(event: KeyboardEvent): void {
                   质量校验：{{ message.retrieval.summary_quality.passed ? '通过' : '存在限制' }} ·
                   {{ message.retrieval.summary_quality.evidence_backed_section_count }}/{{
                     message.retrieval.summary_quality.planned_section_count
-                  }} 节有课程证据
+                  }}
+                  节有空间证据
                   <template v-if="message.retrieval.summary_quality.rewritten_sections.length">
                     · 已局部修复
                     {{ message.retrieval.summary_quality.rewritten_sections.length }} 节
@@ -588,22 +585,31 @@ function submitWithKeyboard(event: KeyboardEvent): void {
                   <template
                     v-if="message.retrieval.summary_quality.normalized_citation_namespaces.length"
                   >
-                    · 已补全课程引用标记
+                    · 已补全资料引用标记
                     {{ message.retrieval.summary_quality.normalized_citation_namespaces.length }} 节
                   </template>
                   <template v-if="message.retrieval.summary_quality.coverage_warnings.length">
-                    · {{ message.retrieval.summary_quality.coverage_warnings.length }} 项表达需人工确认
+                    ·
+                    {{
+                      message.retrieval.summary_quality.coverage_warnings.length
+                    }}
+                    项表达需人工确认
                   </template>
-                  <template v-if="message.retrieval.summary_quality.grounding_fallback_sections.length">
-                    · {{ message.retrieval.summary_quality.grounding_fallback_sections.length }} 节已按资料不足处理
+                  <template
+                    v-if="message.retrieval.summary_quality.grounding_fallback_sections.length"
+                  >
+                    ·
+                    {{
+                      message.retrieval.summary_quality.grounding_fallback_sections.length
+                    }}
+                    节已按资料不足处理
                   </template>
                 </span>
               </div>
 
               <div
                 v-if="
-                  !isSummary(message) &&
-                  message.retrieval?.answer_scope === 'course_and_external'
+                  !isSummary(message) && message.retrieval?.answer_scope === 'course_and_external'
                 "
                 class="search-status-note"
                 :class="{
@@ -645,12 +651,21 @@ function submitWithKeyboard(event: KeyboardEvent): void {
                   <small v-if="citation.source_type === 'course'">
                     重排排名 #{{ citation.retrieval_rank }} ·
                     {{ contentRoleLabel(citation.content_role) }} · Dense
-                    {{ citation.dense_score === null ? '—' : `${(citation.dense_score * 100).toFixed(1)}%` }}
+                    {{
+                      citation.dense_score === null
+                        ? '—'
+                        : `${(citation.dense_score * 100).toFixed(1)}%`
+                    }}
                     · Chunk {{ citation.chunk_index }}
                   </small>
                   <small v-else>
                     访问时间 {{ citation.accessed_at || '未记录' }} ·
-                    <a v-if="citation.url" :href="citation.url" target="_blank" rel="noopener noreferrer">
+                    <a
+                      v-if="citation.url"
+                      :href="citation.url"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
                       打开来源
                     </a>
                   </small>
@@ -659,7 +674,9 @@ function submitWithKeyboard(event: KeyboardEvent): void {
 
               <footer v-if="message.retrieval" class="answer-meta">
                 <span>{{ message.model || '未调用模型' }}</span>
-                <span>{{ isExam(message) ? '课程试卷' : isSummary(message) ? '知识总结' : '课程问答' }}</span>
+                <span>{{
+                  isExam(message) ? '资料生成' : isSummary(message) ? '资料总结' : '资料问答'
+                }}</span>
                 <span>
                   候选 {{ message.retrieval.candidate_count }} → 重排
                   {{ message.retrieval.returned_count }}
@@ -677,7 +694,11 @@ function submitWithKeyboard(event: KeyboardEvent): void {
                   已改写检索：{{ message.retrieval.rewritten_query }}
                 </span>
                 <span>
-                  {{ message.retrieval.answer_scope === 'course_only' ? '仅课程资料' : '课程 + 外部补充' }}
+                  {{
+                    message.retrieval.answer_scope === 'course_only'
+                      ? '仅空间资料'
+                      : '空间资料 + 外部补充'
+                  }}
                 </span>
                 <span v-if="message.retrieval.external_search.decision_reason">
                   {{ message.retrieval.external_search.decision_reason }}
@@ -715,7 +736,7 @@ function submitWithKeyboard(event: KeyboardEvent): void {
             />
             <div v-else class="loading-answer compact" role="status">
               <span class="thinking-orbit" aria-hidden="true" />
-              <strong>正在识别任务、召回并校验证据或试题配额…</strong>
+              <strong>正在识别任务、召回并校验证据或内容配额…</strong>
               <p>正文通过引用一致性校验后开始流式显示。</p>
             </div>
             <p v-if="streamingCitations.length" class="stream-citation-note">
@@ -725,13 +746,13 @@ function submitWithKeyboard(event: KeyboardEvent): void {
         </div>
 
         <form class="question-composer" @submit.prevent="submitQuestion">
-          <label for="course-question" class="sr-only">课程请求</label>
+          <label for="course-question" class="sr-only">智能体请求</label>
           <textarea
             id="course-question"
             v-model="question"
             maxlength="2000"
             rows="3"
-            placeholder="例如：解释 Dijkstra；总结第三章；或按第三章出 20 题，编程题用 C++"
+            placeholder="例如：解释这份规范；总结第二节；或比较两份方案并生成检查清单"
             @keydown="submitWithKeyboard"
           />
           <div class="composer-footer">

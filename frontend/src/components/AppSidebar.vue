@@ -64,7 +64,7 @@ async function deleteQuickConversation(conversationId: string): Promise<void> {
 
 async function deleteConversation(courseId: string, conversationId: string): Promise<void> {
   try {
-    await ElMessageBox.confirm('删除后将同时移除该课程对话的全部消息与引用记录。', '删除对话', {
+    await ElMessageBox.confirm('删除后将同时移除该空间对话的全部消息与引用记录。', '删除对话', {
       confirmButtonText: '删除',
       cancelButtonText: '取消',
       type: 'warning',
@@ -74,7 +74,7 @@ async function deleteConversation(courseId: string, conversationId: string): Pro
     if (route.params.conversationId === conversationId) {
       await router.push('/assistant')
     }
-    ElMessage.success('课程对话已删除')
+    ElMessage.success('空间对话已删除')
   } catch (error) {
     if (error !== 'cancel' && error !== 'close') {
       ElMessage.error(toFriendlyApiError(error).message)
@@ -97,11 +97,11 @@ async function deleteConversation(courseId: string, conversationId: string): Pro
   >
     <div class="brand-row">
       <span class="brand-orbit" aria-hidden="true">
-        <span>CM</span>
+        <span>AG</span>
       </span>
       <div v-show="!collapsed" class="brand-copy">
-        <strong>CourseMind</strong>
-        <small>智能课程学习空间</small>
+        <strong>Agentic</strong>
+        <small>资料驱动的智能体工作台</small>
       </div>
       <button
         v-if="!collapsed"
@@ -140,7 +140,7 @@ async function deleteConversation(courseId: string, conversationId: string): Pro
         @click="closeMobile"
       >
         <span class="nav-icon nav-icon-ai" aria-hidden="true">AI</span>
-        <span v-show="!collapsed">课程学习助手</span>
+        <span v-show="!collapsed">智能体对话</span>
       </RouterLink>
       <RouterLink
         to="/courses"
@@ -149,7 +149,7 @@ async function deleteConversation(courseId: string, conversationId: string): Pro
         @click="closeMobile"
       >
         <span class="nav-icon" aria-hidden="true">▦</span>
-        <span v-show="!collapsed">课程空间</span>
+        <span v-show="!collapsed">资料空间</span>
       </RouterLink>
     </nav>
 
@@ -205,12 +205,12 @@ async function deleteConversation(courseId: string, conversationId: string): Pro
           aria-controls="assistant-history-list"
           @click="assistantHistoryExpanded = !assistantHistoryExpanded"
         >
-          <span id="assistant-history-heading">学习助手对话</span>
+          <span id="assistant-history-heading">智能体对话</span>
           <span aria-hidden="true">{{ assistantHistoryExpanded ? '⌄' : '›' }}</span>
         </button>
         <div v-show="assistantHistoryExpanded" id="assistant-history-list" class="history-list">
           <p v-if="!conversationsStore.courseConversations.length" class="history-empty">
-            暂无课程对话
+            暂无空间对话
           </p>
           <div
             v-for="conversation in conversationsStore.courseConversations"
@@ -228,7 +228,7 @@ async function deleteConversation(courseId: string, conversationId: string): Pro
             </RouterLink>
             <button
               type="button"
-              aria-label="删除课程对话"
+              aria-label="删除空间对话"
               title="删除对话"
               @click="deleteConversation(conversation.course_id, conversation.id)"
             >

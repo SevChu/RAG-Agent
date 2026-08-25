@@ -52,7 +52,7 @@ function openCreateDialog(): void {
 async function submitCourse(): Promise<void> {
   const name = createForm.name.trim()
   if (!name) {
-    ElMessage.warning('请输入课程名称')
+    ElMessage.warning('请输入资料空间名称')
     return
   }
 
@@ -63,7 +63,7 @@ async function submitCourse(): Promise<void> {
       description: createForm.description.trim() || null,
     })
     createDialogVisible.value = false
-    ElMessage.success(`课程“${course.name}”已创建`)
+    ElMessage.success(`资料空间“${course.name}”已创建`)
   } catch (error) {
     ElMessage.error(toFriendlyApiError(error).message)
   } finally {
@@ -74,22 +74,22 @@ async function submitCourse(): Promise<void> {
 async function confirmDeleteCourse(course: Course): Promise<void> {
   const documentCount = store.documentsFor(course.id).length
   const materialText = documentCount
-    ? `该课程下的 ${documentCount} 份资料也会一并永久删除。`
-    : '该课程目前没有资料。'
+    ? `该资料空间下的 ${documentCount} 份资料也会一并永久删除。`
+    : '该资料空间目前没有资料。'
 
   try {
     await ElMessageBox.confirm(
-      `确定删除课程“${course.name}”吗？${materialText}此操作无法恢复。`,
-      '删除课程',
+      `确定删除资料空间“${course.name}”吗？${materialText}此操作无法恢复。`,
+      '删除资料空间',
       {
         type: 'warning',
-        confirmButtonText: '删除课程',
+        confirmButtonText: '删除资料空间',
         cancelButtonText: '取消',
         confirmButtonClass: 'danger-confirm-button',
       },
     )
     await store.deleteCourse(course.id)
-    ElMessage.success('课程及其资料已删除')
+    ElMessage.success('资料空间及其资料已删除')
   } catch (error) {
     if (error === 'cancel' || error === 'close') {
       return
@@ -108,26 +108,26 @@ function openCourse(courseId: string): void {
     <header class="page-heading">
       <div>
         <div class="eyebrow"><span /> COURSE HUB</div>
-        <h1>课程空间</h1>
-        <p>把课程资料和学习轨迹收进独立空间，为后续智能学习建立可靠上下文。</p>
+        <h1>资料空间</h1>
+        <p>把文档、知识和对话收进独立空间，为智能体建立可靠、可追溯的上下文。</p>
       </div>
       <button type="button" class="primary-button" @click="openCreateDialog">
         <span aria-hidden="true">＋</span>
-        新建课程
+        新建资料空间
       </button>
     </header>
 
-    <div class="overview-strip" aria-label="课程空间概览">
+    <div class="overview-strip" aria-label="资料空间概览">
       <div>
         <strong>{{ store.courseCount }}</strong>
-        <span>门课程</span>
+        <span>个空间</span>
       </div>
       <span class="overview-divider" />
       <div>
         <strong>{{ Object.values(store.documentsByCourse).flat().length }}</strong>
         <span>份资料</span>
       </div>
-      <p>每个课程空间相互隔离，同一份资料可以加入不同课程。</p>
+      <p>每个资料空间相互隔离，同一份资料可以加入不同空间。</p>
     </div>
 
     <el-alert
@@ -143,7 +143,7 @@ function openCourse(courseId: string): void {
       </template>
     </el-alert>
 
-    <div v-if="store.loading" class="course-grid" aria-label="正在加载课程">
+    <div v-if="store.loading" class="course-grid" aria-label="正在加载资料空间">
       <article v-for="index in 3" :key="index" class="course-card skeleton-card">
         <el-skeleton :rows="3" animated />
       </article>
@@ -164,19 +164,19 @@ function openCourse(courseId: string): void {
             </button>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item command="delete">删除课程</el-dropdown-item>
+                <el-dropdown-item command="delete">删除资料空间</el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
         </div>
         <h2>{{ course.name }}</h2>
-        <p>{{ course.description || '尚未填写课程简介，可以先上传教材和课件。' }}</p>
+        <p>{{ course.description || '尚未填写空间说明，可以先上传文档和资料。' }}</p>
         <div class="course-meta">
           <span>{{ store.documentsFor(course.id).length }} 份资料</span>
           <span>更新于 {{ formatDateTime(course.updated_at) }}</span>
         </div>
         <button type="button" class="course-enter-button" @click="openCourse(course.id)">
-          进入课程
+          进入空间
           <span aria-hidden="true">→</span>
         </button>
       </article>
@@ -185,14 +185,16 @@ function openCourse(courseId: string): void {
     <div v-else-if="!pageError" class="empty-state">
       <div class="empty-orbit" aria-hidden="true"><span>＋</span></div>
       <span class="soft-label">FIRST COURSE</span>
-      <h2>创建你的第一门课程</h2>
-      <p>课程之间相互隔离。创建后即可上传 PDF、课件、文档和学习笔记。</p>
-      <button type="button" class="primary-button" @click="openCreateDialog">创建第一门课程</button>
+      <h2>创建你的第一个资料空间</h2>
+      <p>资料空间之间相互隔离。创建后即可上传 PDF、课件、文档和笔记。</p>
+      <button type="button" class="primary-button" @click="openCreateDialog">
+        创建第一个资料空间
+      </button>
     </div>
 
     <el-dialog
       v-model="createDialogVisible"
-      title="新建课程"
+      title="新建资料空间"
       width="min(480px, calc(100vw - 32px))"
       :close-on-click-modal="!creating"
       :close-on-press-escape="!creating"
@@ -200,10 +202,10 @@ function openCourse(courseId: string): void {
     >
       <div class="dialog-intro">
         <span class="dialog-icon" aria-hidden="true">✦</span>
-        <p>为这门课程创建独立资料空间，课程名称不能与现有课程重复。</p>
+        <p>创建独立的资料空间，空间名称不能与现有资料空间重复。</p>
       </div>
       <el-form label-position="top" @submit.prevent="submitCourse">
-        <el-form-item label="课程名称" required>
+        <el-form-item label="资料空间名称" required>
           <el-input
             v-model="createForm.name"
             maxlength="100"
@@ -213,12 +215,12 @@ function openCourse(courseId: string): void {
             @keyup.enter="submitCourse"
           />
         </el-form-item>
-        <el-form-item label="课程简介（可选）">
+        <el-form-item label="空间说明（可选）">
           <el-input
             v-model="createForm.description"
             type="textarea"
             :rows="3"
-            placeholder="简单说明课程内容或学习目标"
+            placeholder="简单说明资料主题、用途或智能体目标"
           />
         </el-form-item>
       </el-form>
@@ -232,7 +234,7 @@ function openCourse(courseId: string): void {
           取消
         </button>
         <button type="button" class="primary-button" :disabled="creating" @click="submitCourse">
-          {{ creating ? '正在创建…' : '创建课程' }}
+          {{ creating ? '正在创建…' : '创建资料空间' }}
         </button>
       </template>
     </el-dialog>

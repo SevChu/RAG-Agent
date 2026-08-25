@@ -32,9 +32,24 @@ data/*
 backend/data/
 /output/
 /tmp/
+/backend/evaluations/
+/backend/datasets/
+/evaluations/
+/datasets/
+
+# Runtime logs, backups, and SQLite sidecars
+*.log
+*.db-shm
+*.db-wal
+*.sqlite-shm
+*.sqlite-wal
 
 # Local model and vector-store artifacts
 /models/
+*.onnx
+*.pt
+*.pth
+*.safetensors
 *.db
 *.sqlite
 *.sqlite3

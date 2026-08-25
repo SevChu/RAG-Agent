@@ -4,7 +4,7 @@ import { RouterView } from 'vue-router'
 
 import AppSidebar from '@/components/AppSidebar.vue'
 
-const SIDEBAR_STORAGE_KEY = 'coursemind.sidebar-collapsed'
+const SIDEBAR_STORAGE_KEY = 'agentic.sidebar-collapsed'
 const sidebarCollapsed = ref(false)
 const mobileSidebarOpen = ref(false)
 
@@ -37,7 +37,7 @@ function updateSidebarCollapsed(value: boolean): void {
         >
           ☰
         </button>
-        <span>CourseMind</span>
+        <span>Agentic</span>
         <span class="online-dot" aria-label="本地服务模式" />
       </header>
       <main class="workspace-content">

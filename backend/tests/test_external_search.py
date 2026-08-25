@@ -188,3 +188,33 @@ async def test_adapter_returns_no_qualified_results_when_summary_is_unverifiable
     assert result.status is ExternalSearchStatus.NO_QUALIFIED_RESULTS
     assert result.raw_result_count == 1
     assert result.results == ()
+
+
+async def test_non_deepseek_generation_model_keeps_deepseek_search_routing() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content)
+        assert request.url.host == "api.deepseek.com"
+        assert request.headers["x-api-key"] == "deepseek-key"
+        assert payload["model"] == "deepseek-search-model"
+        return httpx.Response(
+            200,
+            json={
+                "model": "deepseek-search-model",
+                "content": [{"type": "text", "text": '{"sources":[]}'}],
+            },
+        )
+
+    settings = Settings(
+        _env_file=None,
+        llm_api_key="deepseek-key",
+        llm_available_models="deepseek-chat",
+        qwen_api_key="qwen-key",
+        qwen_models="qwen-chat",
+        external_search_model="deepseek-search-model",
+    )
+    adapter = DeepSeekWebSearchAdapter(settings, transport=httpx.MockTransport(handler))
+
+    result = await adapter.search(query="current information", model="qwen-chat")
+
+    assert result.status is ExternalSearchStatus.NO_QUALIFIED_RESULTS
+    assert result.model == "deepseek-search-model"

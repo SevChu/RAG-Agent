@@ -140,6 +140,16 @@ class CourseAnswerRead(BaseModel):
     task_type: CourseTaskType = CourseTaskType.QUESTION
 
 
+class LLMProviderRead(BaseModel):
+    id: str
+    name: str
+    base_url: str
+    models: list[str]
+    configured: bool
+    api_key_env: str
+    models_env: str
+
+
 class LLMConfigurationRead(BaseModel):
     provider: str
     base_url: str
@@ -150,6 +160,7 @@ class LLMConfigurationRead(BaseModel):
     rag_context_max_messages: int
     quick_chat_context_max_messages: int
     external_search_enabled: bool
+    providers: list[LLMProviderRead]
 
 
 class QuickChatRequest(BaseModel):
