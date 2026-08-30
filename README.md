@@ -6,9 +6,8 @@
 >
 > **许可**：Copyright © 2026 Severus Chu。All rights reserved. 查看源码不等于获得开源许可，详见 [LICENSE](LICENSE)。
 
-> 项目状态：第 1～4 周的资料入库、RAG 问答、联网补充、总结、内容生成和会话能力已经完成。
-> 第 5 周开始从课程学习产品迁移为“通用智能体 + 资料空间”，并以公开 Benchmark、经典评分
-> 算法基线和后续逐智能体微调为主要研究方向。
+> 项目状态：`v1.1.0` 已包含完整本地 RAG 功能、通用智能体界面迁移，以及 FiQA、RAGTruth、
+> RAGBench 经典基线；推荐 baseline profile 1.0.0、公开聚合结果和第 6～11 周研发路线已冻结。
 
 ## 1. 项目简介
 
@@ -724,21 +723,31 @@ Anthropic 兼容 Web Search 适配器，能够解析真实搜索结果、校验�
 
 ### 第 5 周：通用智能体迁移与公开 Benchmark 基线
 
-- 完成 Agentic、资料空间、空间资料和智能体对话的第一阶段产品迁移；
-- 建立公开 Benchmark 注册表、审批状态和统一 Dataset Adapter；
-- 在获批数据上运行 BM25、Dense、融合检索和 Reranker 经典基线；
-- 运行 Exact Match、Token F1、ROUGE-L、BERTScore、RAGAS 和 RAG Triad 评分基线；
-- 使用公开标注评估评分器的准确性、相关性、校准、稳定性、延迟和成本；
-- 保留现有 100 条本地候选数据，最终仍建设自有人工金标测试集。
+- 已完成 Agentic、资料空间、空间资料和智能体对话的第一阶段产品迁移；
+- 已建立公开 Benchmark 注册表、审批状态、统一 Dataset Adapter 和安全冻结流程；
+- 已在 FiQA 完成 BM25、BGE-M3 Dense、RRF 与 BGE Reranker 检索 benchmark；
+- 已在 RAGTruth 完成回答级幻觉检测与字符级 span 定位 benchmark；
+- 已在 RAGBench 完成 adherence、relevance、utilization、completeness 综合评分 benchmark；
+- 已冻结机器可读 baseline profile 1.0.0，并形成评分算法、逐智能体微调界面与自有金标集路线。
 
-详细安排见[第 5 周实施计划](docs/deliverables/week-05-plan.md)和
+详细安排见[第 5 周实施计划](docs/deliverables/week-05-plan.md)、
+[计划日 5 统一基线与研究入口](docs/deliverables/week-05-day-05.md)、
+[公开 Benchmark 与冻结基线技术说明](docs/technical/evaluation-and-baselines.md)和
 [通用智能体平台迁移设计决策](docs/design-decisions/general-agent-platform.md)。
 
-### 第 6 周：交付与答辩
+### 第 6～11 周：算法、智能体配置、微调与评测闭环
 
-- 完成端到端测试和界面优化；
-- 准备 Docker Compose；
-- 完成安装说明、实验报告、演示脚本和答辩材料。
+- 第 6 周：评分与检索算法优化，目标版本 `v1.2.0`；
+- 第 7 周：AgentProfile、多智能体配置与版本化，目标版本 `v1.3.0`；
+- 第 8 周：训练数据、任务、Adapter 与微调界面，目标预发布 `v1.4.0-beta.1`；
+- 第 9 周：首次真实 Scorer/Reranker 微调，目标稳定版本 `v1.4.0`；
+- 第 10 周：动态长上下文与资料空间长期记忆；
+- 第 11 周：自有金标标注工具、规范、50 条校准集与首批 200 条 Pilot；
+- 第 10～11 周共同形成 `v1.5.0` 候选，私有金标样本不上传 GitHub；
+- Docker、演示、答辩和最终 GitHub Release 验收后移到实际交付周。
+
+第五周评测基础设施已形成 `v1.1.0` 发布。完整研发顺序、版本发布条件和数据隔离
+边界见[第 6～11 周研发路线与 GitHub 版本节点](docs/deliverables/week-06-to-11-roadmap.md)。
 
 ## 16. 测试计划
 
@@ -1149,6 +1158,15 @@ uv run python -m app.ingestion.inspect `
 - [第 5 周工程日志：通用智能体迁移与公开 Benchmark 基线](docs/engineering-logs/week-05.md)
 - [第 5 周实施计划](docs/deliverables/week-05-plan.md)
 - [第 5 周计划日 1 验收说明](docs/deliverables/week-05-day-01.md)
+- [第 5 周计划日 2 FiQA 选型与冻结](docs/deliverables/week-05-day-02.md)
+- [第 5 周计划日 3 FiQA 检索基线](docs/deliverables/week-05-day-03.md)
+- [第 5 周计划日 4-A RAGTruth 基线](docs/deliverables/week-05-day-04-a.md)
+- [第 5 周计划日 4-B RAGBench 基线](docs/deliverables/week-05-day-04-b.md)
+- [第 5 周计划日 5 统一基线与研究入口](docs/deliverables/week-05-day-05.md)
+- [公开 Benchmark 与冻结基线技术说明](docs/technical/evaluation-and-baselines.md)
+- [v1.1.0 公开 Benchmark 聚合结果](benchmarks/v1.1.0/README.md)
+- [v1.1.0 Release Notes](docs/releases/v1.1.0.md)
+- [第 6～11 周研发路线与 GitHub 版本节点](docs/deliverables/week-06-to-11-roadmap.md)
 - [设置页模型 Token 累计统计验收说明](docs/deliverables/model-token-usage-settings.md)
 - [混合组卷与来源配额设计决策](docs/design-decisions/mixed-exam-generation.md)
 - [通用智能体平台迁移设计决策](docs/design-decisions/general-agent-platform.md)

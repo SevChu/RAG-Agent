@@ -1,0 +1,131 @@
+{
+  "schema_version": "1.0",
+  "release_version": "1.0.0",
+  "frozen_on": "2026-08-30",
+  "test_policy": "test splits are final-report-only; optimization uses train and validation only",
+  "profiles": [
+    {
+      "profile_id": "fiqa-dense-retrieval",
+      "version": "1.0.0",
+      "task": "retrieval",
+      "method": "BGE-M3 normalized exact-cosine dense retrieval",
+      "role": "default offline retrieval baseline; prioritize evidence recall",
+      "dataset_id": "beir-fiqa-2018",
+      "dataset_revision": "archive-sha256:32c7df99ed21252fdfb2cf3f5673502a8d245ee0c44c4a133570d92ce2b3ad02",
+      "model": {
+        "name": "BAAI/bge-m3",
+        "revision": "84790c1a606f60d06c6932e4ecdd174b466d84ac",
+        "weight_sha256": "993b2248881724788dcab8c644a91dfd63584b6e5604ff2037cb5541e1e38e7e",
+        "config_sha256": "26159e7ad065073448460117eb24b7a4572f6f4e78eadff65dc0a11c052449fa"
+      },
+      "parameters": {
+        "top_k": 100,
+        "batch_size": 8,
+        "normalized": true,
+        "search": "exact-cosine",
+        "seed": 42
+      },
+      "reference_metrics": {
+        "ndcg@10": 0.41262838230404814,
+        "recall@100": 0.7187787349824389,
+        "mrr@10": 0.5038500636880264,
+        "map@100": 0.3537653920228032,
+        "search_mean_ms": 1.18046219148833
+      },
+      "limitations": [
+        "FiQA is English and finance-only.",
+        "Search latency excludes query embedding time.",
+        "This profile maximizes tested recall; it is not a universal production default."
+      ],
+      "allowed_usage": [
+        "offline benchmark reference",
+        "candidate retrieval baseline",
+        "train/validation-only optimization comparison"
+      ]
+    },
+    {
+      "profile_id": "ragtruth-lexical-hallucination",
+      "version": "1.0.0",
+      "task": "hallucination_detection",
+      "method": "lexical coverage",
+      "role": "default offline response-level hallucination reference; advisory only",
+      "dataset_id": "ragtruth",
+      "dataset_revision": "git:c103204b9ce28d6bbad859304bf30de72b8ed8fe",
+      "model": null,
+      "parameters": {
+        "response_threshold": 0.57,
+        "span_threshold": 0.66,
+        "span_boundary": "sentence",
+        "implicit_true_policy": "unsupported",
+        "seed": 42
+      },
+      "reference_metrics": {
+        "response_f1": 0.6244789693065556,
+        "response_auroc": 0.7247703625733395,
+        "response_auprc": 0.5041734008643373,
+        "response_recall": 0.8738069989395546,
+        "span_char_f1": 0.1546578539899702
+      },
+      "limitations": [
+        "Response precision is 0.4858, so this profile must not block production answers.",
+        "Sentence-boundary span predictions over-mark short hallucinated phrases.",
+        "RAGTruth does not represent Chinese or real user traffic."
+      ],
+      "allowed_usage": [
+        "offline benchmark reference",
+        "advisory error analysis",
+        "train/dev-only threshold comparison"
+      ]
+    },
+    {
+      "profile_id": "ragbench-lexical-dense-linear",
+      "version": "1.0.0",
+      "task": "trace_scoring",
+      "method": "StandardScaler + balanced LogisticRegression / Ridge over lexical and BGE-M3 features",
+      "role": "default offline TRACe scorer baseline",
+      "dataset_id": "ragbench",
+      "dataset_revision": "git:97808f3e5fd16ede40bbff6c2949af8139b2eb7b",
+      "model": {
+        "name": "BAAI/bge-m3",
+        "revision": "84790c1a606f60d06c6932e4ecdd174b466d84ac",
+        "weight_sha256": "993b2248881724788dcab8c644a91dfd63584b6e5604ff2037cb5541e1e38e7e",
+        "config_sha256": "26159e7ad065073448460117eb24b7a4572f6f4e78eadff65dc0a11c052449fa"
+      },
+      "parameters": {
+        "feature_count": 28,
+        "adherence_threshold": 0.14,
+        "adherence_class_weight": "balanced",
+        "ridge_alpha": {
+          "relevance": 100,
+          "utilization": 100,
+          "completeness": 100
+        },
+        "max_text_chars": 8000,
+        "embedding_batch_size": 16,
+        "example_batch_size": 64,
+        "seed": 42
+      },
+      "reference_metrics": {
+        "adherence_f1": 0.9247272393875493,
+        "adherence_auroc": 0.7272650014355441,
+        "adherence_auprc": 0.9291732208920929,
+        "relevance_rmse": 0.1820808172653563,
+        "relevance_spearman": 0.7577261862058614,
+        "utilization_rmse": 0.12347433153215305,
+        "utilization_spearman": 0.8098926054292583,
+        "completeness_rmse": 0.25973751894485086,
+        "completeness_spearman": 0.3967062587518067
+      },
+      "limitations": [
+        "The adherence test positive rate is 85.79%; F1 alone is misleading.",
+        "The selected threshold identifies few true negatives and is not a production gate.",
+        "Completeness and the ExpertQA/TechQA domains remain weak."
+      ],
+      "allowed_usage": [
+        "offline benchmark reference",
+        "scorer research baseline",
+        "train/validation-only feature and calibration comparison"
+      ]
+    }
+  ]
+}

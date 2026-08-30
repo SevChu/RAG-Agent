@@ -57,16 +57,11 @@ def matches_query_concepts(query: str, passage: str) -> bool:
     lowered_query = query.lower()
     lowered_passage = passage.lower()
     requested_groups = [
-        group
-        for group in _CONCEPT_GROUPS
-        if any(term.lower() in lowered_query for term in group)
+        group for group in _CONCEPT_GROUPS if any(term.lower() in lowered_query for term in group)
     ]
     if not requested_groups:
         return True
-    return any(
-        any(term.lower() in lowered_passage for term in group)
-        for group in requested_groups
-    )
+    return any(any(term.lower() in lowered_passage for term in group) for group in requested_groups)
 
 
 class BgeReranker:
@@ -119,15 +114,14 @@ class BgeReranker:
                 fallback_reason=dense.fallback_reason,
             )
 
-        scores = self._predict(dense.query, dense.hits)
+        scores = self.score_passages(dense.query, [hit.text for hit in dense.hits])
         ranked: list[VectorSearchResult] = []
         rejected = 0
         for hit, score in zip(dense.hits, scores, strict=True):
             assessment = assess_evidence(hit)
             concept_matched = matches_query_concepts(dense.query, hit.text)
             role_allowed = assessment.eligible or (
-                allow_exercise_questions
-                and assessment.role is ContentRole.EXERCISE_QUESTION
+                allow_exercise_questions and assessment.role is ContentRole.EXERCISE_QUESTION
             )
             eligible = role_allowed and concept_matched
             rejection_reason = assessment.reason
@@ -161,9 +155,7 @@ class BgeReranker:
 
         ranked.sort(key=lambda item: item.score, reverse=True)
         fallback_reasons = [
-            reason
-            for reason in (dense.fallback_reason, self._fallback_reason)
-            if reason
+            reason for reason in (dense.fallback_reason, self._fallback_reason) if reason
         ]
         return RerankedRetrievalResult(
             query=dense.query,
@@ -175,18 +167,24 @@ class BgeReranker:
             fallback_reason=" ".join(fallback_reasons) or None,
         )
 
-    def _predict(
+    def score_passages(
         self,
         query: str,
-        hits: Sequence[VectorSearchResult],
+        passages: Sequence[str],
     ) -> tuple[float, ...]:
+        """Score passages without applying product-specific evidence gates."""
+
+        if not query.strip():
+            raise ValueError("Reranker query cannot be blank.")
+        if not passages:
+            return ()
         try:
-            raw_scores = self._run_model(query, hits)
+            raw_scores = self._run_model(query, passages)
         except RuntimeError as error:
             if self._device != EmbeddingDevice.CUDA:
                 raise
             self._fallback_to_cpu(error)
-            raw_scores = self._run_model(query, hits)
+            raw_scores = self._run_model(query, passages)
         clipped = np.clip(raw_scores, -50.0, 50.0)
         normalized = 1.0 / (1.0 + np.exp(-clipped))
         return tuple(float(value) for value in normalized)
@@ -194,10 +192,10 @@ class BgeReranker:
     def _run_model(
         self,
         query: str,
-        hits: Sequence[VectorSearchResult],
+        passages: Sequence[str],
     ) -> np.ndarray[Any, np.dtype[np.float64]]:
         expanded_query = expand_query_terms(query)
-        pairs = [(expanded_query, hit.text) for hit in hits]
+        pairs = [(expanded_query, passage) for passage in passages]
         output = self._get_model().predict(
             pairs,
             batch_size=self.batch_size,
@@ -206,10 +204,8 @@ class BgeReranker:
             convert_to_numpy=True,
         )
         scores = np.asarray(output, dtype=np.float64).reshape(-1)
-        if scores.shape != (len(hits),):
-            raise RuntimeError(
-                f"Reranker returned {scores.shape}; expected {(len(hits),)}."
-            )
+        if scores.shape != (len(passages),):
+            raise RuntimeError(f"Reranker returned {scores.shape}; expected {(len(passages),)}.")
         return scores
 
     def _get_model(self) -> CrossEncoderModel:

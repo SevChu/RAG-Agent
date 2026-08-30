@@ -47,7 +47,8 @@
 - 定义统一数据契约：dataset、corpus、query、reference answer、qrels、response 和细粒度标签；
 - 增加数据集注册表，记录来源、版本、许可、哈希、split、语言、领域和本地状态；
 - 建立 `candidate → approved → downloaded → verified → frozen` 状态机；
-- 用户审批后优先接入 BEIR SciFact，其他数据仍分别审批；
+- 规模复核后，将首选集由 BEIR SciFact 调整为 BEIR FiQA-2018；已取得明确批准、完成下载校验
+  并冻结本地 manifest，其他数据仍分别审批；
 - 将现有 100 条本地数据注册为 `local-candidate`，不与公开 test split 混用；
 - 下载后校验哈希并保存不可变清单。
 
@@ -59,6 +60,9 @@
 - 未经用户逐项批准不会访问数据下载端点。
 
 ## 计划日 3：经典检索基线
+计划日 3 已于 2026-08-25 完成，正式指标、资源、run 哈希和结论见
+[FiQA 经典检索基线交付](week-05-day-03.md)。
+
 
 ### 实施内容
 
@@ -74,25 +78,53 @@
 - 公开 qrels 与项目内部资料空间数据严格隔离；
 - 不用生成模型指标掩盖检索失败。
 
-## 计划日 4：经典回答评分器基线
+## 计划日 4：经典回答评分器基线（两阶段验收）
 
-### 实施内容
+计划日 4 按用户要求拆为 A、B 两个独立阶段。阶段 A 已完成并获用户认可；阶段 B 随后获得
+明确批准并已完成。正式协议、指标、资源、哈希和结论分别见
+[RAGTruth 幻觉检测基线](week-05-day-04-a.md) 与 [RAGBench 综合评分基线](week-05-day-04-b.md)。
 
-- 建立 Exact Match、Token F1、ROUGE-L 和 BERTScore 确定性基线；
-- 建立 RAGAS Faithfulness、Answer Relevancy、Context Precision/Recall 基线；
-- 建立 RAG Triad 或等价的上下文相关性、忠实性、答案相关性基线；
-- 在 RAGBench 上验证相关性、利用率、完整性和忠实性；
-- 在 RAGTruth 上验证回答级和细粒度幻觉检测；
-- 记录 Judge 模型、提示版本、重复运行方差、token、延迟和失败样本。
+### 阶段 A：RAGTruth 幻觉检测（已完成并获用户认可）
+
+- 下载并冻结获批的 RAGTruth 固定 revision，校验文件长度、SHA-256、JSONL、引用和标签边界；
+- 保持官方 test 不参与训练，从官方 train 按 source_id 分组、按任务分层切出 20% dev；
+- 建立词法覆盖、项目内 BGE-M3 语义支持度和 class-balanced Logistic Regression 融合基线；
+- 报告回答级 Precision、Recall、F1、AUROC、AUPRC、Brier、ECE 和分任务结果；
+- 报告 micro character-level span Precision、Recall、F1；
+- 不调用外部 Judge/API，不下载新模型，不读取资料空间、对话或自有候选测试集。
+
+阶段 A 回答级最佳为词法覆盖：F1 0.6245、AUROC 0.7248、AUPRC 0.5042；字符级最佳为
+逻辑回归融合：F1 0.1777。缓存复跑指标与预测 SHA-256 完全一致。
+
+### 阶段 B：RAGBench 综合评分（已完成并获用户认可）
+
+- 用户于阶段 A 验收后明确批准 RAGBench，固定 revision 已下载、全量校验并冻结；
+- 在完整 12 子集上保持 train 拟合、validation 调参、test 最终报告的严格边界；
+- 建立词法启发式、词法线性与词法+BGE-M3 线性三组 TRACe 基线；
+- 报告 adherence 的分类、排序与校准指标，以及 relevance、utilization、completeness 的
+  MAE、RMSE、Pearson、Spearman；
+- 对 release 中 TruLens、RAGAS、GPT 预计算分数按有效覆盖独立复评；
+- 综合默认基线为词法+BGE 线性：adherence AUROC 0.7273、AUPRC 0.9292，连续任务
+  Spearman 为 0.7577 / 0.8099 / 0.3967；
+- 首轮与 cache-hit 复跑的 11,802 行 test 预测 SHA-256 完全一致。
 
 ### 验收
 
+- 阶段 A、B 分别出具交付文档并分别由用户验收；
 - 评分器输出与被测 Agent 输出分开持久化；
 - 分类评分器报告 Precision、Recall、F1、AUROC 和 AUPRC；
-- 连续评分器报告 Pearson、Spearman、校准误差和重复运行稳定性；
-- 不能以 LLM-as-Judge 分数直接代替公开标注或人工审核。
+- 连续评分器报告 MAE、RMSE、Pearson、Spearman 和重复运行稳定性；
+- 不能以 LLM-as-Judge 分数直接代替公开标注或人工审核；
+- 阶段 B 已按二次明确批准完成并获用户认可，随后进入计划日 5。
 
 ## 计划日 5：基线报告与后续研究入口
+
+计划日 5 已于 2026-08-30 完成，等待用户验收。正式统一结论、冻结 profile、错误分类、算法实验
+优先级、微调界面里程碑和自有金标集方案见
+[计划日 5 统一基线与研究入口](week-05-day-05.md)。
+
+**GitHub 版本节点：** 第五周成果随 `v1.1.0` 发布。前后端发布门、隐私检查和版本元数据同步
+已经通过；公开仓库只加入聚合 Benchmark JSON/CSV，原始数据和逐条预测继续留在 Git 忽略目录。
 
 ### 实施内容
 
@@ -120,6 +152,8 @@
 
 ## 数据下载审批边界
 
-当前仅将 BEIR SciFact、RGB refined、RAGBench 代表性子集、RAGTruth test split 和 IBM MTRAG
-列为候选，不视为用户已批准下载。每项下载前必须再次提交来源、许可、预计大小、保存目录、
-下载命令和校验方式，并取得用户明确批准。
+BEIR FiQA-2018 已于 2026-08-25 获得明确下载授权并在本地冻结。RAGTruth 已于 2026-08-26
+获得本地下载与基准授权并完成阶段 A。用户认可阶段 A 结果后，又明确批准 RAGBench 阶段 B；
+RAGBench 固定 revision、36 个原始文件、manifest、缓存和运行产物现已在 Git 忽略目录内冻结。
+BEIR SciFact 降为可选的小型冒烟集；RGB refined 和 IBM MTRAG 仍为候选。后续每项新数据下载
+仍须取得对具体数据集和阶段的明确批准。

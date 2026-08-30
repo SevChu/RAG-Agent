@@ -1,4 +1,4 @@
-# Agentic 1.0.0 技术文档
+# Agentic 技术文档
 
 本目录描述 Agentic 1.0.0 的**当前实现**。逐周工程日志用于解释系统如何演进，本目录则用于回答“系统现在是什么、如何运行、模块如何协作、接口如何使用、哪里仍有限制”。若历史计划与当前代码不一致，以当前代码、数据库迁移和本目录为准。
 
@@ -28,10 +28,14 @@
 
 ### 发布与后续研究
 
-1. [1.0.0 基线说明](version-1.0.0.md)
-2. [第五周实施计划](../deliverables/week-05-plan.md)
-3. [通用智能体平台迁移设计决策](../design-decisions/general-agent-platform.md)
-4. [第 1～5 周工程日志](../engineering-logs/README.md)
+1. [v1.1.0 Release Notes](../releases/v1.1.0.md)
+2. [1.0.0 历史基线说明](version-1.0.0.md)
+3. [公开 Benchmark 与冻结基线](evaluation-and-baselines.md)
+4. [第五周实施计划](../deliverables/week-05-plan.md)
+5. [计划日 5 统一基线与研究入口](../deliverables/week-05-day-05.md)
+6. [第 6～11 周研发路线与 GitHub 版本节点](../deliverables/week-06-to-11-roadmap.md)
+7. [通用智能体平台迁移设计决策](../design-decisions/general-agent-platform.md)
+8. [第 1～5 周工程日志](../engineering-logs/README.md)
 
 ## 文档地图
 
@@ -43,6 +47,7 @@
 | [data-and-rag-pipeline.md](data-and-rag-pipeline.md) | 文件如何变成可检索、可引用的证据？ |
 | [agent-and-generation.md](agent-and-generation.md) | 问答、总结、组卷和联网如何路由与校验？ |
 | [development-and-testing.md](development-and-testing.md) | 如何开发、迁移、测试和运行本地评测？ |
+| [evaluation-and-baselines.md](evaluation-and-baselines.md) | 公开 Benchmark、冻结 profile 和实验治理规则是什么？ |
 | [operations.md](operations.md) | 如何启动、备份、恢复和排查常见故障？ |
 | [version-1.0.0.md](version-1.0.0.md) | 1.0.0 冻结了什么，还有哪些发布前事项？ |
 
@@ -60,7 +65,7 @@
 | 模型接口 | DeepSeek、Qwen、Kimi、GLM 的 OpenAI-compatible 预留/运行接口 |
 | 会话 | 快速对话和资料空间对话分别持久化 |
 | 可观测性 | 文档处理进度、引用元数据、检索诊断、Token 累计 |
-| 评测 | 本地候选数据与可恢复执行器已实现；公开 Benchmark 未获批下载 |
+| 评测 | FiQA、RAGTruth、RAGBench 已获批并完成冻结基线；机器 profile 1.0.0 可校验加载 |
 | 微调 | 规划中；1.0.0 没有训练任务或微调界面 |
 
 ## 事实来源优先级

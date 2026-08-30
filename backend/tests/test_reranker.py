@@ -154,9 +154,7 @@ def test_exam_rerank_can_retain_exercise_questions_without_changing_qa_default(
 
 
 def test_query_term_expansion_is_small_and_deterministic() -> None:
-    assert expand_query_terms("二分查找的适用条件") == (
-        "二分查找的适用条件\n相关术语：折半查找"
-    )
+    assert expand_query_terms("二分查找的适用条件") == ("二分查找的适用条件\n相关术语：折半查找")
     assert expand_query_terms("二分查找也叫折半查找") == "二分查找也叫折半查找"
 
 
@@ -165,3 +163,23 @@ def test_explicit_concept_anchor_rejects_obvious_topic_drift() -> None:
     assert not matches_query_concepts("队列是先进先出吗？", "栈遵循后进先出。")
     assert matches_query_concepts("二分查找复杂度", "折半查找要求有序表。")
     assert matches_query_concepts("一般如何衡量算法？", "时间复杂度是一种指标。")
+
+
+def test_reranker_can_score_generic_passages_without_evidence_gates(tmp_path: Path) -> None:
+    model_path = tmp_path / "reranker"
+    model_path.mkdir()
+    model = FakeCrossEncoder([0.0, 2.0])
+    reranker = BgeReranker(
+        model_path,
+        device="cpu",
+        model_factory=lambda _path, _device, _length: model,
+    )
+
+    scores = reranker.score_passages("financial query", ["first passage", "second passage"])
+
+    assert scores[0] == 0.5
+    assert scores[1] > scores[0]
+    assert model.calls == [
+        [("financial query", "first passage"), ("financial query", "second passage")]
+    ]
+    assert reranker.score_passages("financial query", []) == ()

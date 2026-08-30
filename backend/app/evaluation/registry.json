@@ -1,0 +1,131 @@
+{
+  "schema_version": "1.0",
+  "datasets": [
+    {
+      "dataset_id": "beir-fiqa-2018",
+      "display_name": "BEIR FiQA-2018",
+      "adapter": "beir",
+      "task": "retrieval",
+      "lifecycle": "approved",
+      "source_url": "https://github.com/beir-cellar/beir/wiki/Datasets-available",
+      "homepage_url": "https://sites.google.com/view/fiqa/home",
+      "download_url": "https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/fiqa.zip",
+      "license_name": "FiQA research-use terms",
+      "license_url": "https://sites.google.com/view/fiqa/home",
+      "license_notes": "The official FiQA page limits the training and test data to non-commercial use. Keep the downloaded copy local and use it only for research evaluation.",
+      "citation": "Maia et al., WWW '18 Open Challenge: Financial Opinion Mining and Question Answering (2018); Thakur et al., BEIR (2021).",
+      "languages": ["en"],
+      "domains": ["finance", "question-answering"],
+      "splits": ["train", "dev", "test"],
+      "expected_archive_md5": "17918ed23cd04fb15047f73e6c3bd9d9",
+      "stats": {
+        "corpus_count": 57638,
+        "query_count": 648,
+        "response_count": null
+      },
+      "approval_scope": "User explicitly approved downloading BEIR FiQA into the Agentic project folder on 2026-08-25 for local non-commercial research evaluation."
+    },
+    {
+      "dataset_id": "beir-scifact",
+      "display_name": "BEIR SciFact",
+      "adapter": "beir",
+      "task": "retrieval",
+      "lifecycle": "candidate",
+      "source_url": "https://github.com/beir-cellar/beir/wiki/Datasets-available",
+      "homepage_url": "https://github.com/allenai/scifact",
+      "download_url": "https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/scifact.zip",
+      "license_name": "CC BY-NC 2.0",
+      "license_url": "https://creativecommons.org/licenses/by-nc/2.0/",
+      "license_notes": "Candidate retained only as a small retrieval smoke dataset; it is not approved for download.",
+      "citation": "Wadden et al., Fact or Fiction: Verifying Scientific Claims (2020); Thakur et al., BEIR (2021).",
+      "languages": ["en"],
+      "domains": ["scientific", "fact-verification"],
+      "splits": ["train", "test"],
+      "expected_archive_md5": "5f7d1de60b170fc8027bb7898e2efca1",
+      "stats": {
+        "corpus_count": 5183,
+        "query_count": 300,
+        "response_count": null
+      },
+      "approval_scope": null
+    },
+    {
+      "dataset_id": "rgb-refined",
+      "display_name": "RGB refined",
+      "adapter": "rgb",
+      "task": "rag_generation",
+      "lifecycle": "candidate",
+      "source_url": "https://github.com/chen700564/RGB",
+      "homepage_url": "https://github.com/chen700564/RGB",
+      "download_url": null,
+      "license_name": "Repository-specific terms require review",
+      "license_url": "https://github.com/chen700564/RGB",
+      "license_notes": "Candidate only. Review the repository license and refined file provenance before approval.",
+      "citation": "Chen et al., Benchmarking Large Language Models in Retrieval-Augmented Generation (AAAI 2024).",
+      "languages": ["en", "zh"],
+      "domains": ["general", "rag-generation"],
+      "splits": ["test"],
+      "expected_archive_md5": null,
+      "stats": {
+        "corpus_count": null,
+        "query_count": null,
+        "response_count": null
+      },
+      "approval_scope": null
+    },
+    {
+      "dataset_id": "ragbench",
+      "display_name": "RAGBench",
+      "adapter": "ragbench",
+      "task": "rag_generation",
+      "lifecycle": "approved",
+      "source_url": "https://huggingface.co/datasets/galileo-ai/ragbench",
+      "homepage_url": "https://arxiv.org/abs/2407.11005",
+      "download_url": "https://huggingface.co/datasets/galileo-ai/ragbench/resolve/97808f3e5fd16ede40bbff6c2949af8139b2eb7b",
+      "source_revision": "97808f3e5fd16ede40bbff6c2949af8139b2eb7b",
+      "license_name": "CC BY 4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "license_notes": "Use locally with attribution for scorer research. Keep the frozen Parquet release and derived predictions out of Git; preserve underlying component-dataset notices when redistributing derived material.",
+      "citation": "Friel, Belyi and Sanyal, RAGBench (2024).",
+      "languages": ["en"],
+      "domains": ["multi-domain", "rag-evaluation"],
+      "splits": ["train", "validation", "test"],
+      "expected_archive_md5": null,
+      "stats": {
+        "corpus_count": null,
+        "query_count": 95381,
+        "response_count": 95381
+      },
+      "approval_scope": "User accepted the RAGTruth stage-A benchmark and explicitly approved starting RAGBench stage B on 2026-08-26. Scope covers the fixed 12-subset release for local evaluation only."
+    },
+    {
+      "dataset_id": "ragtruth",
+      "display_name": "RAGTruth",
+      "adapter": "ragtruth",
+      "task": "hallucination_detection",
+      "lifecycle": "approved",
+      "source_url": "https://github.com/ParticleMedia/RAGTruth",
+      "homepage_url": "https://aclanthology.org/2024.acl-long.585/",
+      "download_url": null,
+      "source_revision": "c103204b9ce28d6bbad859304bf30de72b8ed8fe",
+      "download_files": {
+        "response.jsonl": "https://raw.githubusercontent.com/ParticleMedia/RAGTruth/c103204b9ce28d6bbad859304bf30de72b8ed8fe/dataset/response.jsonl",
+        "source_info.jsonl": "https://raw.githubusercontent.com/ParticleMedia/RAGTruth/c103204b9ce28d6bbad859304bf30de72b8ed8fe/dataset/source_info.jsonl"
+      },
+      "license_name": "MIT",
+      "license_url": "https://github.com/ParticleMedia/RAGTruth/blob/main/LICENSE",
+      "license_notes": "MIT covers the release; underlying MS MARCO, Yelp, CNN/DailyMail and recent-news content keeps its original rights. Local research evaluation only; do not redistribute.",
+      "citation": "Wu et al., RAGTruth (ACL 2024).",
+      "languages": ["en"],
+      "domains": ["multi-domain", "hallucination-detection"],
+      "splits": ["train", "test"],
+      "expected_archive_md5": null,
+      "stats": {
+        "corpus_count": 2965,
+        "query_count": null,
+        "response_count": 17790
+      },
+      "approval_scope": "User approved local RAGTruth download and benchmark on 2026-08-26; RAGBench remains candidate pending separate acceptance."
+    }
+  ]
+}

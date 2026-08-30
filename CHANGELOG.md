@@ -2,6 +2,19 @@
 
 本项目的显著变化记录在此。版本采用 [Semantic Versioning](https://semver.org/)。在 GitHub 发布前，日期、项目名和发布链接仍可根据用户最终决定调整。
 
+## [Unreleased]
+
+## [1.1.0] - 2026-08-30
+
+### Added
+
+- 通用智能体与资料空间界面语义迁移；
+- BEIR FiQA-2018 检索基线；
+- RAGTruth 回答级幻觉与 span 定位基线；
+- RAGBench adherence、relevance、utilization、completeness 综合评分基线；
+- 统一公开 Benchmark 注册表、Adapter、安全冻结流程和机器可读 baseline profile 1.0.0；
+- 第 6～11 周评分算法、AgentProfile、微调、记忆与金标集路线。
+
 ## [1.0.0] - 2026-08-25
 
 ### Added
