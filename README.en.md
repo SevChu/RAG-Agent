@@ -23,6 +23,124 @@
 > application itself already supports English. Product-level English support is
 > planned as a future internationalization milestone.
 
+## Quick Start for First-Time Users
+
+> This section is for locally running the project with the author's permission.
+> You do not need to understand the full architecture first: configure one model
+> API, make sure the local retrieval models exist, and start the backend and frontend.
+
+### 1. Install the Basic Tools
+
+Windows 10/11 is recommended. Install:
+
+- [Git](https://git-scm.com/);
+- [uv](https://docs.astral.sh/uv/);
+- Node.js 24 or a compatible release, including npm;
+- an NVIDIA GPU is recommended. CPU execution is possible for some workflows, but
+  document indexing and local-model inference will be considerably slower.
+
+If you already have the full project directory, open PowerShell in that directory.
+If you are authorized to retrieve it from GitHub:
+
+```powershell
+git clone https://github.com/SevChu/RAG-Agent.git
+cd RAG-Agent
+```
+
+### 2. Create `.env` and Configure One Provider
+
+From the repository root:
+
+```powershell
+Copy-Item .env.example .env
+notepad .env
+```
+
+For the shortest initial setup, configure at least one provider. DeepSeek example:
+
+```dotenv
+LLM_BASE_URL=https://api.deepseek.com
+LLM_API_KEY=replace-with-your-own-api-key
+LLM_MODEL=replace-with-your-current-model-id
+LLM_AVAILABLE_MODELS=replace-with-your-current-model-id
+```
+
+Use the exact model ID currently shown by your provider. Never commit `.env` or a
+real API key. For Qwen, Kimi, or GLM, fill both the corresponding `*_API_KEY` and
+`*_MODELS`; the provider remains disabled until both values are present.
+
+### 3. Prepare the Local Retrieval Models
+
+Model weights are not distributed through the GitHub repository, and Agentic does
+not download them automatically. A fresh environment needs:
+
+| Purpose | Model | Default directory |
+|---|---|---|
+| Embeddings and retrieval | `BAAI/bge-m3` | `data/models/embedding/bge-m3/` |
+| Retrieval reranking | `BAAI/bge-reranker-v2-m3` | `data/models/reranker/bge-reranker-v2-m3/` |
+| Scanned-PDF OCR | local PaddleOCR models | `data/models/paddleocr/` |
+
+OCR may be prepared later if you initially use documents with a native text layer.
+The embedding and reranker models are required for the complete RAG workflow.
+Before downloading or copying any model, verify its source, license, revision, size,
+and hashes. If you use different directories, update `EMBEDDING_MODEL_PATH`,
+`RERANKER_MODEL_PATH`, and `PADDLE_OCR_BASE_DIR` in `.env`.
+
+### 4. Start the Backend
+
+Open the first PowerShell window in the repository root:
+
+```powershell
+cd backend
+uv sync --frozen
+uv run alembic upgrade head
+uv run python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+The first `uv sync --frozen` installs the backend dependencies and may take some
+time. Keep this window open after Uvicorn starts listening on
+`http://127.0.0.1:8000`.
+
+### 5. Start the Frontend
+
+Open a second PowerShell window in the repository root:
+
+```powershell
+cd frontend
+npm install
+npm.cmd run dev -- --host 127.0.0.1
+```
+
+Open:
+
+- Application: `http://127.0.0.1:5173/`
+- Backend health check: `http://127.0.0.1:8000/api/health`
+- OpenAPI documentation: `http://127.0.0.1:8000/docs`
+
+### 6. Complete Your First Grounded Question
+
+1. Open Settings and confirm that your provider is marked as configured.
+2. Create a resource space.
+3. Upload a PDF, PPTX, DOCX, Markdown, or TXT file.
+4. Wait until the document status is complete.
+5. Open Agent Chat, select the resource space, and ask a question.
+6. Confirm that the answer includes file, page, slide, or section citations.
+
+### Common Startup Problems
+
+| Symptom | Check first |
+|---|---|
+| `uv` or `npm` is not recognized | Install the tool and restart the terminal |
+| Backend reports a missing model directory | Compare all local model paths with `.env` |
+| Provider is shown as not configured | Fill both its key and model list, then restart the backend |
+| Model service cannot be reached | Base URL, model ID, API key, account quota, and network |
+| Port 8000 or 5173 is already in use | Stop an older backend or frontend process |
+| A scanned PDF cannot be parsed | Prepare PaddleOCR models; test TXT/Markdown first |
+
+If the application still does not start, follow the checks in
+[Operations](docs/technical/operations.md). Every environment variable is documented
+in [Configuration](docs/technical/configuration.md).
+
 ## Project Status
 
 - Latest release: `v1.1.1` — licensing-boundary patch.
@@ -168,7 +286,7 @@ See:
 - [Evaluation and frozen baselines](docs/technical/evaluation-and-baselines.md)
 - [Week 5 engineering log](docs/engineering-logs/week-05.md)
 
-## Quick Start
+## Detailed Setup Reference
 
 ### Prerequisites
 

@@ -17,6 +17,116 @@
 > 用于帮助国际读者了解项目，不代表程序已经完成英文支持；产品级中英文切换计划纳入未来
 > `v1.6.0` 国际化里程碑。
 
+## 快速上手（新手版）
+
+> 本节适用于获得作者授权的本地运行。第一次使用不需要先读完整技术文档：准备一个可用模型
+> API、确认本地检索模型目录存在，再分别启动后端和前端即可。
+
+### 1. 准备基础环境
+
+建议使用 Windows 10/11，并提前安装：
+
+- [Git](https://git-scm.com/)；
+- [uv](https://docs.astral.sh/uv/)；
+- Node.js 24 或兼容版本（自带 npm）；
+- NVIDIA GPU 为推荐项，CPU 也可运行部分流程，但文档索引和本地模型推理会明显更慢。
+
+如果已经拿到完整项目文件夹，可以直接进入项目根目录；如果是经授权从 GitHub 获取：
+
+```powershell
+git clone https://github.com/SevChu/RAG-Agent.git
+cd RAG-Agent
+```
+
+### 2. 创建配置文件并填写一个模型
+
+在项目根目录执行：
+
+```powershell
+Copy-Item .env.example .env
+notepad .env
+```
+
+只想先跑通程序时，至少配置一个供应商。以 DeepSeek 为例：
+
+```dotenv
+LLM_BASE_URL=https://api.deepseek.com
+LLM_API_KEY=替换为你自己的APIKey
+LLM_MODEL=替换为你的实际模型ID
+LLM_AVAILABLE_MODELS=替换为你的实际模型ID
+```
+
+模型 ID 必须以供应商控制台当前提供的名称为准。不要把 `.env`、API Key 或真实模型凭据提交
+到 Git。若使用 Qwen、Kimi 或 GLM，则填写 `.env` 中对应的 `*_API_KEY` 和 `*_MODELS`；两项
+都填写后，该供应商才会在程序中显示为可用。
+
+### 3. 确认本地检索模型
+
+模型权重不随 GitHub 仓库分发，程序也不会自动下载。全新环境至少要准备：
+
+| 用途 | 模型 | 默认目录 |
+|---|---|---|
+| 文档向量与检索 | `BAAI/bge-m3` | `data/models/embedding/bge-m3/` |
+| 检索重排 | `BAAI/bge-reranker-v2-m3` | `data/models/reranker/bge-reranker-v2-m3/` |
+| 扫描 PDF OCR | PaddleOCR 本地模型 | `data/models/paddleocr/` |
+
+如果暂时只处理带原生文本层的文档，OCR 可以稍后准备；Embedding 和 Reranker 是完整 RAG
+流程的必要条件。下载或复制模型前请确认来源、许可、版本、体积和哈希，然后在 `.env` 中按
+实际位置修改 `EMBEDDING_MODEL_PATH`、`RERANKER_MODEL_PATH` 和 `PADDLE_OCR_BASE_DIR`。
+
+### 4. 启动后端
+
+打开第一个 PowerShell 窗口，在项目根目录执行：
+
+```powershell
+cd backend
+uv sync --frozen
+uv run alembic upgrade head
+uv run python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+第一次执行 `uv sync --frozen` 会安装后端依赖，耗时取决于网络和硬件。看到 Uvicorn 已监听
+`http://127.0.0.1:8000` 后，不要关闭这个窗口。
+
+### 5. 启动前端
+
+再打开一个 PowerShell 窗口，在项目根目录执行：
+
+```powershell
+cd frontend
+npm install
+npm.cmd run dev -- --host 127.0.0.1
+```
+
+然后用浏览器打开：
+
+- 程序界面：`http://127.0.0.1:5173/`
+- 后端健康检查：`http://127.0.0.1:8000/api/health`
+- API 文档：`http://127.0.0.1:8000/docs`
+
+### 6. 完成第一次问答
+
+1. 打开“设置”，确认目标供应商显示为“已配置”；
+2. 进入“资料空间”，创建一个空间；
+3. 上传 PDF、PPTX、DOCX、Markdown 或 TXT 文件；
+4. 等待资料状态变为“已完成”；
+5. 进入“智能体对话”，选择刚才的资料空间并提问；
+6. 检查回答是否带有文件名、页码、幻灯片或章节引用。
+
+### 常见启动问题
+
+| 现象 | 优先检查 |
+|---|---|
+| `uv` 或 `npm` 命令不存在 | 是否正确安装并重启终端 |
+| 后端提示模型目录不存在 | 三个本地模型路径是否与 `.env` 一致 |
+| 设置页显示“待配置” | Key 和模型列表是否同时填写；修改后是否重启后端 |
+| 无法连接模型服务 | Base URL、模型 ID、Key、账户额度和本地网络 |
+| 8000 或 5173 端口被占用 | 是否有上一次启动的后端或前端进程未关闭 |
+| 扫描 PDF 无法解析 | PaddleOCR 模型目录是否存在；可先用 TXT/Markdown 验证主流程 |
+
+仍无法启动时，按[运行与排障](docs/technical/operations.md)的检查顺序处理；所有环境变量见
+[配置参考](docs/technical/configuration.md)。
+
 ## 1. 项目简介
 
 Agentic 是一个本地优先、资料可追溯、支持评测与后续微调的通用智能体实验平台。系统通过 RAG（Retrieval-Augmented Generation，检索增强生成）技术，将文档、报告、课件和个人笔记构建为相互隔离的可检索资料空间，并在此基础上提供：
