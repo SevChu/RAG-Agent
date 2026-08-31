@@ -12,13 +12,14 @@
 | 第 2 周 | 知识库入库 | 已完成 | 已完成计划日 1～5并通过周验收 | [week-02.md](week-02.md) |
 | 第 3 周 | RAG 问答 | 已完成 | 计划日 1～5 均已完成并通过验收 | [week-03.md](week-03.md) |
 | 第 4 周 | Agent、总结和出题 | 已完成 | 计划日 1～5、Token 统计及独立会话默认联网增量均已验收 | [week-04.md](week-04.md) |
-| 第 5 周 | 通用智能体迁移与公开 Benchmark 基线 | 进行中 | 计划日 4-B 已获认可；计划日 5 已完成，待验收 | [week-05.md](week-05.md) |
+| 第 5 周 | 通用智能体迁移与公开 Benchmark 基线 | 已完成 | 计划日 1～5 已验收；`v1.1.0` 已发布，许可补丁为 `v1.1.1` | [week-05.md](week-05.md) |
 | 第 6 周 | 评分与检索算法优化 | 未开始 | 目标版本 `v1.2.0` | [第 6～11 周路线](../deliverables/week-06-to-11-roadmap.md) |
 | 第 7 周 | AgentProfile 与多智能体基础 | 未开始 | 目标版本 `v1.3.0` | [第 6～11 周路线](../deliverables/week-06-to-11-roadmap.md) |
 | 第 8 周 | 微调平台基础 | 未开始 | 目标预发布 `v1.4.0-beta.1` | [第 6～11 周路线](../deliverables/week-06-to-11-roadmap.md) |
 | 第 9 周 | 首次真实微调 | 未开始 | 目标稳定版本 `v1.4.0` | [第 6～11 周路线](../deliverables/week-06-to-11-roadmap.md) |
 | 第 10 周 | 动态长上下文与资料空间记忆 | 未开始 | `v1.5.0` 第一阶段 | [第 6～11 周路线](../deliverables/week-06-to-11-roadmap.md) |
 | 第 11 周 | 自有人工金标集基础 | 未开始 | `v1.5.0` 第二阶段 | [第 6～11 周路线](../deliverables/week-06-to-11-roadmap.md) |
+| 后续国际化里程碑 | 中英文产品支持 | 未开始 | 目标版本 `v1.6.0`；当前程序仍仅支持中文 | [第 6～11 周及后续路线](../deliverables/week-06-to-11-roadmap.md) |
 | 最终交付周 | Docker、演示、答辩与 Release | 未排期 | 项目需要交付时启动 | 待创建 |
 
 ## 跨周设计决策
@@ -28,7 +29,7 @@
 | 混合来源回答 | 计划日 1～2 均已实施并通过验收 | 第 4 周计划日 1～2 | [mixed-source-answering.md](../design-decisions/mixed-source-answering.md) |
 | 动态总结规划 | 已实施并通过用户验收 | 第 4 周计划日 4 | [dynamic-summary-planning.md](../design-decisions/dynamic-summary-planning.md) |
 | 混合组卷与来源配额 | 已实现并通过用户验收 | 第 4 周计划日 4-B | [mixed-exam-generation.md](../design-decisions/mixed-exam-generation.md) |
-| 通用智能体平台迁移 | 第一阶段实施中 | 第 5 周计划日 1 | [general-agent-platform.md](../design-decisions/general-agent-platform.md) |
+| 通用智能体平台迁移 | 第一阶段已完成 | 第 5 周计划日 1 | [general-agent-platform.md](../design-decisions/general-agent-platform.md) |
 | 资料空间记忆与同会话长上下文 | 已完成旧方案设计，调整为后续独立里程碑 | 后续阶段 | [course-memory-and-long-context.md](../design-decisions/course-memory-and-long-context.md) |
 
 ## 记录规范
@@ -62,3 +63,8 @@
 - 日志变更随代码提交，使计划日记录能够追溯到确定的代码状态。
 - 跨计划周且会影响后续实现的数据契约或产品决策，另建 `docs/design-decisions/` 文档，并从
   README 和日志索引同时链接，保证新任务可以恢复上下文。
+
+### 2026-08-31 更正说明
+
+应用户要求，第五周主日志按前四周统一模板完成格式补录。补录只整理既有事实、验收记录和
+Git 归属，不改变已发布 Benchmark 数值或版本历史；原始 M0 方案保留为历史归档。

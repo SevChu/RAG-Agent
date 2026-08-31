@@ -1,5 +1,7 @@
 # Agentic：基于 RAG 的通用智能体实验平台
 
+**简体中文** | [English](README.en.md)
+
 > **GitHub 仓库**：[SevChu/RAG-Agent](https://github.com/SevChu/RAG-Agent)（公开可见、非开源）
 >
 > **About**：基于 FastAPI、Vue 3、LangGraph、BGE-M3、Qdrant 与多模型 OpenAI 兼容接口构建的本地优先 RAG Agent 实验平台；目标是通过可追溯知识检索、模型微调与评测/评分算法优化，打造较为通用且回答质量较高的 Agent。
@@ -10,6 +12,10 @@
 
 > 项目状态：`v1.1.1` 是许可边界补丁；功能基线沿用 `v1.1.0` 的完整本地 RAG、通用智能体
 > 界面迁移、FiQA/RAGTruth/RAGBench 经典基线、baseline profile 1.0.0 和第 6～11 周研发路线。
+
+> **语言边界**：当前版本的程序界面、提示词和面向用户的错误信息仅支持中文。英文 README
+> 用于帮助国际读者了解项目，不代表程序已经完成英文支持；产品级中英文切换计划纳入未来
+> `v1.6.0` 国际化里程碑。
 
 ## 1. 项目简介
 
@@ -737,7 +743,7 @@ Anthropic 兼容 Web Search 适配器，能够解析真实搜索结果、校验�
 [公开 Benchmark 与冻结基线技术说明](docs/technical/evaluation-and-baselines.md)和
 [通用智能体平台迁移设计决策](docs/design-decisions/general-agent-platform.md)。
 
-### 第 6～11 周：算法、智能体配置、微调与评测闭环
+### 第 6～11 周及后续：算法、智能体配置、微调、评测与国际化
 
 - 第 6 周：评分与检索算法优化，目标版本 `v1.2.0`；
 - 第 7 周：AgentProfile、多智能体配置与版本化，目标版本 `v1.3.0`；
@@ -746,10 +752,12 @@ Anthropic 兼容 Web Search 适配器，能够解析真实搜索结果、校验�
 - 第 10 周：动态长上下文与资料空间长期记忆；
 - 第 11 周：自有金标标注工具、规范、50 条校准集与首批 200 条 Pilot；
 - 第 10～11 周共同形成 `v1.5.0` 候选，私有金标样本不上传 GitHub；
+- `v1.5.0` 之后规划 `v1.6.0` 国际化里程碑，完成中英文界面切换、提示词与错误信息本地化、
+  英文检索/生成能力验证以及双语回归评测；
 - Docker、演示、答辩和最终 GitHub Release 验收后移到实际交付周。
 
 第五周评测基础设施已形成 `v1.1.0` 发布。完整研发顺序、版本发布条件和数据隔离
-边界见[第 6～11 周研发路线与 GitHub 版本节点](docs/deliverables/week-06-to-11-roadmap.md)。
+边界见[第 6～11 周及后续研发路线与 GitHub 版本节点](docs/deliverables/week-06-to-11-roadmap.md)。
 
 ## 16. 测试计划
 
