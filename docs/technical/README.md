@@ -1,6 +1,6 @@
 # Agentic 技术文档
 
-本目录描述 Agentic 1.0.0 的**当前实现**。逐周工程日志用于解释系统如何演进，本目录则用于回答“系统现在是什么、如何运行、模块如何协作、接口如何使用、哪里仍有限制”。若历史计划与当前代码不一致，以当前代码、数据库迁移和本目录为准。
+本目录描述 Agentic 1.1.1 的**当前实现**。逐周工程日志用于解释系统如何演进，本目录则用于回答“系统现在是什么、如何运行、模块如何协作、接口如何使用、哪里仍有限制”。若历史计划与当前代码、许可或数据库迁移不一致，以当前代码、根目录 `LICENSE`、`THIRD_PARTY_NOTICES.md`、数据库迁移和本目录为准。
 
 ## 文档适用对象
 
@@ -28,14 +28,15 @@
 
 ### 发布与后续研究
 
-1. [v1.1.0 Release Notes](../releases/v1.1.0.md)
-2. [1.0.0 历史基线说明](version-1.0.0.md)
-3. [公开 Benchmark 与冻结基线](evaluation-and-baselines.md)
-4. [第五周实施计划](../deliverables/week-05-plan.md)
-5. [计划日 5 统一基线与研究入口](../deliverables/week-05-day-05.md)
-6. [第 6～11 周研发路线与 GitHub 版本节点](../deliverables/week-06-to-11-roadmap.md)
-7. [通用智能体平台迁移设计决策](../design-decisions/general-agent-platform.md)
-8. [第 1～5 周工程日志](../engineering-logs/README.md)
+1. [v1.1.1 License Patch Release Notes](../releases/v1.1.1.md)
+2. [v1.1.0 Release Notes](../releases/v1.1.0.md)
+3. [1.0.0 历史基线说明](version-1.0.0.md)
+4. [公开 Benchmark 与冻结基线](evaluation-and-baselines.md)
+5. [第五周实施计划](../deliverables/week-05-plan.md)
+6. [计划日 5 统一基线与研究入口](../deliverables/week-05-day-05.md)
+7. [第 6～11 周研发路线与 GitHub 版本节点](../deliverables/week-06-to-11-roadmap.md)
+8. [通用智能体平台迁移设计决策](../design-decisions/general-agent-platform.md)
+9. [第 1～5 周工程日志](../engineering-logs/README.md)
 
 ## 文档地图
 

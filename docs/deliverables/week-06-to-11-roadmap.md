@@ -6,9 +6,9 @@
 验收整体后移到“最终交付周”；第 6～11 周依次推进评分算法、AgentProfile、微调平台、首次真实
 微调、动态长上下文、资料空间记忆和自有金标集基础。每周仍保留自动测试、数据隔离和可复现性检查，不能把质量门一起后移。
 
-当前远端 `main` 与唯一 Tag `v1.0.0` 均指向基础功能发布提交。第五周新增的 FiQA、RAGTruth、
-RAGBench、统一 Dataset Adapter 和 baseline profile 1.0.0 尚未形成新的 GitHub 版本，因此将其
-随本次发布形成 `v1.1.0`。
+基础功能已发布为 `v1.0.0`；第五周的 FiQA、RAGTruth、RAGBench、统一 Dataset Adapter 和
+baseline profile 1.0.0 已发布为 `v1.1.0`。随后以 `v1.1.1` 单独修正专有许可与第三方材料边界，
+不移动旧 Tag，也不改变 v1.1.0 的功能和 Benchmark 数值。
 
 ## 版本策略
 
@@ -25,7 +25,8 @@ RAGBench、统一 Dataset Adapter 和 baseline profile 1.0.0 尚未形成新的 
 | 计划版本 | 对应节点 | 进入版本的核心能力 | 发布条件 | 状态 |
 |---|---|---|---|---|
 | `v1.0.0` | 基础功能版本 | 资料入库、RAG 问答、总结、组卷、联网、多供应商接口、会话与 Token | 已完成并推送 | 已发布 |
-| `v1.1.0` | 第 5 周收口 | 通用智能体界面迁移；FiQA/RAGTruth/RAGBench；Dataset Adapter；冻结 baseline profile | 265 项后端回归；前端/隐私/版本元数据复验 | 本次发布 |
+| `v1.1.0` | 第 5 周收口 | 通用智能体界面迁移；FiQA/RAGTruth/RAGBench；Dataset Adapter；冻结 baseline profile | 265 项后端回归；前端/隐私/版本元数据复验 | 已发布 |
+| `v1.1.1` | 许可补丁 | 收紧专有许可适用范围；排除第三方依赖、模型和 Benchmark；新增分发合规门禁 | 版本/链接/隐私复验；不改 Benchmark 数值与功能行为 | 本次补丁发布 |
 | `v1.2.0` | 第 6 周结束 | Dense 直接重排、Completeness 改进、NLI 幻觉定位候选与 Scorer profile 版本化 | 只用 train/validation 调参；候选冻结后一次 test；相对 1.1.0 有明确收益 | 计划 |
 | `v1.3.0` | 第 7 周结束 | AgentProfile CRUD、版本化、会话绑定、模型/资料空间/工具/评测 profile 配置 | 数据库迁移、API 兼容、前端主路径和历史会话回归通过 | 计划 |
 | `v1.4.0-beta.1` | 第 8 周结束 | TrainingDataset Registry、训练任务、Adapter Registry、逐智能体微调界面和 Fake Trainer 闭环 | 不进行真实训练；状态机、取消、失败恢复、数据隔离和 UI 通过 | 计划预发布 |

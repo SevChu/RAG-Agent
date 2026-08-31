@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-08-31
+
 ### Changed
 
 - 重写专有 `LICENSE` 的适用范围，只覆盖 Severus Chu 拥有版权的 Agentic 原创材料；

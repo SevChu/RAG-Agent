@@ -17,9 +17,10 @@ Agentic 1.0.0 的当前态技术文档位于 [`docs/technical/`](docs/technical/
 
 ## 发布状态
 
-- 本地功能和文档基线：`1.0.0`
-- GitHub 发布目标：`SevChu/RAG-Agent` 的 `main` 分支与 `v1.0.0` Tag
-- 项目名 `Agentic`、仓库名 `RAG-Agent`、专有许可证和公开可见性：已确认
-- 公开 Benchmark：尚未审批下载
+- 本地功能和文档基线：`1.1.1`（功能基线 `1.1.0`，许可边界补丁 `1.1.1`）
+- GitHub 发布目标：`SevChu/RAG-Agent` 的 `main` 分支与 `v1.1.1` Tag
+- 项目名 `Agentic`、仓库名 `RAG-Agent`、专有许可范围、第三方排除项和公开可见性：已确认
+- 公开 Benchmark：FiQA、RAGTruth、RAGBench 已审批并完成聚合结果发布；原始数据保持本地隔离
 
-本次 GitHub 推送已获用户明确批准；公开 Benchmark 仍未审批下载。
+本次 v1.1.1 许可补丁发布已获用户明确批准。第三方依赖、模型和 Benchmark 不属于 Agentic
+专有版权主张；完整边界见 `LICENSE` 与 `THIRD_PARTY_NOTICES.md`。

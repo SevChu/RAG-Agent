@@ -8,8 +8,8 @@
 > 拥有版权的 Agentic 原创材料；第三方依赖、模型与 Benchmark 不在该版权主张范围内，分别
 > 遵循其上游条款。详见 [LICENSE](LICENSE) 与 [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES.md)。
 
-> 项目状态：`v1.1.0` 已包含完整本地 RAG 功能、通用智能体界面迁移，以及 FiQA、RAGTruth、
-> RAGBench 经典基线；推荐 baseline profile 1.0.0、公开聚合结果和第 6～11 周研发路线已冻结。
+> 项目状态：`v1.1.1` 是许可边界补丁；功能基线沿用 `v1.1.0` 的完整本地 RAG、通用智能体
+> 界面迁移、FiQA/RAGTruth/RAGBench 经典基线、baseline profile 1.0.0 和第 6～11 周研发路线。
 
 ## 1. 项目简介
 
@@ -1167,6 +1167,7 @@ uv run python -m app.ingestion.inspect `
 - [第 5 周计划日 5 统一基线与研究入口](docs/deliverables/week-05-day-05.md)
 - [公开 Benchmark 与冻结基线技术说明](docs/technical/evaluation-and-baselines.md)
 - [v1.1.0 公开 Benchmark 聚合结果](benchmarks/v1.1.0/README.md)
+- [v1.1.1 Release Notes](docs/releases/v1.1.1.md)
 - [v1.1.0 Release Notes](docs/releases/v1.1.0.md)
 - [第 6～11 周研发路线与 GitHub 版本节点](docs/deliverables/week-06-to-11-roadmap.md)
 - [设置页模型 Token 累计统计验收说明](docs/deliverables/model-token-usage-settings.md)
