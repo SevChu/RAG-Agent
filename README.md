@@ -4,7 +4,9 @@
 >
 > **About**：基于 FastAPI、Vue 3、LangGraph、BGE-M3、Qdrant 与多模型 OpenAI 兼容接口构建的本地优先 RAG Agent 实验平台；目标是通过可追溯知识检索、模型微调与评测/评分算法优化，打造较为通用且回答质量较高的 Agent。
 >
-> **许可**：Copyright © 2026 Severus Chu。All rights reserved. 查看源码不等于获得开源许可，详见 [LICENSE](LICENSE)。
+> **许可**：Copyright © 2026 Severus Chu。All rights reserved. 专有许可只覆盖 Severus Chu
+> 拥有版权的 Agentic 原创材料；第三方依赖、模型与 Benchmark 不在该版权主张范围内，分别
+> 遵循其上游条款。详见 [LICENSE](LICENSE) 与 [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES.md)。
 
 > 项目状态：`v1.1.0` 已包含完整本地 RAG 功能、通用智能体界面迁移，以及 FiQA、RAGTruth、
 > RAGBench 经典基线；推荐 baseline profile 1.0.0、公开聚合结果和第 6～11 周研发路线已冻结。

@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### Changed
+
+- 重写专有 `LICENSE` 的适用范围，只覆盖 Severus Chu 拥有版权的 Agentic 原创材料；
+- 新增 `THIRD_PARTY_NOTICES.md`，将第三方依赖、模型、Benchmark 与底层数据明确排除在
+  Agentic 专有版权主张之外，并记录 FiQA 非商业限制及 MPL/LGPL 分发门禁；
+- 明确 `benchmarks/` 聚合结果仅供研究参考，不重新许可底层数据或解除上游限制。
+
 ## [1.1.0] - 2026-08-30
 
 ### Added

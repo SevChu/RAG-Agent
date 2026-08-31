@@ -4,6 +4,10 @@
 参考，不包含原始数据、问题、上下文、回答、逐条预测、资料空间内容、对话、本地路径、模型权重
 或 API Key。
 
+本目录不属于 Agentic 专有软件许可的授权范围。聚合指标不构成对底层 Benchmark 的重新许可，
+也不解除非商业、署名、通知或组成数据集限制；完整边界见项目根目录的
+[`THIRD_PARTY_NOTICES.md`](../../THIRD_PARTY_NOTICES.md)。
+
 ## 文件
 
 | 文件 | 内容 | SHA-256 |
@@ -74,13 +78,15 @@ cd D:\Agentic\backend
 ## 数据来源、许可与引用
 
 - **BEIR FiQA-2018**：FiQA 官方训练/测试数据限制为非商业使用；本仓库不再分发数据，只发布
-  本地研究评测产生的聚合指标。引用 Maia et al. (2018) 与 Thakur et al. (2021)。
+  本地非商业研究评测产生的聚合指标。这些指标仅作为研究参考，不获得商业使用授权。引用
+  Maia et al. (2018) 与 Thakur et al. (2021)。
 - **RAGTruth**：发布仓库为 MIT；其 MS MARCO、Yelp、CNN/DailyMail 和新闻等底层内容仍保留
   原权利。本仓库不上传底层文本。引用 Wu et al. (ACL 2024)。
 - **RAGBench**：CC BY 4.0；组成数据集的 notice 仍分别适用。本仓库提供归属、revision 和聚合
   衍生指标，不上传 Parquet 或逐条预测。引用 Friel, Belyi and Sanyal (2024)。
 
 完整来源 URL、revision、许可文字、切分、模型身份、方法参数和限制均在 `results.json` 中。
+如上游数据卡、许可或使用条款与本说明冲突，以上游条款为准。
 
 ## 解释限制
 

@@ -1,19 +1,98 @@
-Agentic Proprietary License
+Agentic Proprietary Source-Available License
 
 Copyright (c) 2026 Severus Chu
 All rights reserved.
 
-本项目不是开源软件。本仓库的公开可见性不构成任何形式的开源许可，也不表示版权人
-放弃任何权利。
+1. Scope
 
-除非事先取得版权人的明确书面授权，任何个人或组织均不得复制、修改、合并、发布、
-分发、再许可、销售、托管、部署本软件，或基于本软件制作衍生作品；法律强制允许的
-情形除外。
+This license applies only to the original source code, documentation, user
+interface designs, and other original materials in this repository for which
+Severus Chu owns the copyright (the "Agentic Materials"). It does not apply to
+any Excluded Materials described in Section 4.
 
-允许通过本仓库的公开页面查看源代码，仅用于了解和评估本项目。任何超出查看范围的
-使用均须另行获得书面许可。
+Agentic is source-available proprietary software, not open-source software.
+Except for rights that GitHub's Terms of Service necessarily grant for public
+repositories, public visibility does not grant a license to use, copy, modify,
+merge, publish, distribute, sublicense, sell, host, deploy, or create derivative
+works from the Agentic Materials.
 
-本软件按“现状”提供，不附带任何明示或默示保证。在适用法律允许的最大范围内，版权人
-不对因使用或无法使用本软件而产生的任何索赔、损害或其他责任负责。
+2. Limited viewing
 
-如需获得使用授权，请通过本仓库所有者公开的联系方式联系版权人。
+You may view the Agentic Materials through the public repository solely for
+personal evaluation and review. Any additional use requires prior express
+written permission from the copyright owner, except where applicable law
+mandatorily permits it.
+
+3. Reservation of rights
+
+No patent, trademark, model, dataset, database, publicity, or other intellectual
+property right is granted by this license. All rights not expressly granted are
+reserved.
+
+4. Excluded Materials
+
+The following are expressly excluded from the Agentic Materials and are not
+licensed, relicensed, restricted, or claimed as owned by Severus Chu under this
+license:
+
+a. third-party libraries, packages, frameworks, tools, and any bundled or
+   transitive components, including their source code, binaries, notices, and
+   documentation;
+b. third-party datasets, benchmark corpora, annotations, prompts, responses,
+   source documents, database contents, and other source material;
+c. pretrained models, model weights, tokenizers, OCR assets, and other model
+   artifacts obtained from third parties;
+d. third-party names, trademarks, logos, papers, citations, APIs, hosted model
+   outputs, and externally supplied content; and
+e. material in the `benchmarks/` directory to the extent it identifies,
+   describes, measures, or is derived from third-party benchmarks.
+
+Excluded Materials remain subject to their respective copyright holders'
+licenses, terms of use, attribution requirements, acceptable-use rules, and
+other restrictions. In particular, inclusion of aggregate benchmark metrics
+does not redistribute or grant any right to the underlying datasets, does not
+remove non-commercial restrictions, and does not authorize commercial use of
+restricted benchmark material.
+
+See `THIRD_PARTY_NOTICES.md` and the dataset-specific records in
+`backend/app/evaluation/registry.json` for the repository's current disclosures.
+Those records are informational and do not replace the controlling upstream
+terms.
+
+5. No warranty
+
+THE AGENTIC MATERIALS ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND NON-INFRINGEMENT. TO THE MAXIMUM
+EXTENT PERMITTED BY APPLICABLE LAW, THE COPYRIGHT OWNER SHALL NOT BE LIABLE FOR
+ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM OR RELATED TO THE AGENTIC
+MATERIALS OR THEIR USE.
+
+Third-party licensors provide their materials under their own warranty and
+liability terms. Nothing in this license limits rights or remedies that a
+third-party license mandatorily provides.
+
+6. Conflicts and compliance
+
+For Excluded Materials, the applicable third-party terms control. If you cannot
+comply with all applicable terms, you must not copy, redistribute, package, or
+deploy the affected material. A proprietary license for Agentic does not convert
+third-party software or content into proprietary material and does not cancel
+copyleft, notice, source-availability, attribution, or non-commercial duties.
+
+7. Permission requests
+
+For permission to use the Agentic Materials beyond the limited scope above,
+contact the repository owner through the contact methods published by the owner.
+
+-------------------------------------------------------------------------------
+
+中文说明（如与英文许可正文存在歧义，以英文正文为准）
+
+Agentic 是公开可见但不开源的个人专有项目。Severus Chu 的版权主张只覆盖其拥有版权的
+Agentic 原创代码、文档和设计，不覆盖第三方依赖、公开数据集、Benchmark 原始资料、模型
+权重、外部内容或第三方商标。
+
+`benchmarks/` 中的聚合指标仅用于研究参考；它们不构成对 FiQA、RAGTruth、RAGBench 或
+其组成数据集的重新许可，也不会解除非商业、署名、通知或其他上游限制。具体第三方边界见
+`THIRD_PARTY_NOTICES.md`。
