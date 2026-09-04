@@ -1,0 +1,220 @@
+{
+  "schema_version": "1.0",
+  "target_release_version": "1.2.0",
+  "test_policy": "test is forbidden during optimization; train and validation are the only allowed splits",
+  "experiments": [
+    {
+      "experiment_id": "w6-d2-dense-direct-rerank",
+      "status": "ready",
+      "task": "retrieval",
+      "hypothesis": "Reranking the Dense Top-100 directly improves early ranking quality without reducing Dense Recall@100.",
+      "primary_variable": {
+        "name": "reranker_candidate_source",
+        "baseline": "rrf-top-100",
+        "candidate": "dense-top-100"
+      },
+      "revisions": {
+        "datasets": [
+          {
+            "kind": "dataset",
+            "name": "beir-fiqa-2018",
+            "revision": "archive-sha256:32c7df99ed21252fdfb2cf3f5673502a8d245ee0c44c4a133570d92ce2b3ad02;validation=dev",
+            "sha256": "32c7df99ed21252fdfb2cf3f5673502a8d245ee0c44c4a133570d92ce2b3ad02",
+            "state": "frozen"
+          }
+        ],
+        "models": [
+          {
+            "kind": "model",
+            "name": "bge-m3",
+            "revision": "84790c1a606f60d06c6932e4ecdd174b466d84ac",
+            "sha256": "993b2248881724788dcab8c644a91dfd63584b6e5604ff2037cb5541e1e38e7e",
+            "state": "frozen"
+          },
+          {
+            "kind": "model",
+            "name": "bge-reranker-v2-m3",
+            "revision": "953dc6f6f85a1b2dbfca4c34a2796e7dde08d41e",
+            "sha256": "d9e3e081faff1eefb84019509b2f5558fd74c1a05a2c7db22f74174fcedb5286",
+            "state": "frozen"
+          }
+        ],
+        "code": {
+          "kind": "code",
+          "name": "agentic-post-v1.1.1",
+          "revision": "60755dd3ca440b774322a5b0dc713234816ffaeb",
+          "sha256": null,
+          "state": "frozen"
+        }
+      },
+      "random_seeds": [42],
+      "optimization_splits": ["train", "validation"],
+      "primary_metric": {
+        "name": "ndcg@10",
+        "direction": "maximize",
+        "minimum_improvement": 0.0
+      },
+      "guardrail_metrics": [
+        {
+          "name": "recall@100",
+          "direction": "maximize",
+          "maximum_regression": 0.0
+        },
+        {
+          "name": "mean_latency_ms",
+          "direction": "minimize",
+          "maximum_regression": 750.0
+        }
+      ],
+      "slice_dimensions": ["domain", "class", "length", "evidence_count", "error_type"],
+      "test_access": "forbidden",
+      "notes": [
+        "FiQA dev is normalized to the validation role.",
+        "The frozen 1.1.0 test result is a historical reference only and is not read for optimization."
+      ]
+    },
+    {
+      "experiment_id": "w6-d3-two-stage-completeness",
+      "status": "ready",
+      "task": "trace_scoring",
+      "hypothesis": "A two-stage relevance and utilization representation improves Completeness correlation while preserving the other TRACe dimensions.",
+      "primary_variable": {
+        "name": "completeness_architecture",
+        "baseline": "single-stage-linear",
+        "candidate": "two-stage-relevance-utilization-completeness"
+      },
+      "revisions": {
+        "datasets": [
+          {
+            "kind": "dataset",
+            "name": "ragbench",
+            "revision": "git:97808f3e5fd16ede40bbff6c2949af8139b2eb7b",
+            "sha256": null,
+            "state": "frozen"
+          }
+        ],
+        "models": [
+          {
+            "kind": "model",
+            "name": "bge-m3",
+            "revision": "84790c1a606f60d06c6932e4ecdd174b466d84ac",
+            "sha256": "993b2248881724788dcab8c644a91dfd63584b6e5604ff2037cb5541e1e38e7e",
+            "state": "frozen"
+          }
+        ],
+        "code": {
+          "kind": "code",
+          "name": "agentic-post-v1.1.1",
+          "revision": "60755dd3ca440b774322a5b0dc713234816ffaeb",
+          "sha256": null,
+          "state": "frozen"
+        }
+      },
+      "random_seeds": [42, 43, 44],
+      "optimization_splits": ["train", "validation"],
+      "primary_metric": {
+        "name": "completeness_spearman",
+        "direction": "maximize",
+        "minimum_improvement": 0.0
+      },
+      "guardrail_metrics": [
+        {
+          "name": "relevance_spearman",
+          "direction": "maximize",
+          "maximum_regression": 0.01
+        },
+        {
+          "name": "utilization_spearman",
+          "direction": "maximize",
+          "maximum_regression": 0.01
+        },
+        {
+          "name": "adherence_auprc",
+          "direction": "maximize",
+          "maximum_regression": 0.01
+        },
+        {
+          "name": "completeness_rmse",
+          "direction": "minimize",
+          "maximum_regression": 0.0
+        }
+      ],
+      "slice_dimensions": ["domain", "class", "length", "evidence_count", "error_type"],
+      "test_access": "forbidden",
+      "notes": [
+        "Tree and calibration comparisons must be registered as separate experiments so that only one primary variable changes."
+      ]
+    },
+    {
+      "experiment_id": "w6-d4-sentence-nli-spans",
+      "status": "completed",
+      "task": "hallucination_detection",
+      "hypothesis": "Sentence-level entailment and contradiction features improve hallucination span localization over lexical coverage alone.",
+      "primary_variable": {
+        "name": "span_feature_family",
+        "baseline": "lexical-dense-logistic",
+        "candidate": "lexical-dense-logistic-plus-sentence-nli"
+      },
+      "revisions": {
+        "datasets": [
+          {
+            "kind": "dataset",
+            "name": "ragtruth-train-only",
+            "revision": "parent-git:c103204b9ce28d6bbad859304bf30de72b8ed8fe;derivation=ragtruth-stream-filter-train-v1",
+            "sha256": "e70a891458a68861554da76dc9087b67356abf19b5e22b4ab5842545ff058cbc",
+            "state": "frozen"
+          }
+        ],
+        "models": [
+          {
+            "kind": "model",
+            "name": "cross-encoder/nli-deberta-v3-base",
+            "revision": "6c749ce3425cd33b46d187e45b92bbf96ee12ec7",
+            "sha256": "d8148c6d49e0a7925134294c56326c71fe0ab1dc390e37355e00c7efbb488afa",
+            "state": "frozen"
+          }
+        ],
+        "code": {
+          "kind": "code",
+          "name": "agentic-post-v1.1.1",
+          "revision": "60755dd3ca440b774322a5b0dc713234816ffaeb",
+          "sha256": null,
+          "state": "frozen"
+        }
+      },
+      "random_seeds": [42],
+      "optimization_splits": ["train", "validation"],
+      "primary_metric": {
+        "name": "span_char_f1",
+        "direction": "maximize",
+        "minimum_improvement": 0.0
+      },
+      "guardrail_metrics": [
+        {
+          "name": "response_auprc",
+          "direction": "maximize",
+          "maximum_regression": 0.0
+        },
+        {
+          "name": "response_recall",
+          "direction": "maximize",
+          "maximum_regression": 0.0
+        },
+        {
+          "name": "mean_latency_ms",
+          "direction": "minimize",
+          "maximum_regression": 250.0
+        }
+      ],
+      "slice_dimensions": ["domain", "class", "length", "evidence_count", "error_type"],
+      "test_access": "forbidden",
+      "notes": [
+        "A/B/C were approved on 2026-09-04; the allowlisted model download and train-only derivation passed static identity checks.",
+        "Post-download execution was approved on 2026-09-04; validation passed every registered metric gate and the source-cluster bootstrap stability gate.",
+        "The candidate was promoted to Day 5 review because validation passed all registered gates.",
+        "A/B/C were approved on 2026-09-04. The one-time frozen RAGTruth test passed all four metric gates and produced no per-sample artifact.",
+        "The final-test bootstrap CI crossed zero and span recall regressed, so the accepted profile is offline/advisory/span-focused only and does not replace the lexical response reference."
+      ]
+    }
+  ]
+}

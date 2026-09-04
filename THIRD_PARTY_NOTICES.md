@@ -1,6 +1,6 @@
 # Agentic 第三方材料、依赖与 Benchmark 声明
 
-更新日期：2026-08-31
+更新日期：2026-09-04
 
 本文件用于明确 Agentic 专有许可的边界，不授予任何上游材料的新权利，也不替代上游许可
 原文。根目录 [`LICENSE`](LICENSE) 只适用于 Severus Chu 拥有版权的 Agentic 原创材料。
@@ -40,6 +40,7 @@
 |---|---|---|
 | BAAI/bge-m3 | MIT | 仅记录模型名称/revision；权重保存在 Git 忽略目录 |
 | BAAI/bge-reranker-v2-m3 | Apache-2.0 | 仅记录模型名称/revision；权重保存在 Git 忽略目录 |
+| cross-encoder/nli-deberta-v3-base | 模型仓库声明 Apache-2.0；base model `microsoft/deberta-v3-base` 模型卡声明 MIT；训练数据标注为 SNLI、MultiNLI | 固定 revision `6c749ce3425cd33b46d187e45b92bbf96ee12ec7`，仅用于本地研究评测；权重不进入 Git 或 Release；未来重新分发前需重新复核许可与通知 |
 | PaddleOCR / PaddlePaddle 模型与运行时 | 项目代码标注 Apache-2.0；具体外部模型仍以其模型页为准 | 不提交权重；发布制品前重新核对具体模型及训练数据说明 |
 
 模型输出是否包含第三方受保护内容取决于输入、供应商条款和具体使用方式；Agentic 的

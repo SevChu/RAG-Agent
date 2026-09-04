@@ -10,8 +10,9 @@
 > 拥有版权的 Agentic 原创材料；第三方依赖、模型与 Benchmark 不在该版权主张范围内，分别
 > 遵循其上游条款。详见 [LICENSE](LICENSE) 与 [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES.md)。
 
-> 项目状态：`v1.1.1` 是许可边界补丁；功能基线沿用 `v1.1.0` 的完整本地 RAG、通用智能体
-> 界面迁移、FiQA/RAGTruth/RAGBench 经典基线、baseline profile 1.0.0 和第 6～11 周研发路线。
+> 项目状态：当前正式版本为 `v1.2.0`，在 `v1.1.1` 基础上加入第六周评测治理与
+> offline/advisory NLI span profile 1.1.0。Week 6 Extra 留作后续独立审核，计划作为
+> `v1.2.1` 发布，不属于 `v1.2.0` 范围。
 
 > **语言边界**：当前版本的程序界面、提示词和面向用户的错误信息仅支持中文。英文 README
 > 用于帮助国际读者了解项目，不代表程序已经完成英文支持；产品级中英文切换计划纳入未来
@@ -846,7 +847,8 @@ Anthropic 兼容 Web Search 适配器，能够解析真实搜索结果、校验�
 - 已在 FiQA 完成 BM25、BGE-M3 Dense、RRF 与 BGE Reranker 检索 benchmark；
 - 已在 RAGTruth 完成回答级幻觉检测与字符级 span 定位 benchmark；
 - 已在 RAGBench 完成 adherence、relevance、utilization、completeness 综合评分 benchmark；
-- 已冻结机器可读 baseline profile 1.0.0，并形成评分算法、逐智能体微调界面与自有金标集路线。
+- 已冻结机器可读 baseline profile 1.1.0；新增 NLI span profile 仅用于离线 advisory 分析，
+  不替换 lexical response 基线，也不作为生产门控。
 
 详细安排见[第 5 周实施计划](docs/deliverables/week-05-plan.md)、
 [计划日 5 统一基线与研究入口](docs/deliverables/week-05-day-05.md)、
@@ -1285,6 +1287,8 @@ uv run python -m app.ingestion.inspect `
 - [第 5 周计划日 5 统一基线与研究入口](docs/deliverables/week-05-day-05.md)
 - [公开 Benchmark 与冻结基线技术说明](docs/technical/evaluation-and-baselines.md)
 - [v1.1.0 公开 Benchmark 聚合结果](benchmarks/v1.1.0/README.md)
+- [v1.2.0 Release Notes](docs/releases/v1.2.0.md)
+- [v1.2.0 数据脱敏与发布安全审查](docs/releases/v1.2.0-security-review.md)
 - [v1.1.1 Release Notes](docs/releases/v1.1.1.md)
 - [v1.1.0 Release Notes](docs/releases/v1.1.0.md)
 - [第 6～11 周研发路线与 GitHub 版本节点](docs/deliverables/week-06-to-11-roadmap.md)

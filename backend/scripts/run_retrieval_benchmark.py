@@ -27,12 +27,21 @@ from app.evaluation import (  # noqa: E402
     BeirAdapter,
     BenchmarkManifest,
     Bm25Index,
+    CandidateExperiment,
+    ExperimentStatus,
+    OptimizationSplit,
+    RelevanceJudgment,
     RetrievalHit,
+    SliceClass,
+    SliceObservation,
+    aggregate_slices,
     document_text,
     evaluate_retrieval,
     hash_file,
+    load_experiment_registry,
     read_trec_run,
     reciprocal_rank_fusion,
+    require_optimization_split,
     write_json_atomic,
     write_trec_run,
 )
@@ -41,11 +50,15 @@ from app.retrieval import BgeReranker  # noqa: E402
 
 DEFAULT_DATASET_ROOT = BACKEND_ROOT / "datasets" / "benchmarks" / "beir-fiqa-2018"
 DEFAULT_OUTPUT_ROOT = DEFAULT_DATASET_ROOT / "runs" / "week05-day03"
+DEFAULT_WEEK6_OUTPUT_ROOT = DEFAULT_DATASET_ROOT / "runs" / "week06-day02"
+DEFAULT_EXPERIMENT_REGISTRY = BACKEND_ROOT / "app" / "evaluation" / "experiment-registry.json"
 DEFAULT_EMBEDDING_MODEL = PROJECT_ROOT / "data" / "models" / "embedding" / "bge-m3"
 DEFAULT_RERANKER_MODEL = PROJECT_ROOT / "data" / "models" / "reranker" / "bge-reranker-v2-m3"
 METRIC_KS = (1, 3, 5, 10, 20, 100)
 RUN_TOP_K = 100
 RRF_CONSTANT = 60
+WEEK6_DAY2_EXPERIMENT_ID = "w6-d2-dense-direct-rerank"
+VALID_METHODS = frozenset({"bm25", "dense", "hybrid", "rerank", "dense-rerank"})
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -55,7 +68,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--methods",
         default="bm25,dense,hybrid,rerank",
-        help="Comma-separated subset of bm25,dense,hybrid,rerank.",
+        help="Comma-separated subset of bm25,dense,hybrid,rerank,dense-rerank.",
     )
     parser.add_argument(
         "--force-methods",
@@ -63,8 +76,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Comma-separated completed methods to rerun for profiling.",
     )
     parser.add_argument("--dataset-root", type=Path, default=DEFAULT_DATASET_ROOT)
-    parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
+    parser.add_argument("--output-root", type=Path)
     parser.add_argument("--split", default="test", choices=("train", "dev", "test"))
+    parser.add_argument(
+        "--experiment-id",
+        help="Bind an optimization run to a registered experiment; forbids test access.",
+    )
+    parser.add_argument(
+        "--experiment-registry",
+        type=Path,
+        default=DEFAULT_EXPERIMENT_REGISTRY,
+    )
     parser.add_argument("--embedding-model", type=Path, default=DEFAULT_EMBEDDING_MODEL)
     parser.add_argument("--reranker-model", type=Path, default=DEFAULT_RERANKER_MODEL)
     parser.add_argument("--embedding-batch-size", type=int, default=8)
@@ -77,23 +99,30 @@ def main() -> int:
     args = build_parser().parse_args()
     methods = tuple(dict.fromkeys(part.strip() for part in args.methods.split(",") if part.strip()))
     forced = {part.strip() for part in args.force_methods.split(",") if part.strip()}
-    unknown = set(methods).difference({"bm25", "dense", "hybrid", "rerank"})
-    unknown.update(forced.difference({"bm25", "dense", "hybrid", "rerank"}))
-    if not forced.issubset(methods):
-        raise ValueError("forced methods must also be included in --methods")
-    if unknown:
-        raise ValueError(f"unknown methods: {', '.join(sorted(unknown))}")
-    if "rerank" in methods:
-        methods = tuple(dict.fromkeys((*methods, "bm25", "dense", "hybrid")))
-    elif "hybrid" in methods:
-        methods = tuple(dict.fromkeys((*methods, "bm25", "dense")))
+    methods = resolve_methods(methods, forced, experiment_id=args.experiment_id)
     if args.embedding_batch_size < 1 or args.reranker_batch_size < 1:
         raise ValueError("model batch sizes must be positive")
 
     dataset_root = args.dataset_root.resolve()
-    output_root = args.output_root.resolve()
+    experiment, optimization_split = resolve_experiment_request(
+        args.experiment_id,
+        args.split,
+        args.experiment_registry,
+    )
+    if args.output_root is None:
+        default_output = (
+            DEFAULT_WEEK6_OUTPUT_ROOT / optimization_split.value
+            if optimization_split is not None
+            else DEFAULT_OUTPUT_ROOT
+        )
+        output_root = default_output.resolve()
+    else:
+        output_root = args.output_root.resolve()
     raw_root = dataset_root / "raw"
-    manifest = verify_frozen_dataset(dataset_root)
+    manifest = verify_frozen_dataset(
+        dataset_root,
+        allowed_splits={args.split} if experiment is not None else None,
+    )
     adapter = BeirAdapter(raw_root)
     documents = list(adapter.iter_corpus())
     queries = adapter.queries(args.split)
@@ -132,6 +161,26 @@ def main() -> int:
             },
             "seed": 42,
             "test_split_tuning": False,
+            **(
+                {
+                    "dense_reranker": {
+                        "model": model_identity(args.reranker_model.resolve()),
+                        "batch_size": args.reranker_batch_size,
+                        "max_length": 512,
+                        "candidate_source": "dense",
+                        "candidate_k": RUN_TOP_K,
+                    },
+                    "registered_experiment": {
+                        "experiment_id": experiment.experiment_id,
+                        "registry_sha256": hash_file(args.experiment_registry.resolve()),
+                        "optimization_split": optimization_split.value,
+                        "source_split": args.split,
+                        "test_access": experiment.test_access,
+                    },
+                }
+                if experiment is not None and optimization_split is not None
+                else {}
+            ),
             "hardware": hardware_info(),
         },
     )
@@ -204,20 +253,99 @@ def main() -> int:
             force="rerank" in forced,
         )
 
+    if "dense-rerank" in methods:
+        runs["dense-rerank"] = execute_or_load(
+            "dense-rerank",
+            output_root,
+            qrels,
+            lambda: run_reranker(
+                runs["dense"],
+                query_texts,
+                document_texts,
+                args.reranker_model.resolve(),
+                args.device,
+                args.reranker_batch_size,
+            ),
+            state,
+            force="dense-rerank" in forced,
+        )
+
     state["status"] = (
         "complete" if all(name in state["experiments"] for name in methods) else "partial"
     )
     state["updated_at"] = datetime.now(UTC).isoformat()
     write_json_atomic(output_root / "summary.json", state)
+    if experiment is not None and optimization_split is not None:
+        slice_report = build_retrieval_slice_report(
+            experiment=experiment,
+            optimization_split=optimization_split,
+            source_split=args.split,
+            query_texts=query_texts,
+            qrels=qrels,
+            runs=runs,
+            state=state,
+        )
+        write_json_atomic(output_root / "slice-summary.json", slice_report)
     print(json.dumps(compact_results(state), ensure_ascii=False, indent=2), flush=True)
     return 0
 
 
-def verify_frozen_dataset(dataset_root: Path) -> BenchmarkManifest:
+def resolve_methods(
+    methods: Sequence[str],
+    forced: set[str],
+    *,
+    experiment_id: str | None,
+) -> tuple[str, ...]:
+    unknown = set(methods).difference(VALID_METHODS)
+    unknown.update(forced.difference(VALID_METHODS))
+    if not forced.issubset(methods):
+        raise ValueError("forced methods must also be included in --methods")
+    if unknown:
+        raise ValueError(f"unknown methods: {', '.join(sorted(unknown))}")
+    if "dense-rerank" in methods and experiment_id != WEEK6_DAY2_EXPERIMENT_ID:
+        raise ValueError("dense-rerank requires the registered Week 6 Day 2 experiment")
+    resolved = tuple(methods)
+    if "rerank" in resolved:
+        resolved = tuple(dict.fromkeys((*resolved, "bm25", "dense", "hybrid")))
+    elif "hybrid" in resolved:
+        resolved = tuple(dict.fromkeys((*resolved, "bm25", "dense")))
+    if "dense-rerank" in resolved:
+        resolved = tuple(dict.fromkeys((*resolved, "dense")))
+    return resolved
+
+
+def resolve_experiment_request(
+    experiment_id: str | None,
+    source_split: str,
+    registry_path: Path,
+) -> tuple[CandidateExperiment | None, OptimizationSplit | None]:
+    if experiment_id is None:
+        return None, None
+    experiment = load_experiment_registry(registry_path.resolve()).get(experiment_id)
+    if experiment.status != ExperimentStatus.READY:
+        raise ValueError(f"experiment is not ready: {experiment_id}")
+    split_name = "validation" if source_split == "dev" else source_split
+    optimization_split = require_optimization_split(split_name)
+    if optimization_split not in experiment.optimization_splits:
+        raise ValueError(
+            f"split {optimization_split.value} is not registered for experiment {experiment_id}"
+        )
+    return experiment, optimization_split
+
+
+def verify_frozen_dataset(
+    dataset_root: Path,
+    *,
+    allowed_splits: set[str] | None = None,
+) -> BenchmarkManifest:
     manifest_path = dataset_root / "manifest.json"
     manifest = BenchmarkManifest.model_validate_json(manifest_path.read_text(encoding="utf-8"))
     raw_root = dataset_root / "raw"
     for relative_path, expected_sha256 in manifest.files.items():
+        if relative_path.startswith("qrels/") and allowed_splits is not None:
+            split = Path(relative_path).stem
+            if split not in allowed_splits:
+                continue
         actual = hash_file(raw_root / relative_path)
         if actual != expected_sha256:
             raise ValueError(f"frozen dataset hash mismatch: {relative_path}")
@@ -514,6 +642,208 @@ def run_reranker(
         "latency": latency_summary(latencies),
         "reranker_device": reranker.active_device,
         "candidate_k": RUN_TOP_K,
+    }
+
+
+def build_retrieval_slice_report(
+    *,
+    experiment: CandidateExperiment,
+    optimization_split: OptimizationSplit,
+    source_split: str,
+    query_texts: Mapping[str, str],
+    qrels: Sequence[RelevanceJudgment],
+    runs: Mapping[str, Mapping[str, Sequence[RetrievalHit]]],
+    state: Mapping[str, Any],
+) -> dict[str, Any]:
+    qrels_by_query: dict[str, list[RelevanceJudgment]] = {}
+    for judgment in qrels:
+        qrels_by_query.setdefault(judgment.query_id, []).append(judgment)
+
+    method_reports: dict[str, Any] = {}
+    per_query_metrics: dict[str, dict[str, dict[str, float]]] = {}
+    experiment_results = state["experiments"]
+    for method_name, run in sorted(runs.items()):
+        observations: list[SliceObservation] = []
+        method_query_metrics: dict[str, dict[str, float]] = {}
+        for query_id, query_text in query_texts.items():
+            judgments = qrels_by_query[query_id]
+            relevant_ids = {
+                judgment.corpus_id for judgment in judgments if judgment.relevance > 0
+            }
+            hits = tuple(run.get(query_id, ()))
+            per_query = evaluate_retrieval(
+                {query_id: hits},
+                judgments,
+                ks=(10, 100),
+            )
+            metrics = per_query.values
+            method_query_metrics[query_id] = {
+                "ndcg@10": metrics["ndcg@10"],
+                "recall@100": metrics["recall@100"],
+                "mrr@10": metrics["mrr@10"],
+            }
+            retrieved_at_100 = {hit.document_id for hit in hits[:100]} & relevant_ids
+            retrieved_at_10 = {hit.document_id for hit in hits[:10]} & relevant_ids
+            errors: list[str] = []
+            if not retrieved_at_100:
+                errors.append("candidate-miss")
+            elif not retrieved_at_10:
+                errors.append("top10-ranking-miss")
+            if 0 < len(retrieved_at_100) < len(relevant_ids):
+                errors.append("partial-recall")
+            observations.append(
+                SliceObservation(
+                    split=optimization_split,
+                    domain="finance",
+                    class_label=(
+                        SliceClass.POSITIVE if retrieved_at_100 else SliceClass.NEGATIVE
+                    ),
+                    text_length_chars=len(query_text),
+                    evidence_count=len(relevant_ids),
+                    error_types=tuple(errors),
+                    metrics={
+                        "ndcg@10": metrics["ndcg@10"],
+                        "recall@100": metrics["recall@100"],
+                        "mrr@10": metrics["mrr@10"],
+                    },
+                )
+            )
+        per_query_metrics[method_name] = method_query_metrics
+        payload = experiment_results[method_name]
+        method_reports[method_name] = {
+            "metrics": payload["metrics"],
+            "query_count": payload["query_count"],
+            "wall_seconds": payload["wall_seconds"],
+            "resources": payload["resources"],
+            "latency": payload["latency"],
+            "run_sha256": payload["run_sha256"],
+            "slices": [
+                aggregate.model_dump(mode="json")
+                for aggregate in aggregate_slices(observations)
+            ],
+        }
+
+    comparison = None
+    if "rerank" in method_reports and "dense-rerank" in method_reports:
+        baseline = experiment_results["rerank"]
+        candidate = experiment_results["dense-rerank"]
+        query_order = tuple(query_texts)
+        paired = paired_bootstrap_delta(
+            [
+                per_query_metrics["rerank"][query_id]["ndcg@10"]
+                for query_id in query_order
+            ],
+            [
+                per_query_metrics["dense-rerank"][query_id]["ndcg@10"]
+                for query_id in query_order
+            ],
+            seed=experiment.random_seeds[0],
+        )
+        comparison = {
+            "baseline_method": "rerank",
+            "candidate_method": "dense-rerank",
+            "metric_deltas": {
+                metric: candidate["metrics"][metric] - baseline["metrics"][metric]
+                for metric in ("ndcg@10", "recall@100", "mrr@10", "map@100")
+            },
+            "mean_latency_delta_ms": (
+                candidate["latency"]["mean_ms"] - baseline["latency"]["mean_ms"]
+            ),
+            "validation_gates": {
+                "primary_metric_improved": (
+                    candidate["metrics"]["ndcg@10"] > baseline["metrics"]["ndcg@10"]
+                ),
+                "recall@100_not_below_dense": (
+                    candidate["metrics"]["recall@100"]
+                    >= experiment_results["dense"]["metrics"]["recall@100"]
+                ),
+                "latency_regression_within_750ms": (
+                    candidate["latency"]["mean_ms"] - baseline["latency"]["mean_ms"]
+                    <= 750.0
+                ),
+            },
+            "paired_query_ndcg@10": paired,
+        }
+
+    return {
+        "schema_version": "1.0",
+        "experiment_id": experiment.experiment_id,
+        "experiment_status": experiment.status.value,
+        "optimization_split": optimization_split.value,
+        "source_split": source_split,
+        "test_access": experiment.test_access,
+        "primary_variable": experiment.primary_variable.model_dump(mode="json"),
+        "primary_metric": experiment.primary_metric.model_dump(mode="json"),
+        "guardrail_metrics": [
+            metric.model_dump(mode="json") for metric in experiment.guardrail_metrics
+        ],
+        "implementation": {
+            "base_code_revision": experiment.revisions.code.revision,
+            "files": {
+                "backend/scripts/run_retrieval_benchmark.py": hash_file(Path(__file__)),
+                "backend/app/evaluation/retrieval.py": hash_file(
+                    BACKEND_ROOT / "app" / "evaluation" / "retrieval.py"
+                ),
+                "backend/app/retrieval/reranker.py": hash_file(
+                    BACKEND_ROOT / "app" / "retrieval" / "reranker.py"
+                ),
+                "backend/app/evaluation/experiments.py": hash_file(
+                    BACKEND_ROOT / "app" / "evaluation" / "experiments.py"
+                ),
+            },
+        },
+        "slice_policy": {
+            "class": "positive when at least one relevant document is retrieved at 100",
+            "length_chars": {"short_max": 256, "medium_max": 1024},
+            "evidence_count": {"none": 0, "single": 1, "multiple_min": 2},
+            "error_types": [
+                "candidate-miss",
+                "top10-ranking-miss",
+                "partial-recall",
+                "none",
+            ],
+        },
+        "contains_sample_ids_or_text": False,
+        "comparison": comparison,
+        "methods": method_reports,
+    }
+
+
+def paired_bootstrap_delta(
+    baseline: Sequence[float],
+    candidate: Sequence[float],
+    *,
+    seed: int,
+    resamples: int = 10_000,
+) -> dict[str, Any]:
+    if not baseline or len(baseline) != len(candidate):
+        raise ValueError("paired bootstrap requires equal non-empty samples")
+    if resamples < 1:
+        raise ValueError("bootstrap resamples must be positive")
+    baseline_array = np.asarray(baseline, dtype=np.float64)
+    candidate_array = np.asarray(candidate, dtype=np.float64)
+    deltas = candidate_array - baseline_array
+    generator = np.random.default_rng(seed)
+    indices = generator.integers(
+        0,
+        len(deltas),
+        size=(resamples, len(deltas)),
+    )
+    bootstrap_means = deltas[indices].mean(axis=1)
+    ties = np.isclose(deltas, 0.0, rtol=0.0, atol=1e-12)
+    return {
+        "query_count": len(deltas),
+        "seed": seed,
+        "resamples": resamples,
+        "mean_delta": float(deltas.mean()),
+        "ci95": {
+            "lower": float(np.quantile(bootstrap_means, 0.025)),
+            "upper": float(np.quantile(bootstrap_means, 0.975)),
+        },
+        "bootstrap_positive_fraction": float(np.mean(bootstrap_means > 0)),
+        "wins": int(np.sum(deltas > 1e-12)),
+        "ties": int(np.sum(ties)),
+        "losses": int(np.sum(deltas < -1e-12)),
     }
 
 

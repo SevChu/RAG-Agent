@@ -33,6 +33,7 @@ if str(_BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(_BACKEND_ROOT))
 
 from app.evaluation import (  # noqa: E402
+    RAGBENCH_SPLITS,
     RAGBENCH_SUBSETS,
     RagBenchAdapter,
     RagBenchExample,
@@ -90,6 +91,8 @@ class CompactDataset:
     gold_score_normalization_counts: dict[str, int] = dataclass_field(default_factory=dict)
     duplicate_source_id_rows: int = 0
     excluded_unlabeled_rows: int = 0
+    text_length_chars: tuple[int, ...] = ()
+    evidence_counts: tuple[int, ...] = ()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -247,18 +250,36 @@ def main() -> int:
     return 0
 
 
-def verify_frozen_dataset(dataset_root: Path) -> RagBenchManifest:
+def selected_ragbench_relative_files(splits: tuple[str, ...]) -> tuple[str, ...]:
+    invalid = set(splits).difference(RAGBENCH_SPLITS)
+    if invalid:
+        raise ValueError(f"unsupported RAGBench splits: {', '.join(sorted(invalid))}")
+    return tuple(
+        relative_path
+        for relative_path in ragbench_relative_files()
+        if Path(relative_path).name.split("-", maxsplit=1)[0] in splits
+    )
+
+
+def verify_frozen_dataset(
+    dataset_root: Path,
+    *,
+    splits: tuple[str, ...] = RAGBENCH_SPLITS,
+) -> RagBenchManifest:
     manifest_path = dataset_root / "manifest.json"
     manifest = RagBenchManifest.model_validate_json(manifest_path.read_text(encoding="utf-8"))
     raw_root = dataset_root / "raw"
-    current_files = hash_files(raw_root, ragbench_relative_files())
-    if current_files != manifest.files:
+    relative_files = selected_ragbench_relative_files(splits)
+    current_files = hash_files(raw_root, relative_files)
+    expected_files = {path: manifest.files[path] for path in relative_files}
+    if current_files != expected_files:
         raise ValueError("local RAGBench files differ from the frozen manifest")
     current_bytes = {
         relative_path: (raw_root / relative_path).stat().st_size
-        for relative_path in ragbench_relative_files()
+        for relative_path in relative_files
     }
-    if current_bytes != manifest.file_bytes:
+    expected_bytes = {path: manifest.file_bytes[path] for path in relative_files}
+    if current_bytes != expected_bytes:
         raise ValueError("local RAGBench file sizes differ from the frozen manifest")
     return manifest
 
@@ -277,7 +298,11 @@ def has_complete_gold(example: RagBenchExample) -> bool:
     return True
 
 
-def build_compact_dataset(adapter: RagBenchAdapter) -> CompactDataset:
+def build_compact_dataset(
+    adapter: RagBenchAdapter,
+    *,
+    selected_splits: tuple[str, ...] = RAGBENCH_SPLITS,
+) -> CompactDataset:
     ids: list[str] = []
     subsets: list[str] = []
     splits: list[str] = []
@@ -291,9 +316,19 @@ def build_compact_dataset(adapter: RagBenchAdapter) -> CompactDataset:
     source_identities: set[tuple[str, str, str]] = set()
     duplicate_source_id_rows = 0
     excluded_unlabeled_rows = 0
+    text_length_chars: list[int] = []
+    evidence_counts: list[int] = []
     published: dict[str, list[float]] = {field: [] for field in PUBLISHED_TARGETS}
 
-    for example in adapter.iter_examples():
+    invalid = set(selected_splits).difference(RAGBENCH_SPLITS)
+    if invalid:
+        raise ValueError(f"unsupported RAGBench splits: {', '.join(sorted(invalid))}")
+    examples = (
+        example
+        for split in selected_splits
+        for example in adapter.iter_examples(split=split)
+    )
+    for example in examples:
         source_identity = (example.subset, example.split, example.example_id)
         duplicate_source_id_rows += int(source_identity in source_identities)
         source_identities.add(source_identity)
@@ -310,6 +345,8 @@ def build_compact_dataset(adapter: RagBenchAdapter) -> CompactDataset:
         subsets.append(example.subset)
         splits.append(example.split)
         feature_rows.append(features)
+        text_length_chars.append(len(example.response))
+        evidence_counts.append(len(example.documents))
         for label, score in scores.items():
             lexical_scores[label].append(score)
         assert example.adherence_score is not None
@@ -350,6 +387,8 @@ def build_compact_dataset(adapter: RagBenchAdapter) -> CompactDataset:
         gold_score_normalization_counts=normalization_counts,
         duplicate_source_id_rows=duplicate_source_id_rows,
         excluded_unlabeled_rows=excluded_unlabeled_rows,
+        text_length_chars=tuple(text_length_chars),
+        evidence_counts=tuple(evidence_counts),
     )
 
 
@@ -365,6 +404,7 @@ def load_or_compute_dense_features(
     max_text_chars: int,
     manifest: RagBenchManifest,
     force: bool,
+    splits: tuple[str, ...] = RAGBENCH_SPLITS,
 ) -> tuple[NDArray[np.float64], dict[str, Any]]:
     identity = model_identity(model_path)
     cache_key = hashlib.sha256(
@@ -374,6 +414,7 @@ def load_or_compute_dense_features(
                 "model": identity,
                 "max_text_chars": max_text_chars,
                 "feature_names": DENSE_FEATURE_NAMES,
+                "splits": splits,
             },
             sort_keys=True,
         ).encode()
@@ -406,20 +447,21 @@ def load_or_compute_dense_features(
     )
     batches: list[NDArray[np.float64]] = []
     pending: list[RagBenchExample] = []
-    for example in adapter.iter_examples():
-        if not has_complete_gold(example):
-            continue
-        pending.append(example)
-        if len(pending) >= example_batch_size:
-            batches.append(
-                encode_dense_batch(
-                    model,
-                    pending,
-                    embedding_batch_size=embedding_batch_size,
-                    max_text_chars=max_text_chars,
+    for split in splits:
+        for example in adapter.iter_examples(split=split):
+            if not has_complete_gold(example):
+                continue
+            pending.append(example)
+            if len(pending) >= example_batch_size:
+                batches.append(
+                    encode_dense_batch(
+                        model,
+                        pending,
+                        embedding_batch_size=embedding_batch_size,
+                        max_text_chars=max_text_chars,
+                    )
                 )
-            )
-            pending.clear()
+                pending.clear()
     if pending:
         batches.append(
             encode_dense_batch(

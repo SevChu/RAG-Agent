@@ -4,6 +4,25 @@
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-09-04
+
+### Added
+
+- 机器可校验的 Week 6 Experiment Registry、optimization split 防污染和五维匿名错误切片；
+- RAGTruth train-only/test-only 安全派生与冻结 NLI final-test runner；
+- `ragtruth-nli-span-localization` offline/advisory profile。
+
+### Changed
+
+- baseline profile registry 升至 1.1.0；backend、frontend 与 OpenAPI 版本同步为 1.2.0；
+- Dense 直接重排与 Completeness runner 支持注册实验、split-aware 缓存和聚合稳定性报告。
+
+### Known limitations
+
+- NLI span recall 下降且 final-test bootstrap CI 跨 0，不替换 lexical response profile；
+- Day 2/3 候选分别保持 provisional/deferred，未访问 official test；
+- Week 6 Extra 待独立审核，计划作为 `v1.2.1` 发布，不属于本次候选。
+
 ## [1.1.1] - 2026-08-31
 
 ### Changed

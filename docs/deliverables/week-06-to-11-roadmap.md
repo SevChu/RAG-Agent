@@ -31,7 +31,8 @@ baseline profile 1.0.0 已发布为 `v1.1.0`。随后以 `v1.1.1` 单独修正�
 | `v1.0.0` | 基础功能版本 | 资料入库、RAG 问答、总结、组卷、联网、多供应商接口、会话与 Token | 已完成并推送 | 已发布 |
 | `v1.1.0` | 第 5 周收口 | 通用智能体界面迁移；FiQA/RAGTruth/RAGBench；Dataset Adapter；冻结 baseline profile | 265 项后端回归；前端/隐私/版本元数据复验 | 已发布 |
 | `v1.1.1` | 许可补丁 | 收紧专有许可适用范围；排除第三方依赖、模型和 Benchmark；新增分发合规门禁 | 版本/链接/隐私复验；不改 Benchmark 数值与功能行为 | 已发布 |
-| `v1.2.0` | 第 6 周结束 | Dense 直接重排、Completeness 改进、NLI 幻觉定位候选与 Scorer profile 版本化 | 只用 train/validation 调参；候选冻结后一次 test；相对 1.1.0 有明确收益 | 计划 |
+| `v1.2.0` | 第 6 周结束 | 实验治理；NLI 幻觉定位 advisory profile | NLI 候选冻结后一次 test；全量回归与隐私检查；独立发布审批 | 已发布 |
+| `v1.2.1` | 第 6 周 Extra | Day 2/3 validation 稳健性复评 | 不访问 official test；Extra 独立审核；单独发布审批 | 本地工作已完成，待审核 |
 | `v1.3.0` | 第 7 周结束 | AgentProfile CRUD、版本化、会话绑定、模型/资料空间/工具/评测 profile 配置 | 数据库迁移、API 兼容、前端主路径和历史会话回归通过 | 计划 |
 | `v1.4.0-beta.1` | 第 8 周结束 | TrainingDataset Registry、训练任务、Adapter Registry、逐智能体微调界面和 Fake Trainer 闭环 | 不进行真实训练；状态机、取消、失败恢复、数据隔离和 UI 通过 | 计划预发布 |
 | `v1.4.0` | 第 9 周结束 | 首次真实 Scorer 或 Reranker 微调、Adapter 评测、AgentProfile 绑定和回滚 | 模型/依赖/预算获批；validation 晋级；一次 test；基础模型与 Adapter 对照完整 | 计划稳定版 |
@@ -47,33 +48,54 @@ baseline profile 1.0.0 已发布为 `v1.1.0`。随后以 `v1.1.1` 单独修正�
 
 ### 计划日 1：实验注册与错误切片
 
+- 状态：已于 2026-08-31 完成；见[计划日 1 记录](week-06-day-01.md)；
 - 建立候选实验登记：假设、唯一主要变量、数据/模型 revision、随机种子、主指标和守门指标；
 - 统一 per-domain、正负类、长度、证据数量和错误类型切片；
 - 所有优化只读取 train/validation，不重新利用 test 调参。
 
 ### 计划日 2：Dense Top-100 直接重排
 
+- 状态：已于 2026-09-01 完成；见[计划日 2 记录](week-06-day-02.md)；
 - 使用现有 BGE-M3 Dense Top-100 和现有 BGE Reranker；
 - 与 Dense、等权 RRF、RRF+Reranker 使用相同 FiQA 协议；
 - 守门条件：Recall@100 不低于 Dense 1.1.0，单列 nDCG@10、MRR、延迟和显存。
 
 ### 计划日 3：Completeness 评分改进
 
+- 状态：已于 2026-09-04 完成；见[计划日 3 记录](week-06-day-03.md)；
 - 先尝试 relevant → utilized → completeness 两阶段建模；
 - 再比较线性、树模型或校准，不在同一实验同时更换特征和模型；
 - 主要指标为 RAGBench validation Completeness Spearman/RMSE，其他三项不得显著退化。
+- 两阶段候选通过形式门，但领域 bootstrap 95% CI 覆盖 0，暂不冻结为默认。
 
 ### 计划日 4：NLI 幻觉定位
 
+- 状态：已于 2026-09-04 完成；见[计划日 4 实施报告](week-06-day-04.md)；NLI 候选通过
+  validation 数值门与 source-cluster bootstrap 稳定性门，进入 Day 5 评审；
 - 先审查适合句子级 entailment/contradiction 的开源模型、许可、大小和显存；
 - 新模型下载前单独提交审批；
 - 在 RAGTruth validation 上比较 AUPRC、回答级 Recall 和 span char F1。
+- span char F1 `0.228140 → 0.243289`，但 span recall 下降；尚不冻结为默认，官方 test 继续封存。
 
 ### 计划日 5：冻结 1.2.0 候选
 
+- 状态：已于 2026-09-04 完成；见[审批材料](week-06-day-05-approval.md)与
+  [实施报告](week-06-day-05.md)；
+- 推荐只让 Day 4 NLI 进入一次最终 RAGTruth test，Day 2/3 因稳定性区间覆盖 0 停在 validation；
+- 用户已批准 A/B/C；Day 2/3 的新增 validation 证据与重新评估移入 Week 6 Extra，不计入 Day 5；
 - 汇总质量、时延、资源、稳定性和分域结果；
 - 仅冻结通过 validation 晋级门的候选；
 - 用户批准后才执行一次最终 test，并决定是否创建 `v1.2.0`。
+
+最终 RAGTruth test 四项数值门通过，NLI profile 仅以 offline/advisory/span-focused 角色冻结。
+由于 span recall 下降且 test bootstrap CI 覆盖 0，不替换 lexical response profile，也不进入生产
+门控。`v1.2.0` 已完成独立发布审批并发布。
+
+### Week 6 Extra：Day 2 / Day 3 补充证据
+
+- 状态：本地工作已完成，待用户后续独立审核；
+- 不属于 Day 5，也不属于当前 `v1.2.0` 发布候选范围；
+- 审核通过后作为 `v1.2.1` 单独发布；审核前不向 GitHub 发布 Extra 专用产物或结论。
 
 ## 第 7 周：AgentProfile 与多智能体基础（目标 `v1.3.0`）
 

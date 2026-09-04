@@ -15,10 +15,10 @@ from app.evaluation.baseline_profiles import (
 _PROFILES = Path(__file__).resolve().parents[1] / "app" / "evaluation" / "baseline-profiles.json"
 
 
-def test_frozen_baseline_profiles_match_accepted_week_five_results() -> None:
+def test_frozen_baseline_profiles_match_accepted_results() -> None:
     registry = load_baseline_profiles(_PROFILES)
 
-    assert registry.release_version == "1.0.0"
+    assert registry.release_version == "1.1.0"
     assert registry.test_policy.startswith("test splits are final-report-only")
 
     retrieval = registry.get("fiqa-dense-retrieval")
@@ -29,6 +29,13 @@ def test_frozen_baseline_profiles_match_accepted_week_five_results() -> None:
     hallucination = registry.get("ragtruth-lexical-hallucination")
     assert hallucination.parameters["response_threshold"] == pytest.approx(0.57)
     assert hallucination.reference_metrics["response_auroc"] == pytest.approx(0.7247703625733395)
+
+    nli = registry.get("ragtruth-nli-span-localization")
+    assert nli.role.startswith("offline advisory")
+    assert nli.parameters["response_threshold"] == pytest.approx(0.585)
+    assert nli.reference_metrics["span_char_f1_delta"] == pytest.approx(0.008421422458376515)
+    assert nli.reference_metrics["bootstrap_ci95_lower"] < 0
+    assert "must never block production" in " ".join(nli.limitations)
 
     trace = registry.get("ragbench-lexical-dense-linear")
     assert trace.parameters["feature_count"] == 28
@@ -46,9 +53,26 @@ def test_frozen_baseline_profiles_reject_duplicate_ids() -> None:
 
 def test_frozen_baseline_profiles_require_all_accepted_tasks() -> None:
     payload = json.loads(_PROFILES.read_text(encoding="utf-8"))
-    payload["profiles"][-1]["profile_id"] = "replacement-trace-profile"
+    trace = next(
+        profile
+        for profile in payload["profiles"]
+        if profile["profile_id"] == "ragbench-lexical-dense-linear"
+    )
+    trace["profile_id"] = "replacement-trace-profile"
 
     with pytest.raises(ValidationError, match="ragbench-lexical-dense-linear"):
+        BaselineProfileRegistry.model_validate(payload)
+
+
+def test_frozen_baseline_profiles_require_nli_advisory_profile() -> None:
+    payload = json.loads(_PROFILES.read_text(encoding="utf-8"))
+    payload["profiles"] = [
+        profile
+        for profile in payload["profiles"]
+        if profile["profile_id"] != "ragtruth-nli-span-localization"
+    ]
+
+    with pytest.raises(ValidationError, match="ragtruth-nli-span-localization"):
         BaselineProfileRegistry.model_validate(payload)
 
 

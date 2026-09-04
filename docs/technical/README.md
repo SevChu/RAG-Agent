@@ -1,6 +1,6 @@
 # Agentic 技术文档
 
-本目录描述 Agentic 1.1.1 的**当前实现**。逐周工程日志用于解释系统如何演进，本目录则用于回答“系统现在是什么、如何运行、模块如何协作、接口如何使用、哪里仍有限制”。若历史计划与当前代码、许可或数据库迁移不一致，以当前代码、根目录 `LICENSE`、`THIRD_PARTY_NOTICES.md`、数据库迁移和本目录为准。
+本目录描述 Agentic 1.2.0 的**当前实现**。逐周工程日志用于解释系统如何演进，本目录则用于回答“系统现在是什么、如何运行、模块如何协作、接口如何使用、哪里仍有限制”。若历史计划与当前代码、许可或数据库迁移不一致，以当前代码、根目录 `LICENSE`、`THIRD_PARTY_NOTICES.md`、数据库迁移和本目录为准。
 
 ## 文档适用对象
 
@@ -28,15 +28,25 @@
 
 ### 发布与后续研究
 
-1. [v1.1.1 License Patch Release Notes](../releases/v1.1.1.md)
-2. [v1.1.0 Release Notes](../releases/v1.1.0.md)
-3. [1.0.0 历史基线说明](version-1.0.0.md)
-4. [公开 Benchmark 与冻结基线](evaluation-and-baselines.md)
-5. [第五周实施计划](../deliverables/week-05-plan.md)
-6. [计划日 5 统一基线与研究入口](../deliverables/week-05-day-05.md)
-7. [第 6～11 周研发路线与 GitHub 版本节点](../deliverables/week-06-to-11-roadmap.md)
-8. [通用智能体平台迁移设计决策](../design-decisions/general-agent-platform.md)
-9. [第 1～5 周工程日志](../engineering-logs/README.md)
+1. [v1.2.0 Release Notes](../releases/v1.2.0.md)
+2. [v1.2.0 数据脱敏与发布安全审查](../releases/v1.2.0-security-review.md)
+3. [v1.1.1 License Patch Release Notes](../releases/v1.1.1.md)
+4. [v1.1.0 Release Notes](../releases/v1.1.0.md)
+5. [1.0.0 历史基线说明](version-1.0.0.md)
+6. [公开 Benchmark 与冻结基线](evaluation-and-baselines.md)
+7. [第五周实施计划](../deliverables/week-05-plan.md)
+8. [计划日 5 统一基线与研究入口](../deliverables/week-05-day-05.md)
+9. [第 6～11 周研发路线与 GitHub 版本节点](../deliverables/week-06-to-11-roadmap.md)
+10. [第六周计划日 1：实验注册与错误切片](../deliverables/week-06-day-01.md)
+11. [第六周计划日 2：Dense Top-100 直接重排](../deliverables/week-06-day-02.md)
+12. [第六周计划日 3：Completeness 两阶段评分](../deliverables/week-06-day-03.md)
+13. [第六周计划日 4：NLI 幻觉定位审批前置](../deliverables/week-06-day-04-approval.md)
+14. [第六周计划日 4：下载与数据派生核验](../deliverables/week-06-day-04-readiness.md)
+15. [第六周计划日 4：句级 NLI 幻觉定位](../deliverables/week-06-day-04.md)
+16. [第六周计划日 5：候选冻结与最终 Test 审批前置](../deliverables/week-06-day-05-approval.md)
+17. [第六周计划日 5：最终 Test 与条件冻结](../deliverables/week-06-day-05.md)
+18. [通用智能体平台迁移设计决策](../design-decisions/general-agent-platform.md)
+19. [第 1～6 周工程日志](../engineering-logs/README.md)
 
 ## 文档地图
 

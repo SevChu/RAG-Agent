@@ -8,6 +8,7 @@ from scripts.run_ragbench_benchmark import (
     evaluate_method,
     evaluate_published_scorers,
     fit_linear_trace_models,
+    selected_ragbench_relative_files,
 )
 
 
@@ -148,3 +149,11 @@ def test_published_scorers_use_fixed_threshold_without_validation_and_reject_ove
     assert faithfulness["metrics"]["threshold"] == 0.5
     assert faithfulness["metrics"]["threshold_source"] == "fixed_0.5_no_validation_values"
     assert result["ragas_context_relevance"]["metrics"]["count"] == 3
+
+
+def test_selected_ragbench_files_exclude_test_split() -> None:
+    selected = selected_ragbench_relative_files(("train", "validation"))
+
+    assert len(selected) == 24
+    assert all("/test-" not in path for path in selected)
+    assert all("/train-" in path or "/validation-" in path for path in selected)

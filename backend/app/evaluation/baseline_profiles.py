@@ -12,6 +12,7 @@ DEFAULT_BASELINE_PROFILES_PATH = Path(__file__).with_name("baseline-profiles.jso
 _REQUIRED_PROFILE_IDS = {
     "fiqa-dense-retrieval",
     "ragtruth-lexical-hallucination",
+    "ragtruth-nli-span-localization",
     "ragbench-lexical-dense-linear",
 }
 

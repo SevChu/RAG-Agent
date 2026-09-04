@@ -1,12 +1,12 @@
 {
   "schema_version": "1.0",
-  "release_version": "1.0.0",
-  "frozen_on": "2026-08-30",
+  "release_version": "1.1.0",
+  "frozen_on": "2026-09-04",
   "test_policy": "test splits are final-report-only; optimization uses train and validation only",
   "profiles": [
     {
       "profile_id": "fiqa-dense-retrieval",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "task": "retrieval",
       "method": "BGE-M3 normalized exact-cosine dense retrieval",
       "role": "default offline retrieval baseline; prioritize evidence recall",
@@ -45,7 +45,7 @@
     },
     {
       "profile_id": "ragtruth-lexical-hallucination",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "task": "hallucination_detection",
       "method": "lexical coverage",
       "role": "default offline response-level hallucination reference; advisory only",
@@ -79,7 +79,7 @@
     },
     {
       "profile_id": "ragbench-lexical-dense-linear",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "task": "trace_scoring",
       "method": "StandardScaler + balanced LogisticRegression / Ridge over lexical and BGE-M3 features",
       "role": "default offline TRACe scorer baseline",
@@ -125,6 +125,96 @@
         "offline benchmark reference",
         "scorer research baseline",
         "train/validation-only feature and calibration comparison"
+      ]
+    },
+    {
+      "profile_id": "ragtruth-nli-span-localization",
+      "version": "1.1.0",
+      "task": "hallucination_detection",
+      "method": "Frozen lexical + BGE-M3 logistic with sentence-level DeBERTa-v3 NLI features",
+      "role": "offline advisory span-localization research profile; never a production blocking gate",
+      "dataset_id": "ragtruth",
+      "dataset_revision": "git:c103204b9ce28d6bbad859304bf30de72b8ed8fe;test-derivation=ragtruth-stream-filter-test-v1",
+      "model": {
+        "name": "cross-encoder/nli-deberta-v3-base",
+        "revision": "6c749ce3425cd33b46d187e45b92bbf96ee12ec7",
+        "weight_sha256": "d8148c6d49e0a7925134294c56326c71fe0ab1dc390e37355e00c7efbb488afa",
+        "config_sha256": "897e756eb59d3183adb505952e7910e7cbc7750a43f3b3747a96b688d2b02a47"
+      },
+      "parameters": {
+        "response_threshold": 0.585,
+        "span_threshold": 0.71,
+        "span_boundary": "sentence",
+        "context_chunk_chars": 1200,
+        "context_overlap_chars": 120,
+        "nli_max_length": 512,
+        "nli_batch_size": 8,
+        "seed": 42,
+        "comparison_baseline": "lexical+dense frozen logistic",
+        "validation_summary_sha256": "babefd7f3eef7583dc37e4b0c1bfb2319ba688ce7c706ea6e0f38467e32c4143",
+        "test_manifest_sha256": "e6bbcc20cd74cf39386d6caf4315125da05ea2bfa3317127b05adfaa2cd7b2f2",
+        "test_summary_sha256": "5af902172dc86df3c8346a7be0879b8a79cc7be017656030955e0d1a5760babd",
+        "embedding_model": {
+          "name": "BAAI/bge-m3",
+          "revision": "84790c1a606f60d06c6932e4ecdd174b466d84ac",
+          "weight_sha256": "993b2248881724788dcab8c644a91dfd63584b6e5604ff2037cb5541e1e38e7e",
+          "config_sha256": "26159e7ad065073448460117eb24b7a4572f6f4e78eadff65dc0a11c052449fa"
+        },
+        "feature_names": [
+          "token_coverage",
+          "content_token_coverage",
+          "bigram_coverage",
+          "unsupported_number_ratio",
+          "unsupported_capitalized_ratio",
+          "negation_mismatch",
+          "response_token_length",
+          "context_token_length",
+          "dense_support",
+          "max_contradiction",
+          "max_entailment",
+          "max_neutral"
+        ],
+        "coefficients": [
+          0.4910101739257361,
+          -1.2096952695724512,
+          -1.8257878615290097,
+          1.036526075609845,
+          -0.33971782482003504,
+          0.14651943321480104,
+          1.0323442238348883,
+          -5.189951207392601,
+          -1.7554108629631036,
+          0.28483892966702173,
+          -0.7973191362023432,
+          0.30657868433600594
+        ],
+        "intercept": 4.816649786229702
+      },
+      "reference_metrics": {
+        "response_precision": 0.4743130227001195,
+        "response_recall": 0.8419936373276776,
+        "response_f1": 0.6068016813144822,
+        "response_auroc": 0.6895885628822385,
+        "response_auprc": 0.4608375478622715,
+        "span_char_precision": 0.13312421516089526,
+        "span_char_recall": 0.30205780617928124,
+        "span_char_f1": 0.184801790556536,
+        "span_char_f1_delta": 0.008421422458376515,
+        "incremental_nli_mean_ms_per_response": 153.2420441851853,
+        "bootstrap_ci95_lower": -0.0006568947864472665,
+        "bootstrap_ci95_upper": 0.017168175015054545
+      },
+      "limitations": [
+        "The final-test source-cluster bootstrap interval crosses zero, so the span F1 gain is not statistically stable.",
+        "Span recall fell from 0.347892 to 0.302058 while precision rose from 0.118138 to 0.133124.",
+        "Response AUPRC 0.460838 remains below the lexical profile reference 0.504173.",
+        "RAGTruth is English public benchmark data and does not represent Chinese or live user traffic.",
+        "This offline research profile must never block production answers or become an online default."
+      ],
+      "allowed_usage": [
+        "offline benchmark reference",
+        "advisory span-localization error analysis",
+        "train/validation research comparison without further test tuning"
       ]
     }
   ]
