@@ -290,63 +290,14 @@ See:
 
 ## Detailed Setup Reference
 
-### Prerequisites
+Use the [Quick Start](#quick-start-for-first-time-users) above for installation and
+startup. Keep provider settings in `.env`, created from [.env.example](.env.example).
+Changing provider URLs, keys, or model lists requires a backend restart; switching
+among already configured models does not require a frontend restart.
 
-- Windows development environment;
-- Python 3.11 managed by `uv`;
-- Node.js and npm;
-- sufficient local storage for document indexes and approved model files;
-- at least one configured model provider for real generation requests.
-
-### 1. Configure the Environment
-
-Copy `.env.example` to `.env`, then fill in the provider you intend to use.
-
-```dotenv
-LLM_BASE_URL=https://api.deepseek.com
-LLM_API_KEY=your-key
-LLM_AVAILABLE_MODELS=your-deepseek-model
-LLM_MODEL=your-deepseek-model
-
-QWEN_API_KEY=
-QWEN_MODELS=
-KIMI_API_KEY=
-KIMI_MODELS=
-GLM_API_KEY=
-GLM_MODELS=
-```
-
-Do not commit `.env`. Changes to provider URLs, keys, or model lists require a
-backend restart. Switching among already configured models does not require a
-frontend restart.
-
-### 2. Start the Backend
-
-```powershell
-cd backend
-uv sync --frozen
-uv run alembic upgrade head
-uv run fastapi dev app/main.py --host 127.0.0.1 --port 8000
-```
-
-### 3. Start the Frontend
-
-```powershell
-cd frontend
-npm install
-npm.cmd run dev -- --host 127.0.0.1
-```
-
-Default local endpoints:
-
-- Frontend: `http://127.0.0.1:5173/`
-- Backend: `http://127.0.0.1:8000/`
-- OpenAPI: `http://127.0.0.1:8000/docs`
-- Health check: `http://127.0.0.1:8000/api/health`
-
-For full setup, storage, backup, and troubleshooting details, read
-[Operations](docs/technical/operations.md) and
-[Configuration](docs/technical/configuration.md).
+For complete settings, storage, backups, and troubleshooting, see the
+[Configuration reference](docs/technical/configuration.md) and
+[Operations guide](docs/technical/operations.md).
 
 ## Privacy, Security, and Data Boundaries
 

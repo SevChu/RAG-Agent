@@ -139,14 +139,31 @@ def evaluate_retrieval(
     totals: dict[str, float] = defaultdict(float)
     for query_id, relevant in relevance_by_query.items():
         hits = run.get(query_id, ())
+        ideal_relevances = sorted(relevant.values(), reverse=True)
+        relevant_retrieved = previous_stop = 0
+        reciprocal_rank = precision_sum = gain = ideal_gain = 0.0
+        # Reuse each ranked prefix across cutoffs without changing accumulation order.
         for cutoff in normalized_ks:
-            selected = hits[:cutoff]
-            relevant_retrieved = sum(hit.document_id in relevant for hit in selected)
+            stop = min(cutoff, max(len(hits), len(ideal_relevances)))
+            for index in range(previous_stop, stop):
+                rank = index + 1
+                discount = math.log2(rank + 1.0)
+                if index < len(hits):
+                    document_id = hits[index].document_id
+                    if document_id in relevant:
+                        relevant_retrieved += 1
+                        precision_sum += relevant_retrieved / rank
+                        if not reciprocal_rank:
+                            reciprocal_rank = 1.0 / rank
+                    gain += (2.0 ** relevant.get(document_id, 0.0) - 1.0) / discount
+                if index < len(ideal_relevances):
+                    ideal_gain += (2.0 ** ideal_relevances[index] - 1.0) / discount
+            previous_stop = stop
             totals[f"precision@{cutoff}"] += relevant_retrieved / cutoff
             totals[f"recall@{cutoff}"] += relevant_retrieved / len(relevant)
-            totals[f"mrr@{cutoff}"] += _reciprocal_rank(selected, relevant)
-            totals[f"map@{cutoff}"] += _average_precision(selected, relevant, cutoff)
-            totals[f"ndcg@{cutoff}"] += _ndcg(selected, relevant, cutoff)
+            totals[f"mrr@{cutoff}"] += reciprocal_rank
+            totals[f"map@{cutoff}"] += precision_sum / min(len(relevant), cutoff)
+            totals[f"ndcg@{cutoff}"] += gain / ideal_gain if ideal_gain else 0.0
 
     query_count = len(relevance_by_query)
     return RetrievalMetrics(
@@ -187,44 +204,3 @@ def read_trec_run(path: Path) -> dict[str, tuple[RetrievalHit, ...]]:
         query_id: tuple(hit for _, hit in sorted(rows, key=lambda item: item[0]))
         for query_id, rows in grouped.items()
     }
-
-
-def _reciprocal_rank(
-    hits: Sequence[RetrievalHit],
-    relevant: Mapping[str, float],
-) -> float:
-    for rank, hit in enumerate(hits, start=1):
-        if hit.document_id in relevant:
-            return 1.0 / rank
-    return 0.0
-
-
-def _average_precision(
-    hits: Sequence[RetrievalHit],
-    relevant: Mapping[str, float],
-    cutoff: int,
-) -> float:
-    relevant_found = 0
-    precision_sum = 0.0
-    for rank, hit in enumerate(hits, start=1):
-        if hit.document_id in relevant:
-            relevant_found += 1
-            precision_sum += relevant_found / rank
-    return precision_sum / min(len(relevant), cutoff)
-
-
-def _ndcg(
-    hits: Sequence[RetrievalHit],
-    relevant: Mapping[str, float],
-    cutoff: int,
-) -> float:
-    gain = sum(
-        (2.0 ** relevant.get(hit.document_id, 0.0) - 1.0) / math.log2(rank + 1.0)
-        for rank, hit in enumerate(hits, start=1)
-    )
-    ideal_relevances = sorted(relevant.values(), reverse=True)[:cutoff]
-    ideal_gain = sum(
-        (2.0**relevance - 1.0) / math.log2(rank + 1.0)
-        for rank, relevance in enumerate(ideal_relevances, start=1)
-    )
-    return gain / ideal_gain if ideal_gain else 0.0

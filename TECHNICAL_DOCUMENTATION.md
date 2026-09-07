@@ -1,26 +1,11 @@
-# Agentic 1.0.0 技术文档入口
+# Agentic 技术文档入口
 
-Agentic 1.0.0 的当前态技术文档位于 [`docs/technical/`](docs/technical/README.md)。该文档体系以当前代码、数据库迁移和配置为事实来源，区别于根 README 中保留的早期目标与逐周实施历史。
+当前实现、架构、配置、API、开发测试与运维说明统一维护在
+[技术文档索引](docs/technical/README.md)。第一次运行请从 [README](README.md) 开始。
 
-## 快速导航
+- 版本变化：[CHANGELOG](CHANGELOG.md)。
+- 实施过程及验收记录：[工程日志索引](docs/engineering-logs/README.md)。
+- 后续版本范围：[研发路线](docs/deliverables/week-06-to-11-roadmap.md)。
+- 许可边界：[LICENSE](LICENSE) 与 [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES.md)。
 
-- [技术文档索引](docs/technical/README.md)
-- [系统架构](docs/technical/architecture.md)
-- [配置参考](docs/technical/configuration.md)
-- [API 参考](docs/technical/api-reference.md)
-- [资料与 RAG 管线](docs/technical/data-and-rag-pipeline.md)
-- [智能体与生成链路](docs/technical/agent-and-generation.md)
-- [开发与测试](docs/technical/development-and-testing.md)
-- [运行与排障](docs/technical/operations.md)
-- [1.0.0 基线说明](docs/technical/version-1.0.0.md)
-- [版本变更记录](CHANGELOG.md)
-
-## 发布状态
-
-- 本地功能和文档基线：`1.1.1`（功能基线 `1.1.0`，许可边界补丁 `1.1.1`）
-- GitHub 发布目标：`SevChu/RAG-Agent` 的 `main` 分支与 `v1.1.1` Tag
-- 项目名 `Agentic`、仓库名 `RAG-Agent`、专有许可范围、第三方排除项和公开可见性：已确认
-- 公开 Benchmark：FiQA、RAGTruth、RAGBench 已审批并完成聚合结果发布；原始数据保持本地隔离
-
-本次 v1.1.1 许可补丁发布已获用户明确批准。第三方依赖、模型和 Benchmark 不属于 Agentic
-专有版权主张；完整边界见 `LICENSE` 与 `THIRD_PARTY_NOTICES.md`。
+本文件保留原有文档入口路径；详细内容在上述文档中维护，避免多处版本说明不一致。

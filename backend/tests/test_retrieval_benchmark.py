@@ -1,4 +1,5 @@
 import json
+import math
 from pathlib import Path
 
 import numpy as np
@@ -79,6 +80,42 @@ def test_retrieval_metrics_include_all_requested_families() -> None:
     assert result.values["mrr@2"] == pytest.approx(0.5)
     assert result.values["map@2"] == pytest.approx(0.25)
     assert result.values["ndcg@2"] > 0
+
+
+
+def test_retrieval_prefix_metrics_preserve_graded_relevance_and_short_runs() -> None:
+    qrels = [
+        RelevanceJudgment(query_id="q", corpus_id="a", relevance=2),
+        RelevanceJudgment(query_id="q", corpus_id="b", relevance=1),
+        RelevanceJudgment(query_id="q", corpus_id="c", relevance=3),
+    ]
+    run = {"q": [RetrievalHit("x", 3), RetrievalHit("a", 2), RetrievalHit("b", 1)]}
+
+    metrics = evaluate_retrieval(run, iter(qrels), ks=(10, 2, 1, 3, 2)).values
+
+    assert len(metrics) == 20
+    assert metrics["precision@1"] == 0
+    assert metrics["precision@2"] == 0.5
+    assert metrics["precision@10"] == 0.2
+    assert metrics["recall@10"] == pytest.approx(2 / 3)
+    assert metrics["mrr@1"] == 0
+    assert metrics["mrr@10"] == 0.5
+    assert metrics["map@10"] == pytest.approx((1 / 2 + 2 / 3) / 3)
+    assert metrics["ndcg@2"] == pytest.approx((3 / math.log2(3)) / (7 + 3 / math.log2(3)))
+    assert metrics["ndcg@10"] == pytest.approx(
+        (3 / math.log2(3) + 1 / 2) / (7 + 3 / math.log2(3) + 1 / 2)
+    )
+
+
+def test_retrieval_preserves_duplicate_hit_accounting() -> None:
+    qrels = [RelevanceJudgment(query_id="q", corpus_id="a", relevance=1)]
+    run = {"q": [RetrievalHit("a", 2), RetrievalHit("a", 1)]}
+
+    metrics = evaluate_retrieval(run, qrels, ks=(1, 2)).values
+
+    assert metrics["recall@2"] == 2
+    assert metrics["map@2"] == 2
+    assert metrics["ndcg@2"] == pytest.approx(1 + 1 / math.log2(3))
 
 
 def test_trec_run_round_trip(tmp_path: Path) -> None:

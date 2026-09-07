@@ -35,20 +35,21 @@
 5. [v1.1.1 License Patch Release Notes](../releases/v1.1.1.md)
 6. [v1.1.0 Release Notes](../releases/v1.1.0.md)
 7. [1.0.0 历史基线说明](version-1.0.0.md)
-6. [公开 Benchmark 与冻结基线](evaluation-and-baselines.md)
-7. [第五周实施计划](../deliverables/week-05-plan.md)
-8. [计划日 5 统一基线与研究入口](../deliverables/week-05-day-05.md)
-9. [第 6～11 周研发路线与 GitHub 版本节点](../deliverables/week-06-to-11-roadmap.md)
-10. [第六周计划日 1：实验注册与错误切片](../deliverables/week-06-day-01.md)
-11. [第六周计划日 2：Dense Top-100 直接重排](../deliverables/week-06-day-02.md)
-12. [第六周计划日 3：Completeness 两阶段评分](../deliverables/week-06-day-03.md)
-13. [第六周计划日 4：NLI 幻觉定位审批前置](../deliverables/week-06-day-04-approval.md)
-14. [第六周计划日 4：下载与数据派生核验](../deliverables/week-06-day-04-readiness.md)
-15. [第六周计划日 4：句级 NLI 幻觉定位](../deliverables/week-06-day-04.md)
-16. [第六周计划日 5：候选冻结与最终 Test 审批前置](../deliverables/week-06-day-05-approval.md)
-17. [第六周计划日 5：最终 Test 与条件冻结](../deliverables/week-06-day-05.md)
-18. [通用智能体平台迁移设计决策](../design-decisions/general-agent-platform.md)
-19. [第 1～6 周工程日志](../engineering-logs/README.md)
+8. [公开 Benchmark 与冻结基线](evaluation-and-baselines.md)
+9. [第五周实施计划](../deliverables/week-05-plan.md)
+10. [计划日 5 统一基线与研究入口](../deliverables/week-05-day-05.md)
+11. [第 6～11 周研发路线与 GitHub 版本节点](../deliverables/week-06-to-11-roadmap.md)
+12. [第六周计划日 1：实验注册与错误切片](../deliverables/week-06-day-01.md)
+13. [第六周计划日 2：Dense Top-100 直接重排](../deliverables/week-06-day-02.md)
+14. [第六周计划日 3：Completeness 两阶段评分](../deliverables/week-06-day-03.md)
+15. [第六周计划日 4：NLI 幻觉定位审批前置](../deliverables/week-06-day-04-approval.md)
+16. [第六周计划日 4：下载与数据派生核验](../deliverables/week-06-day-04-readiness.md)
+17. [第六周计划日 4：句级 NLI 幻觉定位](../deliverables/week-06-day-04.md)
+18. [第六周计划日 5：候选冻结与最终 Test 审批前置](../deliverables/week-06-day-05-approval.md)
+19. [第六周计划日 5：最终 Test 与条件冻结](../deliverables/week-06-day-05.md)
+20. [通用智能体平台迁移设计决策](../design-decisions/general-agent-platform.md)
+21. [第 1～6 周工程日志](../engineering-logs/README.md)
+
 
 ## 文档地图
 
@@ -63,10 +64,11 @@
 | [evaluation-and-baselines.md](evaluation-and-baselines.md) | 公开 Benchmark、冻结 profile 和实验治理规则是什么？ |
 | [operations.md](operations.md) | 如何启动、备份、恢复和排查常见故障？ |
 | [version-1.0.0.md](version-1.0.0.md) | 1.0.0 冻结了什么，还有哪些发布前事项？ |
+| [存储与代码审计](storage-and-code-audit-2026-09-07.md) | 模型、数据、代码各占多大，完成了哪些精简与清理？ |
 
 ## 当前实现摘要
 
-| 维度 | 1.0.0 状态 |
+| 维度 | 当前状态（1.2.1） |
 |---|---|
 | 产品形态 | 本地单用户、资料驱动的通用智能体实验平台 |
 | 界面语言 | 当前仅中文；英文界面、提示词、错误信息与双语质量验证规划于后续 `v1.6.0` |
@@ -80,7 +82,7 @@
 | 会话 | 快速对话和资料空间对话分别持久化 |
 | 可观测性 | 文档处理进度、引用元数据、检索诊断、Token 累计 |
 | 评测 | FiQA、RAGTruth、RAGBench 已获批并完成冻结基线；机器 profile 1.0.0 可校验加载 |
-| 微调 | 规划中；1.0.0 没有训练任务或微调界面 |
+| 微调 | 规划中；当前没有训练任务或微调界面 |
 
 ## 事实来源优先级
 
