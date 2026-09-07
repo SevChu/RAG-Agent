@@ -17,7 +17,7 @@
 > respective upstream terms. See [LICENSE](LICENSE) and
 > [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-> **Current language boundary:** Agentic `v1.2.0` provides a Chinese-only
+> **Current language boundary:** the current Agentic release provides a Chinese-only
 > user interface, prompts, and user-facing error messages. This English README
 > documents the project for international readers; it does not mean that the
 > application itself already supports English. Product-level English support is
@@ -143,9 +143,9 @@ in [Configuration](docs/technical/configuration.md).
 
 ## Project Status
 
-- Latest release: `v1.2.0` — Week 6 evaluation governance and an
-  offline/advisory NLI span-localization profile. Week 6 Extra remains under separate
-  review, is planned for `v1.2.1`, and is outside this release.
+- Latest release: `v1.2.1` — Week 6 Extra rejection evidence. The Day 2 retrieval
+  candidate is rejected and Day 3 remains deferred; neither enters a profile. The
+  existing offline/advisory NLI span-localization profile is unchanged.
 - Functional baseline: `v1.1.0` — complete local RAG workflow, general-agent UI
   migration, FiQA/RAGTruth/RAGBench classic baselines. The local profile registry is 1.1.0.
 - Runtime model providers: DeepSeek plus reserved OpenAI-compatible interfaces for
@@ -364,7 +364,8 @@ For full setup, storage, backup, and troubleshooting details, read
 
 | Target | Planned scope | Status |
 |---|---|---|
-| `v1.2.0` | Evaluation governance and advisory NLI span profile | Local RC; not released |
+| `v1.2.0` | Evaluation governance and advisory NLI span profile | Released |
+| `v1.2.1` | Week 6 Extra evidence; no new profile | Released |
 | `v1.3.0` | Versioned AgentProfile and multi-agent configuration | Planned |
 | `v1.4.0-beta.1` | Training dataset, job, adapter registry, and fine-tuning UI foundation | Planned beta |
 | `v1.4.0` | First real scorer or reranker fine-tuning and rollback | Planned |
@@ -410,6 +411,9 @@ Agentic/
 - [Data and RAG pipeline](docs/technical/data-and-rag-pipeline.md)
 - [Agent and generation pipeline](docs/technical/agent-and-generation.md)
 - [Development and testing](docs/technical/development-and-testing.md)
+- [Week 6 Extra aggregate results: v1.2.1](benchmarks/v1.2.1/README.md)
+- [Release notes: v1.2.1](docs/releases/v1.2.1.md)
+- [v1.2.1 data-redaction and release-security review](docs/releases/v1.2.1-security-review.md)
 - [Release notes: v1.2.0](docs/releases/v1.2.0.md)
 - [v1.2.0 data-redaction and release-security review](docs/releases/v1.2.0-security-review.md)
 - [Release notes: v1.1.1](docs/releases/v1.1.1.md)

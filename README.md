@@ -10,9 +10,9 @@
 > 拥有版权的 Agentic 原创材料；第三方依赖、模型与 Benchmark 不在该版权主张范围内，分别
 > 遵循其上游条款。详见 [LICENSE](LICENSE) 与 [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES.md)。
 
-> 项目状态：当前正式版本为 `v1.2.0`，在 `v1.1.1` 基础上加入第六周评测治理与
-> offline/advisory NLI span profile 1.1.0。Week 6 Extra 留作后续独立审核，计划作为
-> `v1.2.1` 发布，不属于 `v1.2.0` 范围。
+> 项目状态：当前正式版本为 `v1.2.1`。该补丁公开 Week 6 Extra 的负向证据：最终拒绝
+> Day 2 检索候选、延后 Day 3 Completeness 候选，两者均不进入 profile。已发布的 NLI
+> offline/advisory span profile 保持不变。
 
 > **语言边界**：当前版本的程序界面、提示词和面向用户的错误信息仅支持中文。英文 README
 > 用于帮助国际读者了解项目，不代表程序已经完成英文支持；产品级中英文切换计划纳入未来
@@ -1287,6 +1287,9 @@ uv run python -m app.ingestion.inspect `
 - [第 5 周计划日 5 统一基线与研究入口](docs/deliverables/week-05-day-05.md)
 - [公开 Benchmark 与冻结基线技术说明](docs/technical/evaluation-and-baselines.md)
 - [v1.1.0 公开 Benchmark 聚合结果](benchmarks/v1.1.0/README.md)
+- [v1.2.1 Week 6 Extra 公开聚合结果](benchmarks/v1.2.1/README.md)
+- [v1.2.1 Release Notes](docs/releases/v1.2.1.md)
+- [v1.2.1 数据脱敏与发布安全审查](docs/releases/v1.2.1-security-review.md)
 - [v1.2.0 Release Notes](docs/releases/v1.2.0.md)
 - [v1.2.0 数据脱敏与发布安全审查](docs/releases/v1.2.0-security-review.md)
 - [v1.1.1 Release Notes](docs/releases/v1.1.1.md)

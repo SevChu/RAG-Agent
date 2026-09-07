@@ -5,12 +5,12 @@
 | 项目 | 内容 |
 |---|---|
 | 计划周次 | 第 6 周 |
-| 实际实施周期 | 2026-08-31 ～ 2026-09-04 |
+| 实际实施周期 | 2026-08-31 ～ 2026-09-07 |
 | 本周主题 | 实验治理、检索与评分候选优化、冻结 test 与 profile 版本化 |
-| 当前状态 | 计划日 1～5 已实施并完成用户审核；Week 6 Extra 已完成但待用户后续单独审核 |
-| 当前正式版本 | `v1.2.0` |
-| 发布状态 | 已获用户最终批准并发布到 GitHub |
-| 当前分支与 HEAD | `main` / `58f0c13fb91469928661785623168fff2f0f2d06` |
+| 当前状态 | Day 1～5 已发布；Extra 已实施，Day 2 reject、Day 3 deferred |
+| 当前正式版本 | `v1.2.1` |
+| 发布状态 | `v1.2.0` 与 `v1.2.1` 均已完成独立审核并发布到 GitHub |
+| 当前分支与已发布基线 | `main` / `155522c3f9db1bb0b0d196068f3f6504ad222872`（`v1.2.0`） |
 | 实验设计基线 | `60755dd3ca440b774322a5b0dc713234816ffaeb` |
 | 数据原则 | train/validation 用于优化；候选冻结并获批后只允许一次隔离 test |
 | 发布原则 | 本地冻结代码、报告和版本号；所有 Git 与 GitHub 写操作另行审批 |
@@ -450,15 +450,101 @@ production blocking 或在线默认。Day 2 保持 provisional，Day 3 保持 de
 
 ### 基本信息
 
-- 实际日期：2026-09-04
+- 实际日期：2026-09-04 ～ 2026-09-07
 - 技术状态：已完成
-- 审核状态：待用户后续单独审核
-- 发布状态：不计入 `v1.2.0`，待审核后作为 `v1.2.1` 候选
-- 交付：本地 Extra 报告已生成，待审核后纳入 `v1.2.1`
+- 决策状态：Day 2 `reject`；Day 3 `deferred`
+- Profile 变更：0
+- 发布状态：不属于 `v1.2.0`；已单独发布为 `v1.2.1`
+- 交付：[Extra 报告](../deliverables/week-06-extra.md)、
+  [确认协议](../deliverables/week-06-extra-confirmation-protocol.md)、
+  [公开聚合结果](../../benchmarks/v1.2.1/README.md)
 
-Extra 只复评既有 FiQA validation run 与 RAGBench train/validation 聚合，official test 访问为 0，
-也没有改变 Day 5 的 NLI 选择。由于结果尚待用户独立审核，本日志不提前公开 p-value、切片结论、
-决策或摘要哈希；完整证据保留在本地，待 `v1.2.1` 审批时再进入发布材料。
+### 目标与不可变边界
+
+Extra 的目的不是“让 Day 2/3 一定通过”，而是回答原 validation 结果是否足以支持最小 test。
+候选、基线、主指标、seed、bootstrap 次数、资源门和停止规则在查看新增结果前冻结。完整运行产物
+留在 `backend/datasets/` 忽略目录；受 Git 管理的范围只允许代码、测试、协议、聚合指标、哈希
+与限制。
+
+任何新数据库、人工 gold、外部 judge 或 official test 都是独立审批点。Day 3 未获 test 资格；
+Day 2 只有在未使用 train queries 的四门全过后，才由用户另行批准一次 FiQA test。
+
+### 第一阶段：既有 validation 稳健性复评
+
+Day 2 的 500 个 FiQA dev queries 中，非平局 sign test 为 62 胜 / 27 负（`p=0.000266`），但
+保留效应幅度的 paired sign-flip 为 `p=0.787202`。single-evidence nDCG delta
+`-0.004536`，multiple-evidence `+0.004943`，两者 CI 都跨 0。结论仍是改善方向存在，但证据
+不足以直接访问 test。
+
+Day 3 的 12-domain macro Spearman delta 为 `+0.007462`，exact sign-flip
+`p=0.437012`；去掉两个最大正向域后 delta 变为 `-0.002990`。三 seed 差异很小，只能说明训练
+随机性可控，不能消除跨领域异质性。
+
+### 第二阶段：预注册确认性证据
+
+Day 2 使用此前未运行的 5,500 个 FiQA train queries（14,166 条 qrels），仍属于 finance 域。
+候选相对基线 nDCG@10 delta `+0.004311`，10,000 次 paired bootstrap 95% CI
+`[+0.002719, +0.005825]`；Recall@100 delta `+0.030302`，平均时延增加 `196.11 ms`。四门
+全过，因此只获得 `minimum_test_eligible`。
+
+Day 3 每次以其他 11 个领域的 train 行拟合，在留出领域 validation 行评估。macro Spearman
+delta `-0.003987`，95% CI `[-0.030626, 0.021197]`，exact sign-flip `p=0.790527`，
+6 胜 / 6 负，macro RMSE 还恶化 `+0.002524`。四门全失败，按停止规则保持 `deferred`；
+不运行 RAGBench test，也不主动增加数据库。
+
+### 第三阶段：Day 2 一次性 FiQA final test
+
+用户于 2026-09-07 批准一次 test 和预登记最终门。runner 在读取数据前校验 parent decision、
+审批协议、manifest、archive、corpus、queries 与 qrels 哈希；不允许已有完成目录被覆盖。
+本次运行拟合 0 次、校准 0 次、外部 API 0 次、新模型下载 0 次，结果不佳后没有重跑。
+
+| 指标 | Hybrid Top-100 → Reranker | Dense Top-100 → Reranker | Delta |
+|---|---:|---:|---:|
+| nDCG@10 | 0.429862 | 0.429352 | -0.000510 |
+| Recall@100 | 0.699345 | 0.718779 | +0.019434 |
+| MRR@10 | 0.516222 | 0.513520 | -0.002702 |
+| MAP@100 | 0.368163 | 0.368598 | +0.000435 |
+| 平均时延 | 698.670 ms/query | 674.726 ms/query | -23.945 ms/query |
+
+paired nDCG@10 bootstrap 95% CI 为 `[-0.005411, 0.004049]`，69 胜 / 542 平 / 37 负。
+Recall 与时延 guardrail 通过，但均值正向门与 CI 下界门失败，机器决策为 `reject`。因此 Day 2
+不能进入 advise profile；Day 3 同样不具备 profile 资格。
+
+### 产物、哈希与隐私
+
+| 产物 | SHA-256 |
+|---|---|
+| pre-test decision | `d3ae9dc0369b91d7278a08ec966a8a9829de66c1324092223ed04041b7b76fb4` |
+| Day 2 train summary | `b3de736e10ba4bf9a6da015fa0f2c9cf3e32d4fa7f3d7e87b8577681d59aa344` |
+| Day 3 outer-domain summary | `9d6422d515b8b52e5375c115795f805776829a7147ff46b729c23ce96c6d4434` |
+| Day 2 final-test summary | `06ef176923ad83041b0e195d8b53f24a6585c81da6a5abc45d0845500623029b` |
+
+final-test 完整 summary 含本机模型路径，只保留在 Git 忽略目录。新增公开导出器只挑选 aggregate
+metric、count、CI、gate、decision 与哈希，并通过既有禁止字段/本机路径校验器；不导出 query、
+document、sample ID、文本、qrels 内容、逐条预测、缓存或权重。
+
+### 问题、原因与处理
+
+- pre-test decision 记录的是 test 前状态，不能在 test 后改写，否则会破坏 parent hash 链；
+  最终拒绝由独立 final summary 和公开聚合包承接；
+- train 确认显著为正但 test 均值为负，说明同域更多样本仍不能替代冻结 test；
+- final summary 内的本机路径是本地复现身份，不直接发布；公开导出时只保留模型/数据哈希；
+- 负结果不删除：它用于证明候选已被评估并阻止相同假设反复消耗 test。
+
+### 用户验收与发布边界
+
+用户接受 Day 2 不进入 profile，并要求准备 `v1.2.1`；在审核发布说明、安全报告和候选范围后，
+于 2026-09-07 明确授权 release commit、annotated Tag、push 与 GitHub Release。
+
+### v1.2.1 候选验证
+
+- Extra focused 16 passed；后端全量 310 passed；
+- Ruff 全量通过；应用 100 个源文件与 5 个新增脚本 strict mypy 通过；
+- `uv lock --check --offline` 解析 169 packages 并通过；
+- 前端 Vitest 10 passed；Vue TypeScript、Oxlint、ESLint 与 production build 通过；
+- Vite 共转换 1,748 modules；OpenAPI 为 1.2.1、19 paths；
+- 30 个候选文件通过密钥、新增本机路径、危险扩展名、>1 MiB、Git 忽略与 registry diff 检查；
+- 13 个候选 Markdown 的 169 个本地链接全部可解析。
 
 ## 本周累计成果
 
@@ -468,7 +554,8 @@ Extra 只复评既有 FiQA validation run 与 RAGBench train/validation 聚合�
 4. 固定 NLI 模型身份、资源预算、缓存复现和断点恢复；
 5. 只让 NLI 消耗一次 final test，冻结一个有限角色 advisory profile；
 6. Profile Registry 升至 1.1.0，应用版本同步并发布为 `v1.2.0`；
-7. 完成发布说明、技术文档、回归、隐私、依赖锁与 OpenAPI 校验。
+7. 完成 `v1.2.0` 发布说明、技术文档、回归、隐私、依赖锁与 OpenAPI 校验；
+8. 在 Extra 以新增证据淘汰 Day 2、延后 Day 3，并准备不增加 profile 的 `v1.2.1` 候选。
 
 ## 与原计划的差异
 
@@ -482,12 +569,12 @@ Extra 只复评既有 FiQA validation run 与 RAGBench train/validation 聚合�
 
 1. NLI test span recall 下降约 0.0458，span F1 delta bootstrap CI 跨 0；
 2. NLI response AUPRC 低于历史 lexical coverage，不能替换现有 response 参考；
-3. FiQA 直接重排均值收益小、paired CI 跨 0，单证据切片有负向风险；
-4. 两阶段 Completeness 跨域异质性高，去掉强正向域后可转负；
+3. FiQA 直接重排在 official test 的 nDCG 均值为负、CI 跨 0，最终拒绝；
+4. 两阶段 Completeness 外层确认四门失败，继续 deferred；
 5. RAGTruth test 在 Week 5 已用于经典基线，本周只是候选隔离，不是全新盲测；
 6. 英文公开 Benchmark 不代表中文真实流量或生产阻断精度；
 7. scorer 均未接入生产、UI 或 AgentProfile；
-8. Extra 尚未通过用户审核，不能进入 `v1.2.0`，后续作为 `v1.2.1` 独立发布。
+8. Extra 不改变 `v1.2.0` profile registry；`v1.2.1` 只发布证据链和否决结论。
 
 ## v1.2.0 发布记录
 
@@ -502,11 +589,11 @@ Extra 只复评既有 FiQA validation run 与 RAGBench train/validation 聚合�
 - 发布正文：[v1.2.0 Release Notes](../releases/v1.2.0.md)；
 - 审核清单：[v1.2.0 GitHub 发布审核清单](../releases/v1.2.0-release-checklist.md)。
 
-### 拟纳入范围
+### 实际纳入范围
 
 - Day 1～5 的实验治理、runner、测试、profile、版本元数据和报告；
 - NLI 第三方声明与 offline/advisory 限制；
-- 不包含 Extra 专用脚本、测试和报告；Extra 待单独审核后作为 `v1.2.1` 发布。
+- 不包含 Extra 专用脚本、测试和报告；Extra 作为独立 `v1.2.1` 候选处理。
 
 ### 发布授权与边界
 
@@ -517,7 +604,7 @@ Tag、push 和 GitHub Release。发布只包含上列 Day 1～5 核心范围；�
 ## 下一阶段交接
 
 - `v1.2.0` 发布后回读 commit、Tag 与 GitHub Release，确认远端身份一致；
-- Extra 保留为独立待审项目，审核后作为 `v1.2.1` 发布；
+- 审核 `v1.2.1` 的代码、公开聚合、发布说明和安全报告；未经明确批准不执行 Git/GitHub 写操作；
 - 第 7 周 AgentProfile 只能显式、版本化、可回滚地绑定评测 profile；
 - NLI 在获得中文/真实流量 validation 前不得升级为 production/default。
 
@@ -525,4 +612,5 @@ Tag、push 和 GitHub Release。发布只包含上列 Day 1～5 核心范围；�
 
 计划日 1～5 已完成并经用户审核。本周不是“三项算法全部升级”，而是建立可复现、可拒绝 test
 污染的实验治理，并通过负向证据淘汰或延后两个不稳定候选，只冻结一个角色受限的 NLI span
-advisory profile。`v1.2.0` 已经用户最终批准并发布；Extra 待审并计划进入 `v1.2.1`。
+advisory profile。`v1.2.0` 已经用户最终批准并发布；Extra 进一步拒绝 Day 2、延后 Day 3，
+两者均不进入 profile。`v1.2.1` 只固化这条证据与治理链，已经独立审核并发布。

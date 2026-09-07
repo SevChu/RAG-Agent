@@ -1,0 +1,235 @@
+{
+  "schema_version": "1.0",
+  "release_version": "1.2.1",
+  "generated_on": "2026-09-07",
+  "publication_policy": {
+    "aggregation_only": true,
+    "contains_sample_text": false,
+    "contains_row_level_predictions": false,
+    "contains_local_paths": false,
+    "contains_personal_or_workspace_data": false,
+    "raw_datasets_redistributed": false,
+    "artifact_hashes_are_identifiers_only": true
+  },
+  "profile_registry_changed": false,
+  "decisions": {
+    "day2_dense_direct_rerank": "reject",
+    "day3_two_stage_completeness": "deferred",
+    "profiles_added": 0
+  },
+  "experiments": {
+    "day2_dense_direct_rerank": {
+      "confirmation": {
+        "split": "train",
+        "evidence_scope": "previously unused FiQA queries in the same finance domain",
+        "query_count": 5500,
+        "ndcg_at_10": {
+          "query_count": 5500,
+          "seed": 42,
+          "resamples": 10000,
+          "mean_delta": 0.004311215056568396,
+          "ci95": {
+            "lower": 0.0027186176633855227,
+            "upper": 0.005825084584924479
+          },
+          "bootstrap_positive_fraction": 1.0,
+          "wins": 638,
+          "ties": 4557,
+          "losses": 305
+        },
+        "metric_deltas": {
+          "ndcg@10": 0.004311215056568118,
+          "recall@100": 0.03030223599219639,
+          "mrr@10": 0.003530880230880773,
+          "map@100": 0.004770285183528233
+        },
+        "mean_latency_delta_ms": 196.1081857272726,
+        "gates": {
+          "mean_ndcg_delta_positive": true,
+          "paired_bootstrap_ci_lower_positive": true,
+          "recall_at_100_not_below_dense": true,
+          "latency_regression_within_750ms": true,
+          "all_passed": true
+        },
+        "outcome": "minimum_test_eligible"
+      },
+      "official_test": {
+        "accesses": 1,
+        "query_count": 648,
+        "qrels_count": 1706,
+        "baseline": {
+          "method": "hybrid-top-100-rerank",
+          "metrics": {
+            "map@1": 0.43364197530864196,
+            "map@10": 0.3511723666089663,
+            "map@100": 0.36816285449435887,
+            "map@20": 0.3618301512626927,
+            "map@3": 0.34683641975308666,
+            "map@5": 0.3470267489711933,
+            "mrr@1": 0.43364197530864196,
+            "mrr@10": 0.516222075249853,
+            "mrr@100": 0.5233965840941255,
+            "mrr@20": 0.520697219012349,
+            "mrr@3": 0.4920267489711936,
+            "mrr@5": 0.5081532921810697,
+            "ndcg@1": 0.43364197530864196,
+            "ndcg@10": 0.4298622436306024,
+            "ndcg@100": 0.4869929790683165,
+            "ndcg@20": 0.45699945002906983,
+            "ndcg@3": 0.394627517902479,
+            "ndcg@5": 0.41136985886063254,
+            "precision@1": 0.43364197530864196,
+            "precision@10": 0.11697530864197557,
+            "precision@100": 0.017391975308641817,
+            "precision@20": 0.06952160493827145,
+            "precision@3": 0.26388888888888967,
+            "precision@5": 0.1966049382716061,
+            "recall@1": 0.21776595318261976,
+            "recall@10": 0.4961137242387242,
+            "recall@100": 0.6993446454094602,
+            "recall@20": 0.581665839304728,
+            "recall@3": 0.35201717435513735,
+            "recall@5": 0.4290075365306846
+          },
+          "mean_latency_ms": 698.6701675925967,
+          "run_sha256": "ccb5e405bdd85596145e6224defdaa013009bde07f873b4b384630d30dc87505"
+        },
+        "candidate": {
+          "method": "dense-top-100-rerank",
+          "metrics": {
+            "map@1": 0.42746913580246915,
+            "map@10": 0.3506133476767476,
+            "map@100": 0.3685981255916395,
+            "map@20": 0.36099269180107085,
+            "map@3": 0.347950960219479,
+            "map@5": 0.3446677812071329,
+            "mrr@1": 0.42746913580246915,
+            "mrr@10": 0.5135202331961591,
+            "mrr@100": 0.5212109121669927,
+            "mrr@20": 0.5181788899800736,
+            "mrr@3": 0.4920267489711936,
+            "mrr@5": 0.5047582304526748,
+            "ndcg@1": 0.42746913580246915,
+            "ndcg@10": 0.42935227115237085,
+            "ndcg@100": 0.491235264650995,
+            "ndcg@20": 0.4559718099729998,
+            "ndcg@3": 0.39700963175938414,
+            "ndcg@5": 0.4078708388350711,
+            "precision@1": 0.42746913580246915,
+            "precision@10": 0.1172839506172842,
+            "precision@100": 0.017962962962962802,
+            "precision@20": 0.06936728395061713,
+            "precision@3": 0.26748971193415716,
+            "precision@5": 0.1944444444444456,
+            "recall@1": 0.21463911602800476,
+            "recall@10": 0.4964995267078599,
+            "recall@100": 0.7187787349824389,
+            "recall@20": 0.5804599592794036,
+            "recall@3": 0.3579217892875301,
+            "recall@5": 0.42252605504920304
+          },
+          "mean_latency_ms": 674.7255529320998,
+          "run_sha256": "54447f68aecd219bb744323f3e3790fef7294ad88ce0d14ce6ca9e4da96a423c"
+        },
+        "comparison": {
+          "baseline": "rerank",
+          "candidate": "dense-rerank",
+          "metric_deltas": {
+            "ndcg@10": -0.0005099724782315351,
+            "recall@100": 0.019434089572978763,
+            "mrr@10": -0.002701842053693837,
+            "map@100": 0.00043527109728064284
+          },
+          "recall_at_100_delta_from_dense": 0.0,
+          "mean_latency_delta_ms": -23.94461466049688,
+          "paired_query_ndcg_at_10": {
+            "query_count": 648,
+            "seed": 42,
+            "resamples": 10000,
+            "mean_delta": -0.0005099724782313741,
+            "ci95": {
+              "lower": -0.005410858743339032,
+              "upper": 0.004049026791248452
+            },
+            "bootstrap_positive_fraction": 0.422,
+            "wins": 69,
+            "ties": 542,
+            "losses": 37
+          }
+        },
+        "gates": {
+          "mean_ndcg_delta_positive": false,
+          "paired_bootstrap_ci_lower_positive": false,
+          "recall_at_100_not_below_dense": true,
+          "latency_regression_within_750ms": true,
+          "all_passed": false
+        },
+        "decision": "reject",
+        "model_fits": 0,
+        "threshold_calibrations": 0
+      }
+    },
+    "day3_two_stage_completeness": {
+      "evidence_scope": "leave-one-domain-out on frozen RAGBench train/validation data",
+      "independence_limit": "held-out domains were absent from fitting, but the architecture had previously been selected after observing these domain families",
+      "official_test_accesses": 0,
+      "decision": {
+        "macro_spearman_delta": -0.0039868334470592615,
+        "macro_rmse_delta": 0.0025236483922198107,
+        "spearman_bootstrap": {
+          "count": 12,
+          "mean": -0.0039868334470592615,
+          "ci95": [
+            -0.03062647813692889,
+            0.021196835290844637
+          ],
+          "positive_fraction": 0.3969
+        },
+        "exact_randomization": {
+          "method": "exact paired sign-flip, two-sided",
+          "permutations": 4096,
+          "p_value": 0.79052734375
+        },
+        "domain_sign_test": {
+          "wins": 6,
+          "ties": 0,
+          "losses": 6,
+          "p_value_two_sided": 1.0
+        },
+        "leave_one_domain_out": {
+          "minimum_mean": -0.011031663938186626,
+          "maximum_mean": 0.005403135144865213,
+          "positive_count": 2,
+          "total": 12
+        },
+        "gates": {
+          "macro_spearman_delta_positive": false,
+          "spearman_bootstrap_ci_lower_positive": false,
+          "exact_sign_flip_p_below_0_05": false,
+          "macro_rmse_not_worse": false,
+          "all_passed": false
+        },
+        "outcome": "insufficient_evidence"
+      },
+      "outcome": "deferred"
+    }
+  },
+  "artifact_sha256": {
+    "pretest_decision": "d3ae9dc0369b91d7278a08ec966a8a9829de66c1324092223ed04041b7b76fb4",
+    "day2_final_test_summary": "06ef176923ad83041b0e195d8b53f24a6585c81da6a5abc45d0845500623029b",
+    "day2_train_summary": "b3de736e10ba4bf9a6da015fa0f2c9cf3e32d4fa7f3d7e87b8577681d59aa344",
+    "day2_train_slice_summary": "03a0f3795e4adf4ba950d2de546ad862abe8125d98ddbe80fe33942cf7403e92",
+    "day2_train_qrels": "e46a99529aa61b12e086a5c057e4e0ecaeda9502e53d5fe855efce778f1ec59a",
+    "day3_outer_domain_summary": "9d6422d515b8b52e5375c115795f805776829a7147ff46b729c23ce96c6d4434",
+    "fiqa_manifest": "7d6cf6534f4176a7288279f34dacc4aea43eec074f846dde6ec5262e1b154092",
+    "fiqa_test_qrels": "6adc2a640dcdd22bb8b3858f89107adef2a7c3db20a63550dfa7a0f71e379e44"
+  },
+  "limitations": [
+    "The Day 2 final-test nDCG@10 delta is negative and its paired bootstrap interval crosses zero.",
+    "The Day 2 candidate is rejected and must not enter an advisory or production profile.",
+    "The Day 3 outer-domain confirmation failed all preregistered gates and remains deferred.",
+    "FiQA is English finance-domain retrieval and does not represent private Chinese traffic.",
+    "RAGBench evidence reuses known domain families and is not a new external dataset.",
+    "Published values are offline research evidence, not production answer gates."
+  ]
+}

@@ -1,6 +1,6 @@
 [project]
 name = "agentic-backend"
-version = "1.2.0"
+version = "1.2.1"
 description = "FastAPI backend for the local-first Agentic RAG agent platform"
 requires-python = ">=3.11"
 dependencies = [

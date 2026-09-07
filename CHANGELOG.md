@@ -4,6 +4,30 @@
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-09-07
+
+### Added
+
+- Week 6 Extra 的 Day 2/3 稳健性复评、预注册确认、一次性 FiQA final-test runner；
+- 无样本内容、无本机路径的 `benchmarks/v1.2.1` 聚合证据包。
+
+### Changed
+
+- backend、frontend 与 OpenAPI 候选版本同步为 1.2.1；
+- 第六周报告、工程日志和路线图同步最终 `reject` / `deferred` 结论。
+
+### Decision
+
+- Dense Top-100 直接重排在 FiQA official test 上主门失败，最终 `reject`；
+- Two-stage Completeness 外层留一领域四门失败，保持 `deferred`；
+- 两者均不进入 profile，baseline profile registry 保持 1.1.0。
+
+### Known limitations
+
+- Day 2 train 确认证据为正，但 official test nDCG delta 为负且 CI 跨 0；
+- Day 3 证据复用已知领域族，不是全新外部数据库；
+- 本补丁只发布离线证据与否决记录，不新增生产评分能力。
+
 ## [1.2.0] - 2026-09-04
 
 ### Added
