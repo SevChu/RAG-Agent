@@ -249,12 +249,10 @@ function openCourse(courseId: string): void {
   align-items: center;
   gap: 22px;
   margin-bottom: 26px;
-  background:
-    linear-gradient(120deg, rgb(255 255 255 / 80%), rgb(239 248 255 / 74%)), var(--surface);
+  background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 20px;
+  border-radius: var(--radius-base);
   box-shadow: var(--shadow-soft);
-  backdrop-filter: blur(16px);
 }
 
 .overview-strip > div {
@@ -295,11 +293,10 @@ function openCourse(courseId: string): void {
   min-height: 255px;
   padding: 22px;
   overflow: hidden;
-  background: rgb(255 255 255 / 82%);
+  background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 22px;
+  border-radius: var(--radius-base);
   box-shadow: var(--shadow-card);
-  backdrop-filter: blur(18px);
   animation: card-enter 420ms both;
   animation-delay: calc(var(--card-index, 0) * 55ms);
   transition:
@@ -308,21 +305,10 @@ function openCourse(courseId: string): void {
     box-shadow 180ms ease;
 }
 
-.course-card::before {
-  position: absolute;
-  top: -30px;
-  right: -26px;
-  width: 112px;
-  height: 112px;
-  pointer-events: none;
-  content: '';
-  background: radial-gradient(circle, rgb(77 183 255 / 15%), transparent 68%);
-}
-
 .course-card:hover {
-  border-color: rgb(67 151 255 / 28%);
-  box-shadow: 0 24px 50px rgb(65 110 170 / 14%);
-  transform: translateY(-3px);
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-2px);
 }
 
 .course-card-top {
@@ -336,24 +322,24 @@ function openCourse(courseId: string): void {
   width: 42px;
   height: 42px;
   color: var(--primary-deep);
-  background: linear-gradient(145deg, var(--primary-soft), var(--violet-soft));
-  border: 1px solid rgb(80 150 255 / 14%);
-  border-radius: 14px;
+  background: var(--primary-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-base);
   place-items: center;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .more-button {
   min-width: 34px;
   height: 32px;
   padding: 0 8px 5px;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: 2px;
   color: var(--ink-faint);
   cursor: pointer;
   background: transparent;
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--radius-base);
 }
 
 .more-button:hover {
@@ -395,11 +381,13 @@ function openCourse(courseId: string): void {
   align-items: center;
   justify-content: space-between;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--primary-deep);
   cursor: pointer;
   background: transparent;
   border: 0;
+  border-top: 1px solid var(--line-soft);
+  margin-top: 12px;
 }
 
 .course-enter-button span {
@@ -420,11 +408,9 @@ function openCourse(courseId: string): void {
   min-height: 390px;
   padding: 54px 22px;
   text-align: center;
-  background:
-    radial-gradient(circle at 50% 30%, rgb(87 199 255 / 12%), transparent 24%),
-    rgb(255 255 255 / 62%);
-  border: 1px dashed rgb(83 151 234 / 30%);
-  border-radius: 24px;
+  background: var(--surface-soft);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-base);
   place-items: center;
   align-content: center;
 }
@@ -446,16 +432,14 @@ function openCourse(courseId: string): void {
   height: 68px;
   margin-bottom: 15px;
   color: var(--primary-deep);
-  background: linear-gradient(145deg, var(--primary-soft), var(--violet-soft));
-  border-radius: 24px;
-  box-shadow: 0 16px 38px rgb(64 135 255 / 16%);
+  background: var(--primary-soft);
+  border-radius: var(--radius-base);
+  box-shadow: var(--shadow-soft);
   place-items: center;
-  transform: rotate(-5deg);
 }
 
 .empty-orbit span {
   font-size: 28px;
-  transform: rotate(5deg);
 }
 
 .dialog-intro {
@@ -465,8 +449,8 @@ function openCourse(courseId: string): void {
   gap: 11px;
   margin-bottom: 18px;
   color: var(--ink-muted);
-  background: linear-gradient(120deg, var(--primary-soft), var(--violet-soft));
-  border-radius: 14px;
+  background: var(--primary-soft);
+  border-radius: var(--radius-base);
 }
 
 .dialog-intro p {
@@ -481,8 +465,8 @@ function openCourse(courseId: string): void {
   height: 31px;
   flex: 0 0 31px;
   color: var(--primary-deep);
-  background: rgb(255 255 255 / 75%);
-  border-radius: 10px;
+  background: var(--surface);
+  border-radius: var(--radius-base);
   place-items: center;
 }
 

@@ -573,7 +573,7 @@ function uploadStateLabel(item: UploadItem): string {
   gap: 8px;
   margin-bottom: 20px;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--ink-muted);
   cursor: pointer;
   background: transparent;
@@ -594,9 +594,9 @@ function uploadStateLabel(item: UploadItem): string {
   align-items: center;
   gap: 13px;
   margin-bottom: 22px;
-  background: linear-gradient(115deg, rgb(227 247 255 / 76%), rgb(242 238 255 / 70%));
-  border: 1px solid rgb(80 150 255 / 14%);
-  border-radius: 18px;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-base);
 }
 
 .summary-mark {
@@ -604,8 +604,8 @@ function uploadStateLabel(item: UploadItem): string {
   width: 40px;
   height: 40px;
   color: var(--primary-deep);
-  background: rgb(255 255 255 / 68%);
-  border-radius: 13px;
+  background: var(--surface);
+  border-radius: var(--radius-base);
   place-items: center;
 }
 
@@ -627,17 +627,16 @@ function uploadStateLabel(item: UploadItem): string {
 .course-memory-label {
   padding: 6px 10px;
   margin-left: auto;
-  background: rgb(255 255 255 / 64%);
-  border-radius: 999px;
+  background: var(--surface);
+  border-radius: var(--radius-base);
 }
 
 .material-panel {
   overflow: hidden;
-  background: rgb(255 255 255 / 82%);
+  background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 22px;
+  border-radius: var(--radius-base);
   box-shadow: var(--shadow-card);
-  backdrop-filter: blur(18px);
 }
 
 .panel-heading {
@@ -664,24 +663,24 @@ function uploadStateLabel(item: UploadItem): string {
 
 .selected-count {
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--primary-deep);
 }
 
 .batch-delete-button {
   padding: 7px 10px;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--danger);
   cursor: pointer;
-  background: rgb(255 89 122 / 7%);
-  border: 1px solid rgb(233 79 112 / 18%);
-  border-radius: 9px;
+  background: var(--danger-soft);
+  border: 1px solid var(--danger-line);
+  border-radius: var(--radius-base);
 }
 
 .batch-delete-button:hover:not(:disabled) {
-  background: rgb(255 89 122 / 12%);
-  border-color: rgb(233 79 112 / 32%);
+  background: var(--danger-soft);
+  border-color: var(--danger-line);
 }
 
 .batch-delete-button:disabled {
@@ -690,6 +689,7 @@ function uploadStateLabel(item: UploadItem): string {
 }
 
 .material-table-wrap {
+  position: relative;
   overflow-x: auto;
 }
 
@@ -708,10 +708,10 @@ function uploadStateLabel(item: UploadItem): string {
 
 .material-table th {
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0.03em;
   color: var(--ink-faint);
-  background: rgb(244 249 253 / 72%);
+  background: var(--surface-soft);
 }
 
 .material-table td {
@@ -724,7 +724,7 @@ function uploadStateLabel(item: UploadItem): string {
 }
 
 .material-table tbody tr:hover {
-  background: rgb(239 248 255 / 44%);
+  background: var(--surface-soft);
 }
 
 .material-table tbody tr:last-child td {
@@ -757,11 +757,11 @@ function uploadStateLabel(item: UploadItem): string {
   height: 38px;
   flex: 0 0 34px;
   font-size: 9px;
-  font-weight: 800;
+  font-weight: 600;
   text-transform: uppercase;
   color: var(--primary-deep);
-  background: linear-gradient(150deg, var(--primary-soft), var(--violet-soft));
-  border-radius: 10px;
+  background: var(--primary-soft);
+  border-radius: var(--radius-base);
   place-items: center;
 }
 
@@ -777,7 +777,7 @@ function uploadStateLabel(item: UploadItem): string {
 .file-name-cell strong {
   overflow: hidden;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--ink-strong);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -792,7 +792,7 @@ function uploadStateLabel(item: UploadItem): string {
 }
 
 .index-error-message b {
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .uppercase-cell {
@@ -847,7 +847,7 @@ function uploadStateLabel(item: UploadItem): string {
   cursor: pointer;
   background: transparent;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-base);
 }
 
 .reindex-file-button:hover {
@@ -866,12 +866,12 @@ function uploadStateLabel(item: UploadItem): string {
   cursor: pointer;
   background: transparent;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-base);
 }
 
 .delete-file-button:hover {
   color: var(--danger);
-  background: rgb(255 89 122 / 8%);
+  background: var(--danger-soft);
 }
 
 .materials-empty {
@@ -891,7 +891,7 @@ function uploadStateLabel(item: UploadItem): string {
   font-size: 24px;
   color: var(--primary-deep);
   background: var(--primary-soft);
-  border-radius: 18px;
+  border-radius: var(--radius-base);
   place-items: center;
 }
 
@@ -911,11 +911,9 @@ function uploadStateLabel(item: UploadItem): string {
   padding: 28px;
   cursor: pointer;
   text-align: center;
-  background:
-    radial-gradient(circle at 50% 30%, rgb(80 188 255 / 12%), transparent 35%),
-    rgb(247 251 255 / 80%);
-  border: 1px dashed rgb(72 148 242 / 36%);
-  border-radius: 18px;
+  background: var(--surface-soft);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-base);
   place-items: center;
   align-content: center;
   transition:
@@ -926,7 +924,7 @@ function uploadStateLabel(item: UploadItem): string {
 
 .upload-drop-zone:hover,
 .upload-drop-zone.drag-active {
-  background: linear-gradient(130deg, var(--primary-soft), var(--violet-soft));
+  background: var(--primary-soft);
   border-color: var(--primary);
   transform: translateY(-1px);
 }
@@ -937,10 +935,10 @@ function uploadStateLabel(item: UploadItem): string {
   height: 48px;
   margin-bottom: 12px;
   font-size: 22px;
-  color: #fff;
-  background: linear-gradient(145deg, var(--primary), var(--violet));
-  border-radius: 16px;
-  box-shadow: 0 12px 28px rgb(64 135 255 / 20%);
+  color: var(--on-primary);
+  background: var(--primary);
+  border-radius: var(--radius-base);
+  box-shadow: var(--shadow-soft);
   place-items: center;
 }
 
@@ -965,9 +963,9 @@ function uploadStateLabel(item: UploadItem): string {
 
 .upload-item {
   padding: 12px 14px;
-  background: rgb(246 250 254 / 84%);
+  background: var(--surface-soft);
   border: 1px solid var(--line-soft);
-  border-radius: 13px;
+  border-radius: var(--radius-base);
 }
 
 .upload-item-heading {
@@ -1022,18 +1020,18 @@ function uploadStateLabel(item: UploadItem): string {
   cursor: pointer;
   background: transparent;
   border: 0;
-  border-radius: 9px;
+  border-radius: var(--radius-base);
 }
 
 .queue-remove-button:hover {
   color: var(--danger);
-  background: rgb(255 89 122 / 8%);
+  background: var(--danger-soft);
 }
 
 .detail-skeleton {
   padding: 30px;
-  background: rgb(255 255 255 / 70%);
-  border-radius: 20px;
+  background: var(--surface);
+  border-radius: var(--radius-base);
 }
 
 @media (max-width: 620px) {

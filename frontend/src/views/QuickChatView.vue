@@ -299,9 +299,9 @@ function submitWithKeyboard(event: KeyboardEvent): void {
   min-height: 620px;
   padding: 24px;
   flex-direction: column;
-  background: rgb(255 255 255 / 72%);
+  background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 26px;
+  border-radius: var(--radius-base);
   box-shadow: var(--shadow-card);
 }
 .chat-toolbar {
@@ -329,7 +329,7 @@ function submitWithKeyboard(event: KeyboardEvent): void {
   font-size: 12px;
   color: var(--ink-muted);
   background: var(--surface-soft);
-  border-radius: 12px;
+  border-radius: var(--radius-base);
 }
 .chat-toolbar strong {
   color: var(--ink-strong);
@@ -363,9 +363,9 @@ function submitWithKeyboard(event: KeyboardEvent): void {
   height: 64px;
   margin-bottom: 18px;
   font-size: 28px;
-  color: #fff;
-  background: linear-gradient(145deg, var(--primary), var(--violet));
-  border-radius: 22px;
+  color: var(--on-primary);
+  background: var(--primary);
+  border-radius: var(--radius-base);
   place-items: center;
 }
 .conversation-hero h2 {
@@ -381,19 +381,20 @@ function submitWithKeyboard(event: KeyboardEvent): void {
   max-width: min(760px, 88%);
   padding: 14px 17px;
   line-height: 1.75;
-  border-radius: 17px;
+  border-radius: var(--radius-base);
 }
 .user-message {
   align-self: flex-end;
-  color: #fff;
-  background: linear-gradient(120deg, var(--primary), #7182f3);
-  border-bottom-right-radius: 5px;
+  color: var(--ink-strong);
+  background: var(--primary-soft);
+  border-bottom-right-radius: var(--radius-small);
+  border: 1px solid var(--line);
 }
 .assistant-message {
   align-self: flex-start;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--line);
-  border-bottom-left-radius: 5px;
+  border-bottom-left-radius: var(--radius-small);
   box-shadow: var(--shadow-soft);
 }
 .assistant-message :deep(p:first-child) {
@@ -411,9 +412,9 @@ function submitWithKeyboard(event: KeyboardEvent): void {
   padding: 8px 10px;
   margin: 12px 0 0;
   font-size: 11px;
-  color: #366a56;
-  background: #edf9f3;
-  border-radius: 10px;
+  color: var(--success);
+  background: var(--success-soft);
+  border-radius: var(--radius-base);
 }
 .web-sources {
   display: grid;
@@ -428,10 +429,10 @@ function submitWithKeyboard(event: KeyboardEvent): void {
   text-decoration: none;
   background: var(--surface-soft);
   border: 1px solid var(--line-soft);
-  border-radius: 10px;
+  border-radius: var(--radius-base);
 }
 .web-sources a:hover {
-  border-color: rgb(62 155 255 / 40%);
+  border-color: var(--line);
 }
 .web-sources strong {
   font-size: 11px;
@@ -444,17 +445,17 @@ function submitWithKeyboard(event: KeyboardEvent): void {
   white-space: nowrap;
 }
 .live-message {
-  border-color: rgb(62 155 255 / 32%);
+  border-color: var(--line);
 }
 .composer-shell {
   display: flex;
   padding: 10px;
   align-items: flex-end;
   gap: 10px;
-  background: #fff;
+  background: var(--surface-soft);
   border: 1px solid var(--line);
-  border-radius: 18px;
-  box-shadow: 0 16px 38px rgb(71 113 168 / 10%);
+  border-radius: var(--radius-base);
+  box-shadow: var(--shadow-soft);
 }
 .composer-shell textarea {
   min-height: 58px;
@@ -469,11 +470,11 @@ function submitWithKeyboard(event: KeyboardEvent): void {
 .composer-shell button {
   width: 42px;
   height: 42px;
-  color: #fff;
+  color: var(--on-primary);
   cursor: pointer;
   background: var(--primary);
   border: 0;
-  border-radius: 13px;
+  border-radius: var(--radius-base);
 }
 .composer-shell button:disabled {
   cursor: not-allowed;
@@ -487,15 +488,15 @@ function submitWithKeyboard(event: KeyboardEvent): void {
   text-align: right;
 }
 .temporary-pill {
-  color: #6a58c9;
-  background: var(--violet-soft);
+  color: var(--secondary-accent);
+  background: var(--secondary-soft);
 }
 .quick-error {
   padding: 12px 15px;
   margin-bottom: 18px;
-  color: #a52f4c;
-  background: #fff0f4;
-  border-radius: 13px;
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-radius: var(--radius-base);
 }
 @media (max-width: 650px) {
   .chat-toolbar {
@@ -518,5 +519,9 @@ function submitWithKeyboard(event: KeyboardEvent): void {
   .quick-message {
     max-width: 94%;
   }
+}
+.composer-shell:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--focus-ring);
 }
 </style>

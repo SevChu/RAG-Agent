@@ -781,17 +781,15 @@ function submitWithKeyboard(event: KeyboardEvent): void {
   grid-template-columns: 280px minmax(0, 1fr);
   min-height: 650px;
   overflow: hidden;
-  background: rgb(255 255 255 / 72%);
+  background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 26px;
+  border-radius: var(--radius-base);
   box-shadow: var(--shadow-card);
 }
 
 .control-panel {
   padding: 28px 24px;
-  background:
-    radial-gradient(circle at 15% 0%, rgb(73 190 255 / 13%), transparent 32%),
-    linear-gradient(165deg, rgb(247 252 255 / 96%), rgb(247 245 255 / 90%));
+  background: var(--surface-soft);
   border-right: 1px solid var(--line);
 }
 
@@ -804,7 +802,7 @@ function submitWithKeyboard(event: KeyboardEvent): void {
   display: block;
   margin: 20px 0 8px;
   font-size: 12px;
-  font-weight: 750;
+  font-weight: 600;
   color: var(--ink);
 }
 
@@ -822,9 +820,9 @@ function submitWithKeyboard(event: KeyboardEvent): void {
 .guardrail-note {
   margin-top: 24px;
   padding: 15px;
-  background: rgb(255 255 255 / 72%);
+  background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 16px;
+  border-radius: var(--radius-base);
 }
 
 .model-card {
@@ -861,13 +859,14 @@ function submitWithKeyboard(event: KeyboardEvent): void {
 .config-status {
   padding: 5px 8px;
   white-space: nowrap;
-  background: #fff5df;
-  border-radius: 999px;
+  background: var(--warning-soft);
+  border-radius: var(--radius-base);
+  color: var(--warning);
 }
 
 .config-status.ready {
-  color: #168466;
-  background: #e3fbf3;
+  color: var(--success);
+  background: var(--success-soft);
 }
 
 .guardrail-note strong {
@@ -904,11 +903,11 @@ function submitWithKeyboard(event: KeyboardEvent): void {
   height: 70px;
   margin-bottom: 18px;
   font-size: 15px;
-  font-weight: 800;
-  color: #fff;
-  background: linear-gradient(145deg, var(--primary), var(--violet));
-  border-radius: 24px;
-  box-shadow: 0 18px 42px rgb(72 126 247 / 24%);
+  font-weight: 600;
+  color: var(--on-primary);
+  background: var(--primary);
+  border-radius: var(--radius-base);
+  box-shadow: var(--shadow-soft);
   place-items: center;
 }
 
@@ -947,9 +946,9 @@ function submitWithKeyboard(event: KeyboardEvent): void {
 
 .answer-result {
   padding: 20px;
-  background: rgb(255 255 255 / 72%);
+  background: var(--surface);
   border: 1px solid var(--line-soft);
-  border-radius: 18px;
+  border-radius: var(--radius-base);
 }
 
 .loading-answer.compact {
@@ -962,10 +961,11 @@ function submitWithKeyboard(event: KeyboardEvent): void {
   padding: 12px 16px;
   margin: 0 0 24px auto;
   line-height: 1.6;
-  color: #fff;
-  background: linear-gradient(120deg, #4b9cf4, #706ff1);
-  border-radius: 17px 17px 5px;
-  box-shadow: 0 10px 22px rgb(65 125 221 / 18%);
+  color: var(--ink-strong);
+  background: var(--primary-soft);
+  border-radius: var(--radius-base);
+  box-shadow: var(--shadow-soft);
+  border: 1px solid var(--line);
 }
 
 .answer-heading,
@@ -987,20 +987,20 @@ function submitWithKeyboard(event: KeyboardEvent): void {
 .answer-status {
   padding: 6px 10px;
   font-size: 11px;
-  font-weight: 750;
-  color: #168466;
-  background: #e3fbf3;
-  border-radius: 999px;
+  font-weight: 600;
+  color: var(--success);
+  background: var(--success-soft);
+  border-radius: var(--radius-base);
 }
 
 .answer-status.refused {
-  color: #986315;
-  background: #fff3da;
+  color: var(--warning);
+  background: var(--warning-soft);
 }
 
 .answer-status.conflict {
-  color: #8b5b12;
-  background: #fff0c9;
+  color: var(--warning);
+  background: var(--warning-soft);
 }
 
 .markdown-answer {
@@ -1021,9 +1021,9 @@ function submitWithKeyboard(event: KeyboardEvent): void {
   margin-bottom: 18px;
   font-size: 11px;
   color: var(--ink-muted);
-  background: rgb(244 248 252 / 88%);
+  background: var(--surface-soft);
   border: 1px solid var(--line-soft);
-  border-radius: 12px;
+  border-radius: var(--radius-base);
 }
 
 .search-status-note strong {
@@ -1031,13 +1031,13 @@ function submitWithKeyboard(event: KeyboardEvent): void {
 }
 
 .search-status-note.searched {
-  background: rgb(239 250 247 / 92%);
-  border-color: rgb(36 153 121 / 20%);
+  background: var(--success-soft);
+  border-color: var(--success-line);
 }
 
 .search-status-note.fallback {
-  background: rgb(255 248 232 / 94%);
-  border-color: rgb(196 135 32 / 24%);
+  background: var(--warning-soft);
+  border-color: var(--warning-line);
 }
 
 .citation-section {
@@ -1058,19 +1058,19 @@ function submitWithKeyboard(event: KeyboardEvent): void {
 
 .citation-card {
   margin-top: 10px;
-  background: rgb(247 251 255 / 88%);
+  background: var(--surface-soft);
   border: 1px solid var(--line);
-  border-radius: 15px;
+  border-radius: var(--radius-base);
 }
 
 .citation-card.external {
-  background: rgb(249 247 255 / 92%);
-  border-color: rgb(121 94 214 / 24%);
+  background: var(--secondary-soft);
+  border-color: var(--secondary-line);
 }
 
 .citation-card.external .citation-number {
-  color: #6548b8;
-  background: #eee8ff;
+  color: var(--secondary-accent);
+  background: var(--secondary-soft);
 }
 
 .citation-card summary {
@@ -1088,10 +1088,10 @@ function submitWithKeyboard(event: KeyboardEvent): void {
   height: 34px;
   flex: 0 0 34px;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--primary-deep);
   background: var(--primary-soft);
-  border-radius: 10px;
+  border-radius: var(--radius-base);
   place-items: center;
 }
 
@@ -1156,7 +1156,7 @@ function submitWithKeyboard(event: KeyboardEvent): void {
 }
 
 .live-answer {
-  border-color: rgb(62 155 255 / 28%);
+  border-color: var(--line);
 }
 
 .stream-citation-note {
@@ -1174,10 +1174,10 @@ function submitWithKeyboard(event: KeyboardEvent): void {
 .question-composer {
   margin-top: auto;
   padding: 12px;
-  background: rgb(255 255 255 / 92%);
-  border: 1px solid rgb(83 137 197 / 20%);
-  border-radius: 18px;
-  box-shadow: 0 14px 34px rgb(65 105 156 / 10%);
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-base);
+  box-shadow: var(--shadow-soft);
 }
 
 .question-composer textarea {
@@ -1237,5 +1237,10 @@ function submitWithKeyboard(event: KeyboardEvent): void {
   .composer-footer > span {
     display: none;
   }
+}
+
+.question-composer:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--focus-ring);
 }
 </style>

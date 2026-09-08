@@ -10,7 +10,9 @@
 > 拥有版权的 Agentic 原创材料；第三方依赖、模型与 Benchmark 不在该版权主张范围内，分别
 > 遵循其上游条款。详见 [LICENSE](LICENSE) 与 [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES.md)。
 
-> 项目状态：当前正式版本为 `v1.2.1`。该补丁公开 Week 6 Extra 的负向证据：最终拒绝
+> **当前版本：v1.2.2** — 暖白编辑风格改版，保留现有功能与布局。详见[版本说明](docs/releases/v1.2.2.md)。
+
+> 历史版本 `v1.2.1` 公开 Week 6 Extra 的负向证据：最终拒绝
 > Day 2 检索候选、延后 Day 3 Completeness 候选，两者均不进入 profile。已发布的 NLI
 > offline/advisory span profile 保持不变。
 
@@ -174,7 +176,7 @@ flowchart LR
   相应供应商；具体数据边界见[运行与排障](docs/technical/operations.md)。
 - 实验须保留配置、数据版本、质量指标、延迟和资源统计；训练、验证与测试集保持隔离。
   冻结 profile 与复现方法见[公开 Benchmark 与冻结基线](docs/technical/evaluation-and-baselines.md)。
-- 当前 `v1.2.1` 的 Week 6 Extra 未新增 profile；既有 NLI offline/advisory span profile 保持不变。
+- `v1.2.1` 的 Week 6 Extra 未新增 profile；既有 NLI offline/advisory span profile 保持不变。
   结果见 [v1.2.1 聚合报告](benchmarks/v1.2.1/README.md)及[发布说明](docs/releases/v1.2.1.md)。
 - 后续依次建设 AgentProfile、多智能体配置、微调基础、真实微调、长上下文、资料空间记忆、
   人工金标工具与中英文支持。版本范围以[研发路线](docs/deliverables/week-06-to-11-roadmap.md)为准。

@@ -143,7 +143,9 @@ in [Configuration](docs/technical/configuration.md).
 
 ## Project Status
 
-- Latest release: `v1.2.1` — Week 6 Extra rejection evidence. The Day 2 retrieval
+- Latest release: **v1.2.2** — a warm editorial interface with terracotta accents, serif headings, and the existing workflows and layout preserved. See the [release notes](docs/releases/v1.2.2.md).
+
+- Previous release: `v1.2.1` — Week 6 Extra rejection evidence. The Day 2 retrieval
   candidate is rejected and Day 3 remains deferred; neither enters a profile. The
   existing offline/advisory NLI span-localization profile is unchanged.
 - Functional baseline: `v1.1.0` — complete local RAG workflow, general-agent UI

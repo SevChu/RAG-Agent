@@ -278,26 +278,12 @@ async function deleteConversation(courseId: string, conversationId: string): Pro
   overflow: hidden;
   flex-direction: column;
   color: var(--ink-strong);
-  background:
-    radial-gradient(circle at 20% 0%, rgb(87 199 255 / 18%), transparent 28%),
-    linear-gradient(180deg, rgb(255 255 255 / 92%), rgb(245 250 255 / 90%));
-  border-right: 1px solid rgb(132 160 196 / 18%);
-  box-shadow: 14px 0 42px rgb(83 115 157 / 8%);
-  backdrop-filter: blur(24px);
+  background: var(--sidebar-surface);
+  border-right: 1px solid var(--line);
+  box-shadow: none;
   transition:
     width 180ms ease,
     transform 180ms ease;
-}
-
-.app-sidebar::after {
-  position: absolute;
-  right: -38px;
-  bottom: 80px;
-  width: 110px;
-  height: 110px;
-  pointer-events: none;
-  content: '';
-  background: radial-gradient(circle, rgb(125 92 255 / 12%), transparent 68%);
 }
 
 .app-sidebar.collapsed {
@@ -323,22 +309,12 @@ async function deleteConversation(courseId: string, conversationId: string): Pro
   flex: 0 0 42px;
   place-items: center;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: -0.02em;
-  color: #fff;
-  background: linear-gradient(145deg, var(--primary), var(--violet));
-  border-radius: 15px;
-  box-shadow: 0 10px 24px rgb(64 135 255 / 24%);
-}
-
-.brand-orbit::after {
-  position: absolute;
-  inset: -4px;
-  pointer-events: none;
-  content: '';
-  border: 1px solid rgb(64 135 255 / 20%);
-  border-radius: 18px;
-  transform: rotate(8deg);
+  color: var(--on-primary);
+  background: var(--primary);
+  border-radius: var(--radius-base);
+  box-shadow: var(--shadow-soft);
 }
 
 .brand-copy {
@@ -348,8 +324,9 @@ async function deleteConversation(courseId: string, conversationId: string): Pro
 }
 
 .brand-copy strong {
-  font-size: 15px;
-  letter-spacing: -0.01em;
+  font-size: 19px;
+  letter-spacing: -0.025em;
+  font-family: var(--font-editorial);
 }
 
 .brand-copy small {
@@ -369,7 +346,7 @@ async function deleteConversation(courseId: string, conversationId: string): Pro
   cursor: pointer;
   background: transparent;
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--radius-base);
   place-items: center;
 }
 
@@ -403,7 +380,7 @@ async function deleteConversation(courseId: string, conversationId: string): Pro
   color: var(--ink);
   text-decoration: none;
   border: 1px solid transparent;
-  border-radius: 13px;
+  border-radius: var(--radius-base);
   transition:
     color 160ms ease,
     background 160ms ease,
@@ -413,29 +390,31 @@ async function deleteConversation(courseId: string, conversationId: string): Pro
 
 .sidebar-link:hover {
   color: var(--primary-deep);
-  background: rgb(234 246 255 / 72%);
+  background: var(--surface-soft);
 }
 
 .sidebar-link.active {
   color: var(--primary-deep);
-  background: linear-gradient(120deg, rgb(224 244 255 / 92%), rgb(239 236 255 / 78%));
-  border-color: rgb(68 155 255 / 14%);
+  background: var(--primary-soft);
+  border-color: var(--line);
+  box-shadow: inset 3px 0 var(--primary);
 }
 
 .create-chat {
   min-height: 46px;
-  color: #fff;
-  background: linear-gradient(120deg, var(--primary), #5d8cff 55%, var(--violet));
+  color: var(--on-primary);
+  background: var(--primary);
   border: 0;
-  box-shadow: 0 12px 25px rgb(73 137 255 / 22%);
+  box-shadow: var(--shadow-soft);
 }
 
 .create-chat:hover,
 .create-chat.active {
-  color: #fff;
-  background: linear-gradient(120deg, var(--primary-deep), #536fff 58%, #805df5);
+  color: var(--on-primary);
+  background: var(--primary-deep);
   border-color: transparent;
-  transform: translateY(-1px);
+  transform: none;
+  box-shadow: var(--shadow-soft);
 }
 
 .nav-icon {
@@ -444,7 +423,7 @@ async function deleteConversation(courseId: string, conversationId: string): Pro
   height: 23px;
   flex: 0 0 23px;
   font-size: 16px;
-  font-weight: 700;
+  font-weight: 600;
   place-items: center;
 }
 
@@ -452,7 +431,7 @@ async function deleteConversation(courseId: string, conversationId: string): Pro
   font-size: 9px;
   letter-spacing: -0.06em;
   border: 1px solid currentcolor;
-  border-radius: 8px;
+  border-radius: var(--radius-base);
 }
 
 .collapsed .sidebar-link {
@@ -473,7 +452,7 @@ async function deleteConversation(courseId: string, conversationId: string): Pro
   overflow-y: auto;
   flex: 1 1 auto;
   overscroll-behavior: contain;
-  scrollbar-color: rgb(142 167 199 / 62%) transparent;
+  scrollbar-color: var(--line-strong) transparent;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
 }
@@ -483,12 +462,12 @@ async function deleteConversation(courseId: string, conversationId: string): Pro
 }
 
 .sidebar-history-scroll::-webkit-scrollbar-thumb {
-  background: rgb(142 167 199 / 48%);
-  border-radius: 999px;
+  background: var(--line-strong);
+  border-radius: var(--radius-base);
 }
 
 .sidebar-history-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgb(104 139 181 / 68%);
+  background: var(--line-strong);
 }
 
 .sidebar-history-scroll::-webkit-scrollbar-track {
@@ -502,7 +481,7 @@ async function deleteConversation(courseId: string, conversationId: string): Pro
   align-items: center;
   justify-content: space-between;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0.04em;
   color: var(--ink-faint);
   cursor: pointer;
@@ -519,8 +498,8 @@ async function deleteConversation(courseId: string, conversationId: string): Pro
   padding: 9px 10px;
   font-size: 12px;
   color: var(--ink-faint);
-  background: rgb(230 239 249 / 48%);
-  border-radius: 10px;
+  background: var(--surface-soft);
+  border-radius: var(--radius-base);
 }
 
 .history-list {
@@ -533,15 +512,15 @@ async function deleteConversation(courseId: string, conversationId: string): Pro
   display: flex;
   min-width: 0;
   align-items: center;
-  background: rgb(238 246 255 / 54%);
+  background: transparent;
   border: 1px solid transparent;
-  border-radius: 10px;
+  border-radius: var(--radius-base);
 }
 
 .history-item:hover,
 .history-item.active {
-  background: rgb(226 242 255 / 82%);
-  border-color: rgb(62 155 255 / 13%);
+  background: var(--primary-soft);
+  border-color: var(--line);
 }
 
 .history-item > a {
@@ -591,6 +570,7 @@ async function deleteConversation(courseId: string, conversationId: string): Pro
   gap: 4px;
   margin-top: auto;
   padding-top: 10px;
+  border-top: 1px solid var(--line);
 }
 
 .settings-link {
@@ -606,7 +586,7 @@ async function deleteConversation(courseId: string, conversationId: string): Pro
 
 .sidebar-collapse-link:hover {
   color: var(--primary-deep);
-  background: rgb(234 246 255 / 72%);
+  background: var(--surface-soft);
 }
 
 @media (max-width: 820px) {
@@ -616,7 +596,7 @@ async function deleteConversation(courseId: string, conversationId: string): Pro
     inset: 0;
     display: block;
     pointer-events: none;
-    background: rgb(24 41 68 / 32%);
+    background: var(--overlay);
     opacity: 0;
     backdrop-filter: blur(2px);
     transition: opacity 180ms ease;

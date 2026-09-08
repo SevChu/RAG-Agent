@@ -226,9 +226,9 @@ onMounted(async () => {
   align-items: center;
   gap: 18px;
   margin-bottom: 18px;
-  background: rgb(255 255 255 / 80%);
+  background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 22px;
+  border-radius: var(--radius-base);
   box-shadow: var(--shadow-card);
 }
 
@@ -237,10 +237,10 @@ onMounted(async () => {
   width: 48px;
   height: 48px;
   font-size: 11px;
-  font-weight: 800;
-  color: #fff;
-  background: linear-gradient(145deg, var(--primary), var(--violet));
-  border-radius: 16px;
+  font-weight: 600;
+  color: var(--on-primary);
+  background: var(--primary);
+  border-radius: var(--radius-base);
   place-items: center;
 }
 
@@ -269,14 +269,14 @@ onMounted(async () => {
 .provider-card {
   min-width: 0;
   padding: 17px;
-  background: rgb(255 255 255 / 68%);
+  background: var(--surface);
   border: 1px solid var(--line-soft);
-  border-radius: 18px;
+  border-radius: var(--radius-base);
 }
 
 .provider-card.ready {
-  background: linear-gradient(145deg, rgb(240 250 255 / 90%), rgb(247 245 255 / 82%));
-  border-color: rgb(62 155 255 / 26%);
+  background: var(--surface-soft);
+  border-color: var(--line);
 }
 
 .provider-heading {
@@ -291,17 +291,17 @@ onMounted(async () => {
   width: 34px;
   height: 34px;
   font-size: 9px;
-  font-weight: 850;
+  font-weight: 600;
   color: var(--primary-deep);
   background: var(--primary-soft);
-  border-radius: 11px;
+  border-radius: var(--radius-base);
   place-items: center;
 }
 
 .provider-heading span,
 .provider-card small {
   font-size: 8px;
-  font-weight: 750;
+  font-weight: 600;
   color: var(--ink-muted);
 }
 
@@ -314,13 +314,13 @@ onMounted(async () => {
 .provider-status {
   padding: 4px 7px;
   color: var(--ink-muted);
-  background: rgb(128 146 166 / 10%);
-  border-radius: 999px;
+  background: var(--surface-soft);
+  border-radius: var(--radius-base);
 }
 
 .provider-card.ready .provider-status {
   color: var(--success);
-  background: rgb(23 178 106 / 10%);
+  background: var(--success-soft);
 }
 
 .provider-url,
@@ -345,9 +345,9 @@ onMounted(async () => {
 .usage-card {
   padding: 25px;
   margin-bottom: 18px;
-  background: rgb(255 255 255 / 80%);
+  background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 22px;
+  border-radius: var(--radius-base);
   box-shadow: var(--shadow-card);
 }
 
@@ -382,7 +382,7 @@ onMounted(async () => {
 .usage-total span,
 .usage-total small {
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--ink-muted);
 }
 
@@ -400,9 +400,9 @@ onMounted(async () => {
 
 .model-usage-item {
   overflow: hidden;
-  background: rgb(247 251 255 / 72%);
+  background: var(--surface-soft);
   border: 1px solid var(--line-soft);
-  border-radius: 16px;
+  border-radius: var(--radius-base);
 }
 
 .model-usage-title {
@@ -427,18 +427,18 @@ onMounted(async () => {
 .model-dot {
   width: 8px;
   height: 8px;
-  background: linear-gradient(135deg, var(--primary), var(--violet));
+  background: var(--primary);
   border-radius: 50%;
-  box-shadow: 0 0 0 4px rgb(62 155 255 / 10%);
+  box-shadow: 0 0 0 4px var(--focus-ring);
 }
 
 .active-model {
   padding: 4px 8px;
   font-size: 9px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--primary-deep);
   background: var(--primary-soft);
-  border-radius: 999px;
+  border-radius: var(--radius-base);
 }
 
 .usage-metrics {
@@ -460,7 +460,7 @@ onMounted(async () => {
 
 .usage-metric > span {
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--ink-muted);
 }
 
@@ -511,16 +511,16 @@ onMounted(async () => {
   min-height: 38px;
   padding: 8px 14px;
   font-size: 12px;
-  font-weight: 750;
+  font-weight: 600;
   color: var(--danger);
   cursor: pointer;
-  background: rgb(255 255 255 / 82%);
-  border: 1px solid rgb(233 79 112 / 24%);
-  border-radius: 11px;
+  background: var(--surface);
+  border: 1px solid var(--danger-line);
+  border-radius: var(--radius-base);
 }
 
 .reset-button:hover:not(:disabled) {
-  color: #fff;
+  color: var(--on-primary);
   background: var(--danger);
 }
 

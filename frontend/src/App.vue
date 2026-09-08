@@ -88,11 +88,10 @@ function updateSidebarCollapsed(value: boolean): void {
     align-items: center;
     justify-content: space-between;
     font-size: 14px;
-    font-weight: 700;
+    font-weight: 600;
     color: var(--ink-strong);
-    background: rgb(250 253 255 / 84%);
-    border-bottom: 1px solid rgb(132 160 196 / 15%);
-    backdrop-filter: blur(18px);
+    background: var(--surface-soft);
+    border-bottom: 1px solid var(--line);
   }
 
   .mobile-menu-button {
@@ -102,15 +101,15 @@ function updateSidebarCollapsed(value: boolean): void {
     cursor: pointer;
     background: var(--primary-soft);
     border: 0;
-    border-radius: 12px;
+    border-radius: var(--radius-base);
   }
 
   .online-dot {
     width: 8px;
     height: 8px;
-    background: var(--mint);
+    background: var(--success);
     border-radius: 50%;
-    box-shadow: 0 0 0 5px rgb(63 213 173 / 12%);
+    box-shadow: 0 0 0 5px var(--success-soft);
   }
 
   .workspace-content {
