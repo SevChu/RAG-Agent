@@ -6,12 +6,14 @@ import { storeToRefs } from 'pinia'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
+import ConversationAgentControl from '@/components/ConversationAgentControl.vue'
 import { toFriendlyApiError } from '@/api/client'
 import { streamCourseQuestion } from '@/api/qa'
 import { useConversationsStore } from '@/stores/conversations'
 import { useCoursesStore } from '@/stores/courses'
 import { useLLMStore } from '@/stores/llm'
 import type {
+  ConversationAgentState,
   AnswerCitation,
   AnswerScope,
   AnswerStyle,
@@ -31,6 +33,13 @@ const {
   selectedProvider,
   selectedModelConfigured,
 } = storeToRefs(llmStore)
+const selectedAgentId = ref(String(route.query.agent ?? ''))
+const agentState = ref<ConversationAgentState>({ ready: false, profileId: null, config: null })
+const availableCourses = computed(() =>
+  agentState.value.config
+    ? store.courses.filter((c) => agentState.value.config?.allowed_course_ids.includes(c.id))
+    : store.courses,
+)
 const selectedCourseId = ref('')
 const answerStyle = ref<AnswerStyle>('balanced')
 const answerScope = ref<AnswerScope>('course_and_external')
@@ -38,12 +47,13 @@ const question = ref('')
 const activeConversationId = ref('')
 const errorMessage = ref('')
 const loading = ref(false)
-const restoring = ref(false)
+const restoring = ref(Boolean(route.params.conversationId))
 const streamingQuestion = ref('')
 const streamingAnswer = ref('')
 const streamingCitations = ref<AnswerCitation[]>([])
 const streamState = ref<'idle' | 'streaming' | 'interrupted' | 'error'>('idle')
 let abortController: AbortController | null = null
+let restoreSequence = 0
 
 const selectedCourse = computed(() =>
   store.courses.find((course) => course.id === selectedCourseId.value),
@@ -56,10 +66,15 @@ const activeConversation = computed(() =>
 const messages = computed(() => activeConversation.value?.messages ?? [])
 const canSubmit = computed(
   () =>
+    (!route.params.conversationId || Boolean(activeConversationId.value)) &&
     Boolean(selectedCourseId.value) &&
     Boolean(question.value.trim()) &&
-    Boolean(selectedModel.value) &&
-    selectedModelConfigured.value &&
+    agentState.value.ready &&
+    availableCourses.value.some((c) => c.id === selectedCourseId.value) &&
+    (agentState.value.profileId
+      ? true
+      : Boolean(selectedModel.value) && selectedModelConfigured.value) &&
+    !restoring.value &&
     !loading.value,
 )
 
@@ -175,31 +190,41 @@ onMounted(async () => {
       llmStore.loadConfiguration(),
       conversationsStore.loadCourseConversations(),
     ])
-    selectedCourseId.value = store.courses[0]?.id ?? ''
+    selectedCourseId.value = availableCourses.value[0]?.id ?? ''
     await restoreConversationFromRoute()
   } catch (error) {
     errorMessage.value = toFriendlyApiError(error).message
   }
 })
 
-onBeforeUnmount(() => abortController?.abort())
+onBeforeUnmount(() => {
+  restoreSequence++
+  stopStreaming()
+})
 
 watch(
-  () => route.params.conversationId,
-  async () => {
-    if (!restoring.value) {
-      await restoreConversationFromRoute()
-    }
-  },
+  () => [route.params.conversationId, route.query.agent],
+  () => restoreConversationFromRoute(),
 )
 
 async function restoreConversationFromRoute(): Promise<void> {
   const conversationId = String(route.params.conversationId ?? '')
+  if (loading.value && conversationId === activeConversationId.value) return
+  const ticket = ++restoreSequence
+  restoring.value = false
+  errorMessage.value = ''
+  stopStreaming()
+  streamingQuestion.value = ''
+  streamingAnswer.value = ''
+  streamingCitations.value = []
   if (!conversationId) {
     activeConversationId.value = ''
+    selectedAgentId.value = String(route.query.agent ?? '')
     return
   }
+  selectedAgentId.value = ''
   restoring.value = true
+  activeConversationId.value = conversationId
   errorMessage.value = ''
   try {
     let summary = conversationsStore.courseConversations.find(
@@ -217,16 +242,24 @@ async function restoreConversationFromRoute(): Promise<void> {
         message: '找不到该空间对话，记录可能已经被删除。',
       }
     }
+    if (ticket !== restoreSequence) return
     selectedCourseId.value = summary.course_id
     await conversationsStore.loadCourseConversation(summary.course_id, summary.id)
+    if (ticket !== restoreSequence) return
     activeConversationId.value = summary.id
   } catch (error) {
+    if (ticket !== restoreSequence) return
     activeConversationId.value = ''
     errorMessage.value = toFriendlyApiError(error).message
   } finally {
-    restoring.value = false
+    if (ticket === restoreSequence) restoring.value = false
   }
 }
+
+watch(availableCourses, (items) => {
+  if (!activeConversationId.value && !items.some((c) => c.id === selectedCourseId.value))
+    selectedCourseId.value = items[0]?.id ?? ''
+})
 
 async function startNewConversation(): Promise<void> {
   stopStreaming()
@@ -249,42 +282,52 @@ async function submitQuestion(): Promise<void> {
   loading.value = true
   errorMessage.value = ''
   const submittedQuestion = question.value.trim()
+  const requestModel = agentState.value.profileId ? undefined : selectedModel.value
+  const requestScope =
+    agentState.value.config?.tools.web_search === false ? 'course_only' : answerScope.value
+  const requestCourse = selectedCourseId.value
   streamingQuestion.value = submittedQuestion
   streamingAnswer.value = ''
   streamingCitations.value = []
   streamState.value = 'streaming'
-  abortController = new AbortController()
+  const controller = new AbortController()
+  abortController = controller
   try {
     let conversationId = activeConversationId.value
     if (!conversationId) {
-      const conversation = await conversationsStore.createCourseConversation(selectedCourseId.value)
+      const conversation = await conversationsStore.createCourseConversation(
+        selectedCourseId.value,
+        selectedAgentId.value || undefined,
+      )
+      if (controller.signal.aborted) return
       conversationId = conversation.id
       activeConversationId.value = conversation.id
       await router.replace(`/assistant/${conversation.id}`)
     }
     await streamCourseQuestion(
-      selectedCourseId.value,
+      requestCourse,
       {
         question: submittedQuestion,
         answer_style: answerStyle.value,
-        answer_scope: answerScope.value,
+        answer_scope: requestScope,
         conversation_id: conversationId,
-        model: selectedModel.value,
+        model: requestModel,
       },
-      abortController.signal,
+      controller.signal,
       {
         onDelta: (delta) => {
+          if (controller.signal.aborted) return
           streamingAnswer.value += delta
         },
         onCitations: (data) => {
+          if (controller.signal.aborted) return
           streamingCitations.value = (data as { citations: AnswerCitation[] }).citations
         },
         onComplete: async (result) => {
-          await conversationsStore.loadCourseConversation(
-            selectedCourseId.value,
-            result.conversation_id,
-          )
+          if (controller.signal.aborted) return
+          await conversationsStore.loadCourseConversation(requestCourse, result.conversation_id)
           await conversationsStore.loadCourseConversations()
+          if (controller.signal.aborted) return
           question.value = ''
           streamState.value = 'idle'
           streamingQuestion.value = ''
@@ -292,27 +335,32 @@ async function submitQuestion(): Promise<void> {
           streamingCitations.value = []
         },
         onError: (error) => {
+          if (controller.signal.aborted) return
           streamState.value = 'error'
           errorMessage.value = error.message
         },
       },
     )
   } catch (error) {
-    if (abortController?.signal.aborted) {
+    if (abortController !== controller) return
+    if (controller.signal.aborted) {
       streamState.value = 'interrupted'
     } else {
       streamState.value = 'error'
       errorMessage.value = toFriendlyApiError(error).message
     }
   } finally {
-    loading.value = false
-    abortController = null
+    if (abortController === controller) {
+      loading.value = false
+      abortController = null
+    }
   }
 }
 
 function stopStreaming(): void {
   if (abortController) {
     abortController.abort()
+    abortController = null
     streamState.value = 'interrupted'
     loading.value = false
   }
@@ -341,8 +389,16 @@ function submitWithKeyboard(event: KeyboardEvent): void {
       <span class="context-pill">有限上下文 · 改写后逐题检索</span>
     </header>
 
+    <ConversationAgentControl
+      v-model="selectedAgentId"
+      :locked="Boolean(activeConversationId)"
+      :binding="activeConversation"
+      :busy="loading || restoring"
+      @state="agentState = $event"
+      @new="startNewConversation"
+    />
     <el-alert
-      v-if="selectedProvider && !selectedModelConfigured"
+      v-if="!agentState.profileId && selectedProvider && !selectedModelConfigured"
       :title="`${selectedProvider.name} 接口待配置`"
       :description="`请在项目根目录 .env 中填写 ${selectedProvider.api_key_env} 和 ${selectedProvider.models_env} 并重启后端；密钥不会发送到前端。`"
       type="warning"
@@ -371,10 +427,10 @@ function submitWithKeyboard(event: KeyboardEvent): void {
           placeholder="请选择资料空间"
           size="large"
           class="control-select"
-          @change="startNewConversation"
+          :disabled="Boolean(activeConversationId) || loading || restoring"
         >
           <el-option
-            v-for="course in store.courses"
+            v-for="course in availableCourses"
             :key="course.id"
             :label="course.name"
             :value="course.id"
@@ -382,7 +438,14 @@ function submitWithKeyboard(event: KeyboardEvent): void {
         </el-select>
 
         <label for="answer-scope">问答来源范围</label>
-        <el-select id="answer-scope" v-model="answerScope" size="large" class="control-select">
+        <el-select
+          :disabled="loading || agentState.config?.tools.web_search === false"
+          id="answer-scope"
+          :model-value="agentState.config?.tools.web_search === false ? 'course_only' : answerScope"
+          @update:model-value="answerScope = $event"
+          size="large"
+          class="control-select"
+        >
           <el-option
             v-for="option in scopeOptions"
             :key="option.value"
@@ -410,7 +473,16 @@ function submitWithKeyboard(event: KeyboardEvent): void {
         </p>
 
         <label for="answer-model">生成模型</label>
-        <el-select id="answer-model" v-model="selectedModel" size="large" class="control-select">
+        <p v-if="agentState.profileId">
+          {{ agentState.config?.model.model || '固定模型' }}（由会话版本固定）
+        </p>
+        <el-select
+          v-else
+          id="answer-model"
+          v-model="selectedModel"
+          size="large"
+          class="control-select"
+        >
           <el-option-group
             v-for="provider in llmConfiguration?.providers.filter((item) => item.models.length) ??
             []"
@@ -427,7 +499,7 @@ function submitWithKeyboard(event: KeyboardEvent): void {
           </el-option-group>
         </el-select>
 
-        <div class="model-card">
+        <div v-if="!agentState.profileId" class="model-card">
           <div>
             <span>本次请求模型</span>
             <strong>{{ selectedModel || '正在读取配置' }}</strong>
@@ -590,18 +662,14 @@ function submitWithKeyboard(event: KeyboardEvent): void {
                   </template>
                   <template v-if="message.retrieval.summary_quality.coverage_warnings.length">
                     ·
-                    {{
-                      message.retrieval.summary_quality.coverage_warnings.length
-                    }}
+                    {{ message.retrieval.summary_quality.coverage_warnings.length }}
                     项表达需人工确认
                   </template>
                   <template
                     v-if="message.retrieval.summary_quality.grounding_fallback_sections.length"
                   >
                     ·
-                    {{
-                      message.retrieval.summary_quality.grounding_fallback_sections.length
-                    }}
+                    {{ message.retrieval.summary_quality.grounding_fallback_sections.length }}
                     节已按资料不足处理
                   </template>
                 </span>

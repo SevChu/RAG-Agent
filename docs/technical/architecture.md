@@ -63,7 +63,7 @@ flowchart LR
 
 前端使用 Vue 3 Composition API 和 TypeScript：
 
-- `views/`：资料空间列表、资料详情、智能体对话、快速对话和设置页。
+- `views/`：资料空间列表、资料详情、智能体管理、智能体对话、快速对话和设置页。
 - `components/AppSidebar.vue`：导航、两类会话历史、折叠与移动端入口。
 - `stores/courses.ts`：资料空间和资料状态。
 - `stores/conversations.ts`：快速对话与资料空间对话缓存。
@@ -259,3 +259,11 @@ SQLite、上传文件和 Qdrant 不共享事务。删除操作采用补偿式顺
 - 自动执行生成代码；
 - 自动下载未审批的数据集或模型；
 - 1.0.0 内提供 AgentProfile、微调作业和 Adapter 管理界面。
+
+
+### Week 7 Day 4：智能体管理界面
+
+/agents 对应 AgentProfilesView，复用 /api/agent-profiles 的管理与版本契约。
+ConversationAgentControl 在两类对话中解析身份和固定版本，控制模型、工具及可用空间展示；
+服务端仍执行最终权限校验。过期响应隔离保护快速切换的历史会话，编辑冲突保留草稿。
+页面入口与验证记录见 [Day 4 实施报告](../deliverables/week-07-day-04.md)。

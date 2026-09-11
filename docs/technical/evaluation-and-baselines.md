@@ -132,3 +132,9 @@ nDCG。所有任务还应记录 wall time、缓存状态、模型身份、硬件
 - [第六周计划日 3 Completeness 两阶段评分](../deliverables/week-06-day-03.md)
 - [第六周计划日 4 句级 NLI 幻觉定位](../deliverables/week-06-day-04.md)
 - [第六周计划日 5 NLI 最终 Test 与条件冻结](../deliverables/week-06-day-05.md)
+
+## 产品版与科研版边界
+
+本章仅属于研发/科研版。产品包不包含评测模块、研究脚本和 Benchmark 聚合结果，普通流程
+不需要任何评测集。科研安装使用 --group research，再按实验需要准备数据；本章冻结成绩
+不是客户部署的通用保证。见[科研安装说明](../editions/research.md)及[分离设计](../design-decisions/product-research-editions.md)。

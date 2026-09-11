@@ -20,10 +20,13 @@ export async function fetchQuickConversations(): Promise<QuickConversationSummar
   return unwrapResponse(response.data)
 }
 
-export async function createQuickConversation(title?: string): Promise<QuickConversationSummary> {
+export async function createQuickConversation(
+  title?: string,
+  agentProfileId?: string,
+): Promise<QuickConversationSummary> {
   const response = await http.post<ApiResponse<QuickConversationSummary>>(
     '/quick-conversations',
-    title ? { title } : {},
+    { title, agent_profile_id: agentProfileId },
   )
   return unwrapResponse(response.data)
 }
@@ -47,10 +50,11 @@ export async function removeQuickConversation(conversationId: string): Promise<D
 export async function createCourseConversation(
   courseId: string,
   title?: string,
+  agentProfileId?: string,
 ): Promise<CourseConversationSummary> {
   const response = await http.post<ApiResponse<CourseConversationSummary>>(
     `/courses/${courseId}/conversations`,
-    title ? { title } : {},
+    { title, agent_profile_id: agentProfileId },
   )
   return unwrapResponse(response.data)
 }

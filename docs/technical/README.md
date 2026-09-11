@@ -1,6 +1,6 @@
 # Agentic 技术文档
 
-本目录描述 Agentic 1.2.1 的**当前实现**。逐周工程日志用于解释系统如何演进，本目录则用于回答“系统现在是什么、如何运行、模块如何协作、接口如何使用、哪里仍有限制”。若历史计划与当前代码、许可或数据库迁移不一致，以当前代码、根目录 `LICENSE`、`THIRD_PARTY_NOTICES.md`、数据库迁移和本目录为准。
+本目录描述 Agentic 1.3.0 的**当前实现**。逐周工程日志用于解释系统如何演进，本目录则用于回答“系统现在是什么、如何运行、模块如何协作、接口如何使用、哪里仍有限制”。若历史计划与当前代码、许可或数据库迁移不一致，以当前代码、根目录 `LICENSE`、`THIRD_PARTY_NOTICES.md`、数据库迁移和本目录为准。
 
 ## 文档适用对象
 
@@ -48,8 +48,12 @@
 18. [第六周计划日 5：候选冻结与最终 Test 审批前置](../deliverables/week-06-day-05-approval.md)
 19. [第六周计划日 5：最终 Test 与条件冻结](../deliverables/week-06-day-05.md)
 20. [通用智能体平台迁移设计决策](../design-decisions/general-agent-platform.md)
-21. [第 1～6 周工程日志](../engineering-logs/README.md)
+21. [逐周工程日志](../engineering-logs/README.md)
 
+
+开发中 v1.3.0：[第七周计划](../deliverables/week-07-plan.md)、
+[Day 1 模型与迁移](../deliverables/week-07-day-01.md)、
+[AgentProfile 设计决策](../design-decisions/agent-profile-versioning.md)。Day 2 已完成[配置管理 API](../deliverables/week-07-day-02.md)，Day 3 已完成会话运行接入，Day 4 已完成[管理界面与对话闭环](../deliverables/week-07-day-04.md)，Day 5 已完成[集成回归与候选准备](../deliverables/week-07-day-05.md)，本轮用户验收已通过；2026-09-10 已补充[删除智能体](../deliverables/week-07-agent-deletion.md)。升级与兼容见 [v1.3.0 升级说明](../releases/v1.3.0-upgrade.md)，未发布范围见 [Release Notes 草稿](../releases/v1.3.0.md)。
 
 ## 文档地图
 
@@ -68,7 +72,7 @@
 
 ## 当前实现摘要
 
-| 维度 | 当前状态（1.2.1） |
+| 维度 | 当前状态（1.3.0） |
 |---|---|
 | 产品形态 | 本地单用户、资料驱动的通用智能体实验平台 |
 | 界面语言 | 当前仅中文；英文界面、提示词、错误信息与双语质量验证规划于后续 `v1.6.0` |
@@ -108,3 +112,10 @@
 | 内容生成/组卷 | exam task | 历史能力名称继续保留 |
 
 这种兼容是明确的 1.0.0 设计边界，不代表产品仍局限于课程学习。后续只有在提供数据库迁移、API 兼容层和前端回归后，才应重命名内部领域对象。
+
+第七周 Day 3 已完成[会话版本固定与运行接入](../deliverables/week-07-day-03.md)；
+当前应用元数据已为 1.3.0，本周基础任务已验收，日志与效果的最终推送审批已通过，记录见[审批材料](../releases/v1.3.0-approval.md)。
+
+2026-09-11 当前态：普通产品流程不需要 Benchmark，默认 product；科研模块按版本和模式分离。
+参见[产品安装](../editions/product.md)、[科研安装](../editions/research.md)、
+[分离交付记录](../deliverables/week-07-edition-separation.md)。旧研究引用仅作历史关联。

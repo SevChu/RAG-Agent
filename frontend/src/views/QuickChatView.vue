@@ -6,11 +6,12 @@ import { storeToRefs } from 'pinia'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
+import ConversationAgentControl from '@/components/ConversationAgentControl.vue'
 import { toFriendlyApiError } from '@/api/client'
 import { streamQuickChat } from '@/api/qa'
 import { useConversationsStore } from '@/stores/conversations'
 import { useLLMStore } from '@/stores/llm'
-import type { CourseConversationMessage } from '@/types/api'
+import type { ConversationAgentState, CourseConversationMessage } from '@/types/api'
 
 const markdown = new MarkdownIt({ html: false, breaks: true, linkify: true })
 const route = useRoute()
@@ -18,6 +19,9 @@ const router = useRouter()
 const conversationsStore = useConversationsStore()
 const llmStore = useLLMStore()
 const { configuration, selectedModel, selectedModelConfigured } = storeToRefs(llmStore)
+const selectedAgentId = ref(String(route.query.agent ?? ''))
+const agentState = ref<ConversationAgentState>({ ready: false, profileId: null, config: null })
+const restoring = ref(Boolean(route.params.conversationId && route.params.conversationId !== 'new'))
 const activeConversationId = ref('')
 const message = ref('')
 const streamingQuestion = ref('')
@@ -27,6 +31,7 @@ const errorMessage = ref('')
 const loading = ref(false)
 const webSearchEnabled = ref(true)
 let abortController: AbortController | null = null
+let restoreSequence = 0
 
 const activeConversation = computed(() =>
   activeConversationId.value
@@ -38,9 +43,15 @@ const messages = computed<CourseConversationMessage[]>(
 )
 const canSubmit = computed(
   () =>
+    (!route.params.conversationId ||
+      route.params.conversationId === 'new' ||
+      Boolean(activeConversationId.value)) &&
     Boolean(message.value.trim()) &&
-    Boolean(selectedModel.value) &&
-    selectedModelConfigured.value &&
+    agentState.value.ready &&
+    (agentState.value.profileId
+      ? true
+      : Boolean(selectedModel.value) && selectedModelConfigured.value) &&
+    !restoring.value &&
     !loading.value,
 )
 
@@ -53,47 +64,71 @@ onMounted(async () => {
   }
 })
 
-onBeforeUnmount(() => abortController?.abort())
+onBeforeUnmount(() => {
+  restoreSequence++
+  stopStreaming()
+})
 
 watch(
-  () => route.params.conversationId,
+  () => [route.params.conversationId, route.query.agent],
   () => restoreFromRoute(),
 )
 
 async function restoreFromRoute(): Promise<void> {
   const conversationId = String(route.params.conversationId ?? '')
   if (loading.value && conversationId === activeConversationId.value) return
+  const ticket = ++restoreSequence
+  restoring.value = false
+  errorMessage.value = ''
   stopStreaming()
   streamingQuestion.value = ''
   streamingAnswer.value = ''
   streamState.value = 'idle'
   if (!conversationId || conversationId === 'new') {
     activeConversationId.value = ''
+    selectedAgentId.value = String(route.query.agent ?? '')
     return
   }
   errorMessage.value = ''
+  selectedAgentId.value = ''
+  restoring.value = true
+  activeConversationId.value = conversationId
   try {
     await conversationsStore.loadQuickConversation(conversationId)
+    if (ticket !== restoreSequence) return
     activeConversationId.value = conversationId
   } catch (error) {
+    if (ticket !== restoreSequence) return
     activeConversationId.value = ''
     errorMessage.value = toFriendlyApiError(error).message
+  } finally {
+    if (ticket === restoreSequence) restoring.value = false
   }
+}
+
+async function newAgentConversation(): Promise<void> {
+  await router.push('/chat/new')
 }
 
 async function submitMessage(): Promise<void> {
   if (!canSubmit.value) return
   const submitted = message.value.trim()
+  const requestModel = agentState.value.profileId ? undefined : selectedModel.value
+  const requestWeb = webSearchEnabled.value && (agentState.value.config?.tools.web_search ?? true)
   loading.value = true
   errorMessage.value = ''
   streamingQuestion.value = submitted
   streamingAnswer.value = ''
   streamState.value = 'streaming'
-  abortController = new AbortController()
+  const controller = new AbortController()
+  abortController = controller
   try {
     let conversationId = activeConversationId.value
     if (!conversationId) {
-      const conversation = await conversationsStore.createQuickConversation()
+      const conversation = await conversationsStore.createQuickConversation(
+        selectedAgentId.value || undefined,
+      )
+      if (controller.signal.aborted) return
       conversationId = conversation.id
       activeConversationId.value = conversation.id
       await router.replace(`/chat/${conversation.id}`)
@@ -102,44 +137,52 @@ async function submitMessage(): Promise<void> {
       conversationId,
       {
         message: submitted,
-        model: selectedModel.value,
-        web_search: webSearchEnabled.value,
+        model: requestModel,
+        web_search: requestWeb,
       },
-      abortController.signal,
+      controller.signal,
       {
         onDelta: (delta) => {
+          if (controller.signal.aborted) return
           streamingAnswer.value += delta
         },
         onComplete: async (result) => {
+          if (controller.signal.aborted) return
           await conversationsStore.loadQuickConversation(result.conversation_id)
           await conversationsStore.loadQuickConversations()
+          if (controller.signal.aborted) return
           message.value = ''
           streamingQuestion.value = ''
           streamingAnswer.value = ''
           streamState.value = 'idle'
         },
         onError: (error) => {
+          if (controller.signal.aborted) return
           streamState.value = 'error'
           errorMessage.value = error.message
         },
       },
     )
   } catch (error) {
-    if (abortController?.signal.aborted) {
+    if (abortController !== controller) return
+    if (controller.signal.aborted) {
       streamState.value = 'interrupted'
     } else {
       streamState.value = 'error'
       errorMessage.value = toFriendlyApiError(error).message
     }
   } finally {
-    loading.value = false
-    abortController = null
+    if (abortController === controller) {
+      loading.value = false
+      abortController = null
+    }
   }
 }
 
 function stopStreaming(): void {
   if (abortController) {
     abortController.abort()
+    abortController = null
     streamState.value = 'interrupted'
     loading.value = false
   }
@@ -180,6 +223,14 @@ function submitWithKeyboard(event: KeyboardEvent): void {
       <span class="context-pill temporary-pill">独立有限上下文</span>
     </header>
 
+    <ConversationAgentControl
+      v-model="selectedAgentId"
+      :locked="Boolean(activeConversationId)"
+      :binding="activeConversation"
+      :busy="loading || restoring"
+      @state="agentState = $event"
+      @new="newAgentConversation"
+    />
     <div v-if="errorMessage" class="quick-error" role="alert">{{ errorMessage }}</div>
 
     <div class="conversation-stage">
@@ -192,12 +243,24 @@ function submitWithKeyboard(event: KeyboardEvent): void {
           <label class="search-toggle">
             <span>自动联网</span>
             <el-switch
-              v-model="webSearchEnabled"
+              :model-value="
+                webSearchEnabled &&
+                Boolean(configuration?.external_search_enabled) &&
+                agentState.config?.tools.web_search !== false
+              "
+              @update:model-value="webSearchEnabled = Boolean($event)"
               aria-label="自动联网搜索"
-              :disabled="!configuration?.external_search_enabled"
+              :disabled="
+                loading ||
+                !configuration?.external_search_enabled ||
+                agentState.config?.tools.web_search === false
+              "
             />
           </label>
-          <el-select v-model="selectedModel" aria-label="快速对话模型" class="model-select">
+          <span v-if="agentState.profileId" class="context-pill">{{
+            agentState.config?.model.model || '固定模型'
+          }}</span>
+          <el-select v-else v-model="selectedModel" aria-label="快速对话模型" class="model-select">
             <el-option-group
               v-for="provider in configuration?.providers.filter((item) => item.models.length) ??
               []"

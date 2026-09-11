@@ -14,7 +14,7 @@
 | 第 4 周 | Agent、总结和出题 | 已完成 | 计划日 1～5、Token 统计及独立会话默认联网增量均已验收 | [week-04.md](week-04.md) |
 | 第 5 周 | 通用智能体迁移与公开 Benchmark 基线 | 已完成 | 计划日 1～5 已验收；`v1.1.0` 已发布，许可补丁为 `v1.1.1` | [week-05.md](week-05.md) |
 | 第 6 周 | 评分与检索算法优化 | 已完成 | Day 1～5 发布为 `v1.2.0`；Extra 两候选拒绝/延后并发布为 `v1.2.1` | [week-06.md](week-06.md) |
-| 第 7 周 | AgentProfile 与多智能体基础 | 未开始 | 目标版本 `v1.3.0` | [第 6～11 周路线](../deliverables/week-06-to-11-roadmap.md) |
+| 第 7 周 | AgentProfile 与多智能体基础 | 本轮验收通过 | Day 4/5 验收通过，已补充删除；目标 v1.3.0 未发布 | [week-07.md](week-07.md) |
 | 第 8 周 | 微调平台基础 | 未开始 | 目标预发布 `v1.4.0-beta.1` | [第 6～11 周路线](../deliverables/week-06-to-11-roadmap.md) |
 | 第 9 周 | 首次真实微调 | 未开始 | 目标稳定版本 `v1.4.0` | [第 6～11 周路线](../deliverables/week-06-to-11-roadmap.md) |
 | 第 10 周 | 动态长上下文与资料空间记忆 | 未开始 | `v1.5.0` 第一阶段 | [第 6～11 周路线](../deliverables/week-06-to-11-roadmap.md) |
@@ -31,6 +31,7 @@
 | 混合组卷与来源配额 | 已实现并通过用户验收 | 第 4 周计划日 4-B | [mixed-exam-generation.md](../design-decisions/mixed-exam-generation.md) |
 | 通用智能体平台迁移 | 第一阶段已完成 | 第 5 周计划日 1 | [general-agent-platform.md](../design-decisions/general-agent-platform.md) |
 | 资料空间记忆与同会话长上下文 | 已完成旧方案设计，调整为后续独立里程碑 | 后续阶段 | [course-memory-and-long-context.md](../design-decisions/course-memory-and-long-context.md) |
+| AgentProfile 配置版本与会话绑定 | Day 1～4 数据、管理、运行与界面已实现 | 第 7 周 | [agent-profile-versioning.md](../design-decisions/agent-profile-versioning.md) |
 
 ## 记录规范
 
@@ -68,3 +69,11 @@
 
 应用户要求，第五周主日志按前四周统一模板完成格式补录。补录只整理既有事实、验收记录和
 Git 归属，不改变已发布 Benchmark 数值或版本历史；原始 M0 方案保留为历史归档。
+
+2026-09-11：Week 7 补充完成[产品/科研分离](../deliverables/week-07-edition-separation.md)，
+跨周边界见[设计决策](../design-decisions/product-research-editions.md)。
+
+第七周基础任务已于 2026-09-11 确认验收；当前进入[v1.3.0 日志/效果最终审批](../releases/v1.3.0-approval.md)。
+
+2026-09-11 文档修订：第七周主日志已按第 5/6 周固定栏目重整，逐日事实和验证计数保留；
+本周新增产品/科研两份独立 README，修订后再次提交用户审批。

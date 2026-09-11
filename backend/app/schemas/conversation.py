@@ -15,6 +15,8 @@ from app.schemas.qa import (
 
 
 class ConversationCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    agent_profile_id: UUID | None = None
     title: str | None = Field(default=None, max_length=120)
 
     @field_validator("title")
@@ -33,6 +35,8 @@ class ConversationSummaryRead(BaseModel):
     created_at: datetime
     updated_at: datetime
     last_message_at: datetime | None
+    agent_profile_id: UUID | None = None
+    agent_profile_revision_id: UUID | None = None
 
 
 class QuickConversationSummaryRead(BaseModel):
@@ -43,6 +47,8 @@ class QuickConversationSummaryRead(BaseModel):
     created_at: datetime
     updated_at: datetime
     last_message_at: datetime | None
+    agent_profile_id: UUID | None = None
+    agent_profile_revision_id: UUID | None = None
 
 
 class ConversationMessageRead(BaseModel):

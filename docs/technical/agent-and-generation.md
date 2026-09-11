@@ -268,3 +268,19 @@ requested model
 ### 评分算法
 
 后续先在获批公开 Benchmark 上冻结经典检索和回答评分器，再研究融合、校准和小模型微调。评分器结果必须与被测 Agent 输出分开持久化。
+
+
+## Week 7 Day 3：固定配置运行路径
+
+会话创建可选择 AgentProfile，运行时按会话已保存的 revision 读取不可变配置。
+`app/agents/runtime.py` 统一检查启用/路由/空间/哈希，创建当前请求独享的有效 Settings，
+不修改全局缓存。`BoundChatGateway` 把同一模型和补充提示传给改写、总结计划、
+答案/总结/试卷生成以及格式或内容修复，原服务端证据和输出约束继续保留。
+
+配置不引入额外模型调用、不按智能体创建 Embedding/Reranker 或向量库；已有绑定的解析
+增加一次身份与固定 revision 联查，以及允许列表非空时一次空间存在性查询。
+自定义提示是补充要求，不能授权额外工具或资料访问；这些权限由 Python 分支和过滤执行。
+评测引用保持 offline/advisory，不进入生成门控。
+
+运行诊断、服务端上限与旧会话语义见 [API 契约](api-reference.md#13-会话固定智能体版本week-7-day-3)
+和 [Day 3 实施报告](../deliverables/week-07-day-03.md)。

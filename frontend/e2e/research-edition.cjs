@@ -1,0 +1,38 @@
+const { chromium } = require('playwright')
+const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const path = require('node:path')
+const output = path.resolve(__dirname, '../../tmp/week07-editions-research-ui')
+;(async () => {
+  fs.mkdirSync(output, { recursive: true })
+  const browser = await chromium.launch({ headless: true })
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1050 } })
+  const errors = []
+  page.on('pageerror', e => errors.push(e.message))
+  try {
+    assert.equal((await (await page.request.get('http://127.0.0.1:18005/api/health')).json()).environment, 'week07-ui-test')
+    const options = (await (await page.request.get('http://127.0.0.1:18005/api/agent-profiles/options')).json()).data
+    assert.equal(options.edition, 'research')
+    assert(options.evaluation_profiles.length > 0)
+    await page.goto('http://127.0.0.1:41735/agents')
+    await page.getByRole('button', { name: '创建智能体', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: '创建智能体', exact: true })
+    const research = dialog.locator('fieldset').filter({ hasText: '研究记录（仅研发/科研模式）' })
+    await research.waitFor()
+    assert(await research.getByText(/不代表其他部署能达到相同结果/).isVisible())
+    assert.equal(await research.locator('select').count(), options.evaluation_profiles.length)
+    const name = '科研模式合成配置 ' + Date.now()
+    await dialog.getByLabel('名称', { exact: true }).fill(name)
+    await dialog.getByLabel('供应商', { exact: true }).selectOption('deepseek')
+    await dialog.getByLabel('模型', { exact: true }).selectOption('fixture-a')
+    await research.locator('select').first().selectOption('offline')
+    await research.screenshot({ path: path.join(output, 'research-controls.png') })
+    await dialog.getByRole('button', { name: '保存智能体', exact: true }).click()
+    await page.getByRole('heading', { name, exact: true }).waitFor()
+    const items = (await (await page.request.get('http://127.0.0.1:18005/api/agent-profiles')).json()).data
+    assert.equal(items.find(p => p.name === name).current_revision.config.evaluation_profiles.length, 1)
+    assert.deepEqual(errors, [])
+    fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ checks: ['research-options', 'research-editor-boundary-and-controls', 'save-research-reference'], errors }, null, 2))
+    console.log('Research UI: 3 checks passed; page errors: 0')
+  } finally { await browser.close() }
+})().catch(e => { console.error(e); process.exitCode = 1 })

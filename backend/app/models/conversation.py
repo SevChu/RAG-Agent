@@ -6,15 +6,19 @@ from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
+    DDL,
     JSON,
+    CheckConstraint,
     DateTime,
     Enum,
     ForeignKey,
+    ForeignKeyConstraint,
     Integer,
     String,
     Text,
     UniqueConstraint,
     Uuid,
+    event,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -44,8 +48,30 @@ class MessageStatus(StrEnum):
 
 class Conversation(Base):
     __tablename__ = "conversations"
+    __table_args__ = (
+        CheckConstraint(
+            "(agent_profile_id IS NULL AND agent_profile_revision_id IS NULL) OR "
+            "(agent_profile_id IS NOT NULL AND agent_profile_revision_id IS NOT NULL)",
+            name="agent_binding_pair",
+        ),
+        ForeignKeyConstraint(
+            ["agent_profile_id", "agent_profile_revision_id"],
+            ["agent_profile_revisions.agent_profile_id", "agent_profile_revisions.id"],
+            name="fk_conversations_agent_revision_owner",
+            ondelete="RESTRICT",
+        ),
+    )
 
     id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    agent_profile_id: Mapped[UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        nullable=True,
+        index=True,
+    )
+    agent_profile_revision_id: Mapped[UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        nullable=True,
+    )
     kind: Mapped[ConversationKind] = mapped_column(
         Enum(
             ConversationKind,
@@ -94,6 +120,30 @@ class Conversation(Base):
         passive_deletes=True,
         order_by="Message.sequence_number",
     )
+
+
+event.listen(
+    Conversation.__table__,
+    "after_create",
+    DDL(  # type: ignore[no-untyped-call]
+        "CREATE TRIGGER conversation_agent_binding_immutable "
+        "BEFORE UPDATE OF agent_profile_id, agent_profile_revision_id ON conversations "
+        "WHEN NEW.agent_profile_id IS NOT OLD.agent_profile_id "
+        "OR NEW.agent_profile_revision_id IS NOT OLD.agent_profile_revision_id "
+        "BEGIN SELECT RAISE(ABORT, 'conversation agent binding is immutable'); END"
+    ).execute_if(dialect="sqlite"),
+)
+
+
+event.listen(
+    Conversation.__table__,
+    "after_create",
+    DDL(  # type: ignore[no-untyped-call]
+        "CREATE TRIGGER conversation_agent_no_replace BEFORE INSERT ON conversations "
+        "WHEN EXISTS (SELECT 1 FROM conversations WHERE id=NEW.id) "
+        "BEGIN SELECT RAISE(ABORT, 'conversation replacement is forbidden'); END"
+    ).execute_if(dialect="sqlite"),
+)
 
 
 class Message(Base):

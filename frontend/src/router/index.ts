@@ -28,6 +28,11 @@ const router = createRouter({
       component: () => import('@/views/StudyAssistantView.vue'),
     },
     {
+      path: '/agents',
+      name: 'agent-profiles',
+      component: () => import('@/views/AgentProfilesView.vue'),
+    },
+    {
       path: '/settings',
       name: 'settings',
       component: () => import('@/views/SettingsView.vue'),

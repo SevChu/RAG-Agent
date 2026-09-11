@@ -6,6 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import Settings, get_settings
 from app.db.session import get_session
 from app.models import Conversation
 from app.schemas.api import APIResponse
@@ -21,6 +22,7 @@ from app.schemas.conversation import (
 from app.services import ConversationService, CourseService
 
 router = APIRouter(tags=["conversations"])
+SettingsDependency = Annotated[Settings, Depends(get_settings)]
 SessionDependency = Annotated[AsyncSession, Depends(get_session)]
 
 
@@ -59,10 +61,12 @@ async def list_quick_conversations(
 )
 async def create_quick_conversation(
     payload: ConversationCreate,
+    settings: SettingsDependency,
     session: SessionDependency,
 ) -> APIResponse[QuickConversationSummaryRead]:
-    conversation = await ConversationService(session).create_quick_conversation(
+    conversation = await ConversationService(session, settings).create_quick_conversation(
         title=payload.title,
+        agent_profile_id=payload.agent_profile_id,
     )
     return APIResponse(data=_quick_summary(conversation))
 
@@ -109,12 +113,14 @@ async def delete_quick_conversation(
 async def create_course_conversation(
     course_id: UUID,
     payload: ConversationCreate,
+    settings: SettingsDependency,
     session: SessionDependency,
 ) -> APIResponse[ConversationSummaryRead]:
     course = await CourseService(session).get(course_id)
-    conversation = await ConversationService(session).create_course_conversation(
+    conversation = await ConversationService(session, settings).create_course_conversation(
         course_id=course_id,
         title=payload.title,
+        agent_profile_id=payload.agent_profile_id,
     )
     return APIResponse(data=_summary(conversation, course_name=course.name))
 
@@ -190,6 +196,8 @@ def _summary(
         created_at=conversation.created_at,
         updated_at=conversation.updated_at,
         last_message_at=conversation.last_message_at,
+        agent_profile_id=conversation.agent_profile_id,
+        agent_profile_revision_id=conversation.agent_profile_revision_id,
     )
 
 
@@ -202,4 +210,6 @@ def _quick_summary(conversation: Conversation) -> QuickConversationSummaryRead:
         created_at=conversation.created_at,
         updated_at=conversation.updated_at,
         last_message_at=conversation.last_message_at,
+        agent_profile_id=conversation.agent_profile_id,
+        agent_profile_revision_id=conversation.agent_profile_revision_id,
     )

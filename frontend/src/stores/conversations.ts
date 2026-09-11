@@ -40,8 +40,10 @@ export const useConversationsStore = defineStore('conversations', () => {
     return quickConversations.value
   }
 
-  async function createQuickConversation(): Promise<QuickConversationSummary> {
-    const conversation = await createQuickRequest()
+  async function createQuickConversation(
+    agentProfileId?: string,
+  ): Promise<QuickConversationSummary> {
+    const conversation = await createQuickRequest(undefined, agentProfileId)
     quickConversations.value = [conversation, ...quickConversations.value]
     return conversation
   }
@@ -61,8 +63,11 @@ export const useConversationsStore = defineStore('conversations', () => {
     delete quickDetails.value[conversationId]
   }
 
-  async function createCourseConversation(courseId: string): Promise<CourseConversationSummary> {
-    const conversation = await createRequest(courseId)
+  async function createCourseConversation(
+    courseId: string,
+    agentProfileId?: string,
+  ): Promise<CourseConversationSummary> {
+    const conversation = await createRequest(courseId, undefined, agentProfileId)
     courseConversations.value = [
       conversation,
       ...courseConversations.value.filter((item) => item.id !== conversation.id),

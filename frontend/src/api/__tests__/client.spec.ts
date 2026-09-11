@@ -47,3 +47,18 @@ describe('API response helpers', () => {
     })
   })
 })
+
+describe('agent management errors', () => {
+  it.each([
+    [409, 'CONFLICT', '智能体已被修改，请刷新配置后重试。'],
+    [400, 'INVALID_INPUT', '允许的资料空间不存在或已删除，请刷新后重新选择。'],
+  ])('preserves actionable agent error details', (status, code, message) => {
+    expect(
+      toFriendlyApiError({
+        isAxiosError: true,
+        config: { url: '/agent-profiles/fixture' },
+        response: { status, data: { data: null, error: { code, message } } },
+      }),
+    ).toEqual({ status, code, message })
+  })
+})

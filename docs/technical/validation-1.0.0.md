@@ -37,7 +37,7 @@
 首轮后端测试使用系统 Temp，收集 231 项后出现 110 个统一的 `WinError 5` setup error，原因是当前 Windows 用户无法访问：
 
 ```text
-C:\Users\26415\AppData\Local\Temp\pytest-of-26415
+%LOCALAPPDATA%\Temp\pytest-of-<user>
 ```
 
 这些错误全部发生在 `tmp_path` fixture 创建阶段，不是业务断言失败。随后使用工作区内全新专用 `--basetemp` 且关闭 pytest cache provider 重跑，231 项全部通过。专用临时目录在测试后已删除。

@@ -134,6 +134,17 @@ async function deleteConversation(courseId: string, conversationId: string): Pro
 
     <nav class="primary-navigation" aria-label="主要功能">
       <RouterLink
+        to="/agents"
+        class="sidebar-link"
+        :class="{ active: route.path.startsWith('/agents') }"
+        aria-label="智能体管理"
+        title="智能体管理"
+        @click="closeMobile"
+      >
+        <span class="nav-icon" aria-hidden="true">◈</span
+        ><span v-show="!collapsed">智能体管理</span>
+      </RouterLink>
+      <RouterLink
         to="/assistant"
         class="sidebar-link"
         :class="{ active: isAssistant }"

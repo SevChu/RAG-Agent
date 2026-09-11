@@ -10,7 +10,8 @@
 > 拥有版权的 Agentic 原创材料；第三方依赖、模型与 Benchmark 不在该版权主张范围内，分别
 > 遵循其上游条款。详见 [LICENSE](LICENSE) 与 [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES.md)。
 
-> **当前版本：v1.2.2** — 暖白编辑风格改版，保留现有功能与布局。详见[版本说明](docs/releases/v1.2.2.md)。
+> **当前版本：v1.3.0** — 智能体管理、会话版本固定与产品/科研分离。
+> 本周基础任务、日志与两版 README 已获最终审核。详见[版本说明](docs/releases/v1.3.0.md)与[发布下载](https://github.com/SevChu/RAG-Agent/releases/tag/v1.3.0)。
 
 > 历史版本 `v1.2.1` 公开 Week 6 Extra 的负向证据：最终拒绝
 > Day 2 检索候选、延后 Day 3 Completeness 候选，两者均不进入 profile。已发布的 NLI
@@ -20,7 +21,29 @@
 > 用于帮助国际读者了解项目，不代表程序已经完成英文支持；产品级中英文切换计划纳入未来
 > `v1.6.0` 国际化里程碑。
 
-## 快速上手（新手版）
+## 选择产品版或研发/科研版
+
+| 版本 | 使用范围 | 研究与数据要求 |
+|---|---|---|
+| [产品版](docs/editions/product.md) | 完整智能体、资料、检索和生成流程 | 默认模式；不包含研究模块或 Benchmark 结果，不需要评测集 |
+| [研发/科研版](docs/editions/research.md) | 产品功能 + 离线研究工具、实验记录和公开聚合证据 | 显式安装 research 依赖；执行具体实验时才准备对应评测集 |
+
+两者保留在同一个仓库，共用业务核心和迁移链；同一版本分别构建两个发行包。当前源码默认 AGENTIC_EDITION=product；科研模式需完整科研
+源码及 AGENTIC_EDITION=research。本机原研究数据保留，不因切换模式被读取或清理。
+
+两版源码包由 `python scripts/build_editions.py --edition both --label v1.3.0` 生成至 output/editions，
+每包附 edition-manifest.json 和文件 SHA-256。不包含 .env、业务库、模型、原始评测集、
+逐样本结果或预装依赖；下载时按用途选择对应 Release 附件。完整边界见[版本分离说明](docs/design-decisions/product-research-editions.md)。
+
+开发者保留完整仓库，在自己的 `.env` 设置 `AGENTIC_EDITION=research`，安装使用
+`uv sync --frozen --group research`（在 backend 目录）。本机配置不进入 Git，也不会改变
+产品包默认模式。完整仓库含科研源码；两版分包不构成源码访问权限隔离。
+
+本仓库首页提供共用导航。第一次使用请阅读[产品版 README](docs/editions/product.md)，
+从一次快速对话开始；开发和实验请阅读[科研版 README](docs/editions/research.md)，
+按依赖组、运行配置与复现协议准备环境。两个下载包的根 README 分别使用上述独立文档。
+
+## 快速上手（产品版）
 
 > 本节适用于获得作者授权的本地运行。第一次使用不需要先读完整技术文档：准备一个可用模型
 > API、确认本地检索模型目录存在，再分别启动后端和前端即可。
@@ -83,12 +106,12 @@ LLM_AVAILABLE_MODELS=替换为你的实际模型ID
 
 ```powershell
 cd backend
-uv sync --frozen
-uv run alembic upgrade head
-uv run python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+uv sync --frozen --no-dev
+uv run --no-sync alembic upgrade head
+uv run --no-sync python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-第一次执行 `uv sync --frozen` 会安装后端依赖，耗时取决于网络和硬件。看到 Uvicorn 已监听
+第一次执行 `uv sync --frozen --no-dev` 会安装后端依赖，耗时取决于网络和硬件。看到 Uvicorn 已监听
 `http://127.0.0.1:8000` 后，不要关闭这个窗口。
 
 ### 5. 启动前端
@@ -143,7 +166,7 @@ Agentic 是一个本地优先、资料可追溯的通用智能体实验平台。
 | 外部补充 | 条件触发 DeepSeek Web Search，区分 `[课n]` 与 `[外n]` 引用 |
 | 会话 | 独立的快速对话与资料空间对话、历史恢复、多轮上下文和 SSE |
 | 模型配置 | DeepSeek、Qwen、Kimi、GLM 的 OpenAI-compatible 接口，服务端白名单与 Token 统计 |
-| 研究评测 | FiQA、RAGTruth、RAGBench 的冻结基线、候选实验及聚合结果 |
+| 研究评测（仅科研版） | FiQA、RAGTruth、RAGBench 的冻结基线、候选实验及聚合结果；普通流程不依赖 |
 
 当前为本地单用户应用，程序界面、提示词和用户错误信息仅支持中文。账号权限、资料共享、
 微调界面、跨会话长期记忆和产品国际化属于后续路线；当前不执行用户上传或模型生成的代码。
@@ -180,6 +203,8 @@ flowchart LR
   结果见 [v1.2.1 聚合报告](benchmarks/v1.2.1/README.md)及[发布说明](docs/releases/v1.2.1.md)。
 - 后续依次建设 AgentProfile、多智能体配置、微调基础、真实微调、长上下文、资料空间记忆、
   人工金标工具与中英文支持。版本范围以[研发路线](docs/deliverables/week-06-to-11-roadmap.md)为准。
+  第七周已记录[每日计划](docs/deliverables/week-07-plan.md)，Day 1 完成配置与迁移基础；
+  [设计决策](docs/design-decisions/agent-profile-versioning.md)说明版本和升级边界，Day 2 已完成[管理 API](docs/deliverables/week-07-day-02.md)，Day 3 已完成[会话固定版本与运行接入](docs/deliverables/week-07-day-03.md)，Day 4 已完成[管理界面与对话闭环](docs/deliverables/week-07-day-04.md)，可从侧栏“智能体管理”进入。Day 5 已完成[集成回归与候选准备](docs/deliverables/week-07-day-05.md)，[Day 4/5 本轮联合验收](docs/deliverables/week-07-day-04-05-acceptance.md)已通过，已补充[删除智能体](docs/deliverables/week-07-agent-deletion.md)；v1.3.0 已完成最终审核，见[版本说明](docs/releases/v1.3.0.md)。
 
 ## 开发与文档导航
 

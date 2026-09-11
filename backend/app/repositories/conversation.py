@@ -18,22 +18,34 @@ class ConversationRepository:
         *,
         course_id: UUID,
         title: str,
+        agent_profile_id: UUID | None = None,
+        agent_profile_revision_id: UUID | None = None,
     ) -> Conversation:
         conversation = Conversation(
             kind=ConversationKind.COURSE,
             course_id=course_id,
             title=title,
+            agent_profile_id=agent_profile_id,
+            agent_profile_revision_id=agent_profile_revision_id,
         )
         self.session.add(conversation)
         await self.session.flush()
         await self.session.refresh(conversation)
         return conversation
 
-    async def create_quick(self, *, title: str) -> Conversation:
+    async def create_quick(
+        self,
+        *,
+        title: str,
+        agent_profile_id: UUID | None = None,
+        agent_profile_revision_id: UUID | None = None,
+    ) -> Conversation:
         conversation = Conversation(
             kind=ConversationKind.QUICK,
             course_id=None,
             title=title,
+            agent_profile_id=agent_profile_id,
+            agent_profile_revision_id=agent_profile_revision_id,
         )
         self.session.add(conversation)
         await self.session.flush()

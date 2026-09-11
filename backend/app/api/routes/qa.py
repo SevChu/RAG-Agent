@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.runtime import ResolvedAgentRuntime, resolve_agent_runtime
 from app.api.errors import ERROR_MAPPING
 from app.core.config import Settings, get_settings
 from app.core.exceptions import (
@@ -151,18 +152,19 @@ async def answer_course_question(
     llm: LLMDependency,
     external_search: ExternalSearchDependency,
 ) -> APIResponse[CourseAnswerRead]:
-    conversation, selected_model = await _resolve_course_request(
+    conversation, runtime = await _resolve_course_request(
         course_id=course_id,
         payload=payload,
         session=session,
         settings=settings,
     )
+    settings = runtime.settings
     service = ConversationService(session)
     work = await _prepare_course_answer(
         course_id=course_id,
         conversation=conversation,
         payload=payload,
-        selected_model=selected_model,
+        runtime=runtime,
         session=session,
         settings=settings,
         indexing=indexing,
@@ -190,12 +192,14 @@ async def stream_course_answer(
     llm: LLMDependency,
     external_search: ExternalSearchDependency,
 ) -> StreamingResponse:
-    conversation, selected_model = await _resolve_course_request(
+    conversation, runtime = await _resolve_course_request(
         course_id=course_id,
         payload=payload,
         session=session,
         settings=settings,
     )
+    selected_model = runtime.model
+    settings = runtime.settings
     service = ConversationService(session)
 
     async def events() -> AsyncIterator[str]:
@@ -205,6 +209,7 @@ async def stream_course_answer(
                 "conversation_id": str(conversation.id),
                 "model": selected_model,
                 "context_max_messages": settings.rag_context_max_messages,
+                "agent_runtime": _runtime_payload(runtime),
             },
         )
         try:
@@ -212,7 +217,7 @@ async def stream_course_answer(
                 course_id=course_id,
                 conversation=conversation,
                 payload=payload,
-                selected_model=selected_model,
+                runtime=runtime,
                 session=session,
                 settings=settings,
                 indexing=indexing,
@@ -260,9 +265,14 @@ async def stream_quick_chat_message(
     llm: LLMDependency,
     external_search: ExternalSearchDependency,
 ) -> StreamingResponse:
-    selected_model = _selected_model(payload.model, settings)
     service = ConversationService(session)
     conversation = await service.get_quick_conversation(conversation_id=conversation_id)
+    runtime = await resolve_agent_runtime(
+        session, settings, conversation=conversation, model=payload.model
+    )
+    selected_model = runtime.model
+    settings = runtime.settings
+    llm = runtime.gateway(llm)
 
     async def events() -> AsyncIterator[str]:
         yield _sse(
@@ -271,6 +281,7 @@ async def stream_quick_chat_message(
                 "conversation_id": str(conversation.id),
                 "model": selected_model,
                 "context_max_messages": settings.quick_chat_context_max_messages,
+                "agent_runtime": _runtime_payload(runtime),
                 "web_search_enabled": payload.web_search and settings.external_search_enabled,
             },
         )
@@ -372,6 +383,7 @@ async def stream_quick_chat_message(
                 for index, evidence in enumerate(external_evidence, start=1)
             ]
             retrieval = AnswerRetrievalRead(
+                agent_runtime=runtime.diagnostics(),
                 retrieval_mode="external_web",
                 requested_top_k=settings.external_search_max_results,
                 candidate_top_k=settings.external_search_max_results,
@@ -414,6 +426,7 @@ async def stream_quick_chat_message(
                     "user_message_id": str(user_message.id),
                     "assistant_message_id": str(assistant_message.id),
                     "model": completion.model,
+                    "agent_runtime": _runtime_payload(runtime),
                     "usage": usage,
                     "elapsed_ms": elapsed_ms,
                     "context_message_count": len(history),
@@ -439,30 +452,76 @@ async def _resolve_course_request(
     payload: CourseAnswerRequest,
     session: AsyncSession,
     settings: Settings,
-) -> tuple[Conversation, str]:
+) -> tuple[Conversation, ResolvedAgentRuntime]:
     await CourseService(session).get(course_id)
-    selected_model = _selected_model(payload.model, settings)
-    service = ConversationService(session)
+    service = ConversationService(session, settings)
     if payload.conversation_id is None:
-        conversation = await service.create_course_conversation(course_id=course_id)
+        # Validate before creating a conversation, including a conflicting model.
+        runtime = await resolve_agent_runtime(
+            session,
+            settings,
+            profile_id=payload.agent_profile_id,
+            course_id=course_id,
+            model=payload.model,
+        )
+        # Insert the revision selected above, without re-reading the current pointer.
+        conversation = await service.create_resolved_course_conversation(
+            course_id=course_id,
+            runtime=runtime,
+        )
     else:
+        if payload.agent_profile_id is not None:
+            raise InvalidInputError("已有会话不能切换智能体，请新建会话。")
         conversation = await service.get_course_conversation(
             course_id=course_id,
             conversation_id=payload.conversation_id,
         )
-    return conversation, selected_model
-
-
-def _selected_model(requested: str | None, settings: Settings) -> str:
-    selected = requested or settings.llm_model
-    if selected not in settings.available_models:
-        raise InvalidInputError(
-            f"不支持模型 {selected}。可选模型：{', '.join(settings.available_models)}"
+        runtime = await resolve_agent_runtime(
+            session,
+            settings,
+            conversation=conversation,
+            model=payload.model,
         )
-    return selected
+    return conversation, runtime
+
+
+def _runtime_payload(runtime: ResolvedAgentRuntime) -> dict[str, object] | None:
+    diagnostics = runtime.diagnostics()
+    return diagnostics.model_dump(mode="json") if diagnostics else None
 
 
 async def _prepare_course_answer(
+    *,
+    course_id: UUID,
+    conversation: Conversation,
+    payload: CourseAnswerRequest,
+    runtime: ResolvedAgentRuntime,
+    session: AsyncSession,
+    settings: Settings,
+    indexing: DocumentIndexingManager,
+    llm: ChatCompletionGateway,
+    external_search: ExternalSearchGateway,
+) -> _CourseAnswerWork:
+    work = await _prepare_course_answer_work(
+        course_id=course_id,
+        conversation=conversation,
+        payload=payload,
+        selected_model=runtime.model,
+        session=session,
+        settings=runtime.settings,
+        indexing=indexing,
+        llm=runtime.gateway(llm),
+        external_search=external_search,
+    )
+    return replace(
+        work,
+        retrieval=work.retrieval.model_copy(
+            update={"agent_runtime": runtime.diagnostics()},
+        ),
+    )
+
+
+async def _prepare_course_answer_work(
     *,
     course_id: UUID,
     conversation: Conversation,
@@ -490,6 +549,20 @@ async def _prepare_course_answer(
         exam_follow_up_output(payload.question) if previous_exam is not None else None
     )
     if previous_exam is not None and follow_up_output is not None:
+        if conversation.agent_profile_id is not None:
+            for citation in previous_exam.citations:
+                if citation.get("source_type") == CitationSourceType.EXTERNAL.value:
+                    if (
+                        payload.answer_scope is AnswerScope.COURSE_ONLY
+                        or not settings.external_search_enabled
+                    ):
+                        raise InvalidInputError(
+                            "上一份试卷包含外部来源，不能在当前范围内续写，请重新出题。"
+                        )
+                elif payload.document_ids is not None and str(citation.get("document_id")) not in {
+                    str(document_id) for document_id in payload.document_ids
+                }:
+                    raise InvalidInputError("上一份试卷超出本轮指定的资料范围，请重新出题。")
         return await _prepare_persisted_exam_follow_up(
             previous=previous_exam,
             question=payload.question,
@@ -616,7 +689,10 @@ async def _prepare_course_answer(
     elif routing.task_type is CourseTaskType.EXAM:
         exam_plan = build_exam_plan(
             payload.question,
-            allow_external=payload.answer_scope is AnswerScope.COURSE_AND_EXTERNAL,
+            allow_external=(
+                payload.answer_scope is AnswerScope.COURSE_AND_EXTERNAL
+                and settings.external_search_enabled
+            ),
         )
         try:
             retrieval = await indexing.exam_search(
@@ -1194,6 +1270,7 @@ async def _persist_course_answer(
         elapsed_ms=work.elapsed_ms,
     )
     return CourseAnswerRead(
+        agent_runtime=work.retrieval.agent_runtime,
         conversation_id=conversation.id,
         user_message_id=user_message.id,
         assistant_message_id=assistant_message.id,

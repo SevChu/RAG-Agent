@@ -59,3 +59,10 @@ npm run build
 根目录专有 `LICENSE` 只覆盖项目作者拥有版权的 Agentic 原创材料。引入或更新第三方依赖、
 模型、数据集、字体、图标及其他资产时，必须同步维护 `THIRD_PARTY_NOTICES.md`；发布 Docker、
 安装包、前端 bundle 或离线依赖包前，还必须基于实际制品重新生成完整 SBOM 和许可清单。
+
+## 产品与科研版边界
+
+普通业务不能在导入、配置选项、智能体创建或生成时依赖 app.evaluation、研究注册表或评测集。
+研究特性由 research 模式显式启用，新增研究专用依赖放入 research 组。分发规则改变后需验证
+产品包物理缺少研究目录仍能运行。开发环境使用 uv sync --frozen --group research，普通安装
+使用 --no-dev。不得把业务数据、模型或原始评测集加入源码包。

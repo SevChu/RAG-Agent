@@ -285,3 +285,13 @@ cd D:\Agentic\backend
 不要整体清空 `tmp`，其中可能有尚未交付的产物或复现脚本。先检查具体目录、链接及在用进程，
 保留正式输出和实验记录；遇到无法读取的目录先跳过，不自动改写权限。
 已执行清理的范围与统计见[存储与代码审计](storage-and-code-audit-2026-09-07.md)。
+
+
+## v1.3.0 候选迁移
+
+Week 7 新增迁移 20260907_05，原启动入口与端口不变；本机经批准已完成升级。
+其他安装须先停止写入并备份 SQLite、uploads 与 Qdrant，演练后执行 Alembic 升级，
+禁止用删库替代迁移。降级会失去新增智能体和会话绑定，不能作为日常清理。
+详见[v1.3.0 升级与恢复](../releases/v1.3.0-upgrade.md)及[Day 1 执行记录](../deliverables/week-07-day-01-database-upgrade.md)。
+
+2026-09-10 删除功能追加 20260910_06，本机已备份升级并恢复原后端；其他安装升级到 head 后重启，详见[补充报告](../deliverables/week-07-agent-deletion.md)。

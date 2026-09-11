@@ -104,6 +104,7 @@ export interface ExternalSearchInfo {
 }
 
 export interface AnswerRetrieval {
+  agent_runtime?: AgentRuntimeInfo | null
   retrieval_mode: 'dense_rerank' | 'summary_dense_rerank' | 'exam_dense_rerank' | 'external_web'
   requested_top_k: number
   candidate_top_k: number
@@ -222,6 +223,7 @@ export interface AnswerTokenUsage {
 }
 
 export interface CourseAnswer {
+  agent_runtime?: AgentRuntimeInfo | null
   conversation_id: string
   user_message_id: string
   assistant_message_id: string
@@ -241,6 +243,7 @@ export interface CourseAnswer {
 }
 
 export interface CourseAnswerPayload {
+  agent_profile_id?: string
   question: string
   answer_style: AnswerStyle
   answer_scope: AnswerScope
@@ -290,6 +293,8 @@ export type ConversationMessageRole = 'user' | 'assistant'
 export type ConversationMessageStatus = 'completed' | 'pending' | 'failed' | 'interrupted'
 
 export interface CourseConversationSummary {
+  agent_profile_id?: string | null
+  agent_profile_revision_id?: string | null
   id: string
   course_id: string
   course_name: string
@@ -320,6 +325,8 @@ export interface CourseConversationDetail extends CourseConversationSummary {
 }
 
 export interface QuickConversationSummary {
+  agent_profile_id?: string | null
+  agent_profile_revision_id?: string | null
   id: string
   title: string
   created_at: string
@@ -337,6 +344,7 @@ export interface StreamError {
 }
 
 export interface StreamStart {
+  agent_runtime?: AgentRuntimeInfo | null
   conversation_id: string
   model: string
   context_max_messages: number
@@ -344,6 +352,7 @@ export interface StreamStart {
 }
 
 export interface QuickChatComplete {
+  agent_runtime?: AgentRuntimeInfo | null
   conversation_id: string
   user_message_id: string
   assistant_message_id: string
@@ -353,4 +362,146 @@ export interface QuickChatComplete {
   context_message_count: number
   citations: AnswerCitation[]
   external_search: ExternalSearchInfo
+}
+
+export interface AgentRuntimeInfo {
+  profile_id: string
+  revision_id: string
+  revision_number: number
+  config_sha256: string
+  provider: string
+  requested_model: string
+  actual_models: string[]
+}
+
+// Week 7 management and immutable conversation runtime contracts.
+export interface AgentModelSelection {
+  provider: string
+  model: string
+}
+
+export interface AgentContextPolicy {
+  strategy: 'bounded-history-v1'
+  rag_max_messages: number
+  rag_max_chars: number
+  quick_max_messages: number
+  quick_max_chars: number
+}
+
+export interface AgentRetrievalPolicy {
+  strategy: 'course-rag-v1'
+  answer_top_k: number
+  answer_candidate_k: number
+  summary_top_k: number
+  summary_candidate_k: number
+  summary_max_sources: number
+  summary_context_max_chars: number
+  exam_top_k: number
+  exam_candidate_k: number
+  exam_max_sources: number
+  exam_context_max_chars: number
+  min_similarity_score: number
+}
+
+export interface AgentEvaluationRef {
+  profile_id: string
+  registry_version: string
+  registry_sha256: string
+  usage: 'offline' | 'advisory'
+}
+
+export interface AgentConfiguration {
+  schema_version: 1
+  system_prompt: string
+  model: AgentModelSelection
+  allowed_course_ids: string[]
+  tools: { web_search: boolean }
+  context: AgentContextPolicy
+  retrieval: AgentRetrievalPolicy
+  evaluation_profiles: AgentEvaluationRef[]
+}
+
+export type AgentConfigurationInput = Omit<
+  Partial<AgentConfiguration>,
+  'model' | 'tools' | 'context' | 'retrieval'
+> & {
+  model: AgentModelSelection
+  tools?: Partial<AgentConfiguration['tools']>
+  context?: Partial<AgentContextPolicy>
+  retrieval?: Partial<AgentRetrievalPolicy>
+}
+
+export interface AgentRevision {
+  id: string
+  agent_profile_id: string
+  revision_number: number
+  config: AgentConfiguration
+  config_sha256: string
+  change_summary: string
+  created_at: string
+}
+
+export interface AgentProfile {
+  id: string
+  name: string
+  description: string | null
+  enabled: boolean
+  deleted_at: string | null
+  row_version: number
+  created_at: string
+  updated_at: string
+  current_revision: AgentRevision
+}
+
+export interface AgentProfileCreatePayload {
+  name: string
+  description?: string | null
+  config: AgentConfigurationInput
+  enabled?: boolean
+  change_summary?: string
+}
+
+export interface AgentProfileUpdatePayload {
+  expected_row_version: number
+  name?: string
+  description?: string | null
+  enabled?: boolean
+  config?: AgentConfigurationInput
+  change_summary?: string
+}
+
+export interface AgentProfileCopyPayload {
+  name: string
+  description?: string | null
+  revision_id?: string | null
+  enabled?: boolean
+}
+
+export interface AgentProfileRestorePayload {
+  expected_row_version: number
+  revision_id: string
+  change_summary?: string
+}
+
+export interface AgentProfileOptions {
+  edition: 'product' | 'research'
+  providers: {
+    id: string
+    name: string
+    models: string[]
+    configured: boolean
+  }[]
+  evaluation_profiles: {
+    profile_id: string
+    registry_version: string
+    registry_sha256: string
+    allowed_usages: ('offline' | 'advisory')[]
+  }[]
+  external_search_enabled: boolean
+}
+
+export interface ConversationAgentState {
+  ready: boolean
+  profileId: string | null
+  config: AgentConfiguration | null
 }

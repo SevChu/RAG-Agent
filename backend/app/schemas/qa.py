@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.external_search import ExternalSearchStatus
 from app.generation import (
@@ -17,9 +17,12 @@ from app.generation import (
     SummaryQualityDiagnostics,
 )
 from app.orchestration import CourseTaskType, SummaryScopeType
+from app.schemas.agent_runtime import AgentRuntimeRead
 
 
 class CourseAnswerRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    agent_profile_id: UUID | None = None
     question: str = Field(min_length=1, max_length=2000)
     answer_style: AnswerStyle = AnswerStyle.BALANCED
     answer_scope: AnswerScope = AnswerScope.COURSE_AND_EXTERNAL
@@ -87,6 +90,7 @@ class ExternalSearchRead(BaseModel):
 
 
 class AnswerRetrievalRead(BaseModel):
+    agent_runtime: AgentRuntimeRead | None = None
     retrieval_mode: str = "dense_rerank"
     requested_top_k: int
     candidate_top_k: int
@@ -122,6 +126,7 @@ class AnswerTokenUsageRead(BaseModel):
 
 
 class CourseAnswerRead(BaseModel):
+    agent_runtime: AgentRuntimeRead | None = None
     conversation_id: UUID
     user_message_id: UUID
     assistant_message_id: UUID
@@ -164,6 +169,7 @@ class LLMConfigurationRead(BaseModel):
 
 
 class QuickChatRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     message: str = Field(min_length=1, max_length=4000)
     model: str | None = Field(default=None, min_length=1, max_length=120)
     web_search: bool = True

@@ -27,7 +27,9 @@ export function toFriendlyApiError(error: unknown): FriendlyApiError {
     if (apiError) {
       return {
         code: apiError.code,
-        message: translateApiMessage(apiError.code, apiError.message),
+        message: /^\/agent-profiles(?:\/|$)/.test(axiosError.config?.url ?? '')
+          ? apiError.message
+          : translateApiMessage(apiError.code, apiError.message),
         status: axiosError.response?.status,
       }
     }
@@ -59,6 +61,7 @@ function isFriendlyApiError(error: unknown): error is FriendlyApiError {
 }
 
 function translateApiMessage(code: string, fallback: string): string {
+  if (/[\u4e00-\u9fff]/.test(fallback)) return fallback
   if (code === 'CONFLICT') {
     if (fallback.toLowerCase().includes('waiting or being processed')) {
       return '该资料已在等待或处理中，请勿重复提交'

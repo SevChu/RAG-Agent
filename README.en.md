@@ -92,12 +92,12 @@ Open the first PowerShell window in the repository root:
 
 ```powershell
 cd backend
-uv sync --frozen
-uv run alembic upgrade head
-uv run python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+uv sync --frozen --no-dev
+uv run --no-sync alembic upgrade head
+uv run --no-sync python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-The first `uv sync --frozen` installs the backend dependencies and may take some
+The first `uv sync --frozen --no-dev` installs the backend dependencies and may take some
 time. Keep this window open after Uvicorn starts listening on
 `http://127.0.0.1:8000`.
 
@@ -143,7 +143,8 @@ in [Configuration](docs/technical/configuration.md).
 
 ## Project Status
 
-- Latest release: **v1.2.2** — a warm editorial interface with terracotta accents, serif headings, and the existing workflows and layout preserved. See the [release notes](docs/releases/v1.2.2.md).
+- Current version: **v1.3.0** — versioned agent profiles and separate product/research source archives. See the [release notes](docs/releases/v1.3.0.md) and [downloads](https://github.com/SevChu/RAG-Agent/releases/tag/v1.3.0).
+- Previous release: **v1.2.2** — a warm editorial interface with terracotta accents, serif headings, and the existing workflows and layout preserved. See the [release notes](docs/releases/v1.2.2.md).
 
 - Previous release: `v1.2.1` — Week 6 Extra rejection evidence. The Day 2 retrieval
   candidate is rejected and Day 3 remains deferred; neither enters a profile. The
@@ -389,3 +390,23 @@ relicensed under the Agentic proprietary license. Review
 use.
 
 **Author and copyright owner:** Severus Chu
+
+## Product and research source editions
+
+The default is AGENTIC_EDITION=product. Normal agent management, ingestion, retrieval and generation
+require no benchmark datasets, results or research registry. Product archives omit evaluation modules,
+research scripts and benchmark results. uv sync --frozen --no-dev installs the product backend.
+
+The research archive includes the same application plus offline evaluation tools and public aggregate
+evidence. Install with uv sync --frozen --no-dev --group research and set AGENTIC_EDITION=research.
+Datasets and model weights are never automatically downloaded; prepare only those required by the
+selected experiment. Existing scores do not certify another deployment.
+
+See the [product guide](docs/editions/product.md), [research guide](docs/editions/research.md) and
+[edition design](docs/design-decisions/product-research-editions.md). These are source distributions,
+not preinstalled desktop binaries. Private data is excluded from both archives.
+
+Both editions share this repository and release version, with separate source archives. Developers
+keep the complete checkout, set `AGENTIC_EDITION=research` in their ignored local `.env`, and use
+`uv sync --frozen --group research`. A product archive does not provide source access control over
+the full repository; it only limits the files and enabled features in that distribution.

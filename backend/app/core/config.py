@@ -3,8 +3,10 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from app.core.distribution import DEFAULT_EDITION, RESEARCH_AVAILABLE
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,6 +34,14 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    agentic_edition: Literal["product", "research"] = DEFAULT_EDITION
+
+    @model_validator(mode="after")
+    def validate_edition(self) -> "Settings":
+        if self.agentic_edition == "research" and not RESEARCH_AVAILABLE:
+            raise ValueError("此产品版不包含研究模块，请使用研发/科研版安装包。")
+        return self
 
     app_name: str = "Agentic"
     app_env: str = "development"

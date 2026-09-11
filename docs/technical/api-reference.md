@@ -36,7 +36,21 @@
 
 ## 2. 接口总览
 
-当前 OpenAPI 包含 19 个路径。
+当前工作区 OpenAPI 包含 26 个路径，其中 7 个新增路径属于v1.3.0 智能体管理能力；应用版本为 1.3.0，最终推送审批已通过。
+
+### 智能体配置（Week 7 Day 2）
+
+- GET/POST /api/agent-profiles：列表、创建；
+- GET /api/agent-profiles/options：模型与评测配置选项；
+- GET/PATCH /api/agent-profiles/{profile_id}：详情、配置/身份更新与启停；
+- POST /api/agent-profiles/{profile_id}/copy：复制；
+- GET /api/agent-profiles/{profile_id}/revisions：版本列表；
+- GET /api/agent-profiles/{profile_id}/revisions/{revision_id}：指定版本；
+- POST /api/agent-profiles/{profile_id}/restore：从旧配置追加新版本。
+
+修改与恢复必须携带 expected_row_version；历史 revision 不可覆盖。
+完整请求、响应、分页、错误码及用途约束见[Day 2 接口契约](../deliverables/week-07-day-02.md)。
+Day 3 已接入会话创建、问答和 SSE；未绑定智能体的旧会话保持兼容路径，新增契约见第 13 节。
 
 ### 系统与模型
 
@@ -414,3 +428,73 @@ SSE 接口在 HTTP 连接已经建立后，会通过 `event: error` 返回同类
 - 新增响应字段应保持向后兼容；删除或改变字段语义需要 API 大版本。
 - 前端 TypeScript 类型必须与 Pydantic Schema 同步更新。
 - OpenAPI 是接口清单的机器可读来源，但 SSE 事件需要继续在本文维护。
+
+
+## 13. 会话固定智能体版本（Week 7 Day 3）
+
+`POST /api/courses/{course_id}/conversations` 和 `POST /api/quick-conversations`
+可传 `{"title":"可选标题","agent_profile_id":"智能体 UUID"}`。省略/null 创建兼容会话。
+服务端在创建时选择当前 revision 并固定；响应、列表、详情增加可空字段
+`agent_profile_id`、`agent_profile_revision_id`。不接受客户端指定 revision 或原地切换。
+
+资料回答的同步与 stream 请求也可传 `agent_profile_id`，仅用于未传 `conversation_id`
+时自动创建绑定会话。已有会话同时提交非空 `agent_profile_id` 返回 400，必须新建会话。
+绑定后的 `model` 可省略或等于快照模型；冲突返回 400，旧会话仍允许按白名单选模型。
+会话创建和两类生成请求拒绝未知字段（422），避免拼错绑定字段后静默创建兼容会话。
+
+每轮先验证智能体启用、版本归属/哈希、供应商白名单/凭据和允许空间存在性；
+失败在 SSE start 前返回普通 HTTP 错误。停用返回 409，依赖无效一般为 400，
+缺凭据为 503，资源不存在为 404。历史查询不需要这些依赖继续有效。
+检查覆盖请求开始时的状态，不会强制中断已经开始的外部调用。
+
+权限交集：服务端总开关 AND revision 工具权限 AND 本轮允许。资料 `course_only`
+和总结始终不联网；快速对话从不查询资料索引。`document_ids` 只缩小当前空间的资料范围。
+绑定试卷续写如果与本轮资料/外部来源范围冲突会明确失败，不从旧工件绕过范围限制。
+
+上下文和各任务检索数量/字符预算取服务端与 revision 中较小者；top_k 再受 candidate_k
+限制。问答证据相似度下限取较大者。总结/组卷保留原有按任务选取证据和质量检查的语义，
+不把问答相似度门改造成总结或组卷的生产评分器。
+
+资料回答 JSON、资料/快速对话 SSE 的 start 与 complete 增加 `agent_runtime`：
+
+```json
+{
+  "profile_id": "智能体 UUID",
+  "revision_id": "固定版本 UUID",
+  "revision_number": 1,
+  "config_sha256": "64 位 SHA-256",
+  "provider": "供应商 ID",
+  "requested_model": "固定的模型名称",
+  "actual_models": ["本轮生成网关实际返回的模型标识"]
+}
+```
+
+start 的 actual_models 为空；complete 按实际完成的生成调用去重记录（含改写、计划、修复）。
+无模型调用的拒答/试卷工件重放也为空；顶层 model 继续保留原响应含义。
+该对象同时保存到助手消息 `retrieval.agent_runtime`，历史查询可恢复。
+兼容会话的 agent_runtime 为 null；旧消息缺字段时读取为 null。流式 error 仍沿用原契约，
+失败或中断不保存完整消息交换，不伪造 complete。
+
+配置固定不冻结资料、服务器上限或供应商实现；不保证回答逐字重现。
+评测引用只保存在配置中，在线链路不读取评测注册表、运行模型或使用最终 test。
+详细测试及限制见 [Day 3 报告](../deliverables/week-07-day-03.md)。
+
+## 14. 删除智能体（2026-09-10 补充）
+
+`DELETE /api/agent-profiles/{profile_id}?expected_row_version=1`：逻辑删除，成功 HTTP 200，
+响应为 `{"data":null}`（沿用 APIResponse 信封）。参数必填且为正整数；版本过期 409，
+非法/缺失参数 422，不存在 404。重复删除成功且不再次递增版本。
+
+AgentProfile 响应新增可空 deleted_at。删除时记录时间、停用并递增 row_version，不追加
+revision；所有列表（包括 enabled=false）均先排除已删除身份再分页。详情和历史版本仍可读。
+删除不要求当前模型/评测配置有效，原名称仍保留且受唯一约束。
+
+删除后编辑、复制、启用、恢复、新建或继续会话均返回 409；历史查询保持。正在执行的生成
+不被强行中止。迁移为 20260910_06，管理接口现有 10 个操作，未提供硬删除或回收站。
+
+## 15. 产品与科研模式
+
+GET /api/agent-profiles/options 新增 edition=product|research。产品模式 evaluation_profiles=[]，
+不会打开研究注册表；科研模式返回冻结引用选项。产品新建时非空研究引用返回 400；编辑只能
+保留原引用或清空，不能添加/替换。历史、启停、恢复和运行不需要评测资源；复制省去研究引用。
+两版业务接口、会话绑定及迁移链相同，无需为每个智能体安装 Benchmark。

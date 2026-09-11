@@ -33,7 +33,7 @@ baseline profile 1.0.0 已发布为 `v1.1.0`。随后以 `v1.1.1` 单独修正�
 | `v1.1.1` | 许可补丁 | 收紧专有许可适用范围；排除第三方依赖、模型和 Benchmark；新增分发合规门禁 | 版本/链接/隐私复验；不改 Benchmark 数值与功能行为 | 已发布 |
 | `v1.2.0` | 第 6 周结束 | 实验治理；NLI 幻觉定位 advisory profile | NLI 候选冻结后一次 test；全量回归与隐私检查；独立发布审批 | 已发布 |
 | `v1.2.1` | 第 6 周 Extra | Day 2/3 补充证据、一次冻结 FiQA test 与否决记录 | Day 2 一次 test 已获批；不新增 profile；全量回归、隐私与单独发布审批 | 已发布 |
-| `v1.3.0` | 第 7 周结束 | AgentProfile CRUD、版本化、会话绑定、模型/资料空间/工具/评测 profile 配置 | 数据库迁移、API 兼容、前端主路径和历史会话回归通过 | 计划 |
+| `v1.3.0` | 第 7 周结束 | AgentProfile CRUD、版本化、会话绑定、模型/资料空间/工具/评测 profile 配置 | 数据库迁移、API 兼容、前端主路径和历史会话回归通过 | 本轮验收通过，删除补充已实施，未发布 |
 | `v1.4.0-beta.1` | 第 8 周结束 | TrainingDataset Registry、训练任务、Adapter Registry、逐智能体微调界面和 Fake Trainer 闭环 | 不进行真实训练；状态机、取消、失败恢复、数据隔离和 UI 通过 | 计划预发布 |
 | `v1.4.0` | 第 9 周结束 | 首次真实 Scorer 或 Reranker 微调、Adapter 评测、AgentProfile 绑定和回滚 | 模型/依赖/预算获批；validation 晋级；一次 test；基础模型与 Adapter 对照完整 | 计划稳定版 |
 | `v1.5.0` | 第 10～11 周结束 | 动态长上下文、资料空间记忆、金标标注工具/协议与首批 Pilot | 记忆隔离与删除通过；标注质量门通过；私有样本不进入 Git | 计划 |
@@ -102,6 +102,9 @@ baseline profile 1.0.0 已发布为 `v1.1.0`。随后以 `v1.1.1` 单独修正�
 - 已完成全量回归、安全复核与用户发布授权，按审核范围创建 release commit、Tag 与 GitHub Release。
 
 ## 第 7 周：AgentProfile 与多智能体基础（目标 `v1.3.0`）
+
+详细实施以[第七周每日计划](week-07-plan.md)为准；用户于 2026-09-07 确认计划并授权 Day 1。
+实施与验收记录见[第七周日志](../engineering-logs/week-07.md)。
 
 1. 设计 AgentProfile、AgentProfileRevision 和会话绑定关系，提供 Alembic 迁移；
 2. 实现创建、复制、修改、停用、版本查看和兼容读取 API；

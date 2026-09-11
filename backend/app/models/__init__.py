@@ -1,3 +1,4 @@
+from app.models.agent_profile import AgentProfile, AgentProfileRevision
 from app.models.conversation import (
     Conversation,
     ConversationKind,
@@ -10,6 +11,8 @@ from app.models.document import Document, DocumentProcessingStage, DocumentStatu
 from app.models.token_usage import TokenUsageEvent
 
 __all__ = [
+    "AgentProfile",
+    "AgentProfileRevision",
     "Conversation",
     "ConversationKind",
     "Course",

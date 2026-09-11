@@ -6,13 +6,16 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.runtime import ResolvedAgentRuntime, resolve_agent_runtime
+from app.core.config import Settings, get_settings
 from app.core.exceptions import NotFoundError
 from app.models import Conversation, Message, MessageRole, MessageStatus
 from app.repositories import ConversationRepository, CourseRepository
 
 
 class ConversationService:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, settings: Settings | None = None) -> None:
+        self.settings = settings or get_settings()
         self.session = session
         self.repository = ConversationRepository(session)
         self.course_repository = CourseRepository(session)
@@ -22,12 +25,40 @@ class ConversationService:
         *,
         course_id: UUID,
         title: str | None = None,
+        agent_profile_id: UUID | None = None,
     ) -> Conversation:
         if await self.course_repository.get(course_id) is None:
             raise NotFoundError("Course not found.")
+        runtime = (
+            await resolve_agent_runtime(
+                self.session,
+                self.settings,
+                profile_id=agent_profile_id,
+                course_id=course_id,
+            )
+            if agent_profile_id is not None
+            else None
+        )
+        return await self.create_resolved_course_conversation(
+            course_id=course_id,
+            title=title,
+            runtime=runtime,
+        )
+
+    async def create_resolved_course_conversation(
+        self,
+        *,
+        course_id: UUID,
+        runtime: ResolvedAgentRuntime | None,
+        title: str | None = None,
+    ) -> Conversation:
+        """Insert a previously validated binding atomically; do not select latest again."""
+        identity = runtime.identity if runtime else None
         conversation = await self.repository.create(
             course_id=course_id,
             title=title or "新课程对话",
+            agent_profile_id=identity.profile_id if identity else None,
+            agent_profile_revision_id=identity.revision_id if identity else None,
         )
         await self.session.commit()
         return conversation
@@ -36,8 +67,22 @@ class ConversationService:
         self,
         *,
         title: str | None = None,
+        agent_profile_id: UUID | None = None,
     ) -> Conversation:
+        runtime = (
+            await resolve_agent_runtime(
+                self.session,
+                self.settings,
+                profile_id=agent_profile_id,
+            )
+            if agent_profile_id is not None
+            else None
+        )
         conversation = await self.repository.create_quick(
+            agent_profile_id=agent_profile_id,
+            agent_profile_revision_id=runtime.identity.revision_id
+            if runtime and runtime.identity
+            else None,
             title=title or "新快速对话",
         )
         await self.session.commit()

@@ -177,3 +177,10 @@ RERANKER_MODEL_PATH=../data/models/reranker/bge-reranker-v2-m3
 - 日志、缓存、虚拟环境和 Node 依赖。
 
 `.env.example` 只能包含空 Key、占位模型和公开 Base URL。
+
+## 产品与科研模式
+
+AGENTIC_EDITION=product|research，默认 product，独立于 APP_ENV。
+产品管理和生成不需要评测注册表或数据集；科研模式需完整科研源码与 research 依赖组。
+切换后重启后端；已有研究引用保留历史，不自动重新评测。
+详见[分离设计](../design-decisions/product-research-editions.md)。

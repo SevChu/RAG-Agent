@@ -37,7 +37,7 @@ Agentic/
 │  │  ├─ stores/                # Pinia
 │  │  ├─ types/                 # API 类型
 │  │  ├─ utils/                 # 格式化工具及测试
-│  │  └─ views/                 # 五个主要页面
+│  │  └─ views/                 # 六个主要页面（含智能体管理）
 │  ├─ package.json
 │  └─ package-lock.json
 ├─ data/                        # 本地运行数据，公开仓库只保留 .gitkeep
@@ -84,7 +84,13 @@ cd D:\Agentic\backend
 → 20260803_02  document indexing progress
 → 20260803_03  conversations + messages
 → 20260810_04  token_usage_events
+→ 20260907_05  agent_profiles + revisions + conversation binding
 ```
+
+新增迁移：20260907_05（AgentProfile/revision + 会话可空绑定）。2026-09-08 已在用户授权后
+完成正式库备份与升级，见[执行记录](../deliverables/week-07-day-01-database-upgrade.md)。
+其他旧库部署 Day 1 ORM 前仍需停止后端、备份并迁移。升级、回退的数据边界见
+[AgentProfile 迁移说明](../design-decisions/agent-profile-versioning.md)。
 
 新增 ORM 字段必须同时创建 Alembic 迁移和迁移测试。不要通过删除正式 `app.db` 代替迁移。
 
@@ -317,3 +323,36 @@ candidate → approved → downloaded → verified → frozen
 - 不在 test split 上调参。
 - 不提交 `.env`、真实资料、数据库、向量、模型和未经许可的数据。
 - 用户工作区可能已有未提交修改；不得用 reset/checkout 覆盖。
+
+
+## Week 7 前端与浏览器回归补充
+
+前端单元测试新增智能体配置工具和会话绑定组件测试。浏览器闭环使用
+frontend/e2e/server.py 的隔离库与模拟网关，frontend/e2e/agent-profiles.cjs 核验测试服务
+身份后再执行管理和对话操作。启动方式和覆盖范围见 [Day 4 报告](../deliverables/week-07-day-04.md)。
+
+
+## Week 7 集成与解析测量
+
+`tests/test_agent_integration.py` 使用 MockTransport 验证四供应商固定版本路由；模拟
+Request.is_disconnected 验证两类 SSE 在 delta 前后中断及同版本重试。测试不访问真实供应商。
+全量 pytest 应禁用正式 .env，使用独立 basetemp，不复用用户要求保留的 Day 1 目录。
+
+从 backend 运行 `python -m scripts.measure_agent_runtime --samples 100`，在内存 SQLite
+测量默认、绑定和创建前解析。每种情况预热 10 次、独立 Session、2/1,000 个合成智能体；
+脚本断言 SQL 为 0/1/2 次并输出中位/P95。仅测解析，不代表完整生成请求的性能。
+方法、结果和联合验收状态见[Day 5 报告](../deliverables/week-07-day-05.md)。
+
+## 两个源码发行包验证
+
+完整开发环境使用 uv sync --frozen --group research，普通安装使用 --no-dev。
+不要为了检查依赖分组而修改正在使用的业务虚拟环境。
+
+从仓库根目录运行 python scripts/build_editions.py --output output/editions。解压产品包后，
+使用已有开发 Python 运行 scripts/verify_product_edition.py，传入解压目录和独立绝对路径
+--basetemp。它断言应用来自解压包并禁止研究模块/PyArrow 导入。此验证复用已安装依赖，
+不等同于执行了全新联网安装。
+
+frontend/e2e/server.py 默认启动 product 隔离服务 18004；设置 AGENTIC_UI_TEST_EDITION=research
+启动科研服务 18005。前端分别使用对应 API 与 41734/41735，运行 agent-profiles.cjs 和
+research-edition.cjs。输出位于 tmp/week07-editions-product-ui 与 research-ui，不使用业务库。
