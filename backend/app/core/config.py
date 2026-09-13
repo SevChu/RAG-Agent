@@ -91,6 +91,11 @@ class Settings(BaseSettings):
     qdrant_path: Path = Path("../data/qdrant")
     qdrant_collection_name: str = "knowledge_chunks_v1"
     upload_dir: Path = Path("../data/uploads")
+    training_data_dir: Path = Path("../data/training")
+    training_worker_enabled: bool = False
+    training_poll_interval_seconds: float = Field(default=0.25, ge=0.05, le=10)
+    training_lease_seconds: float = Field(default=10, ge=1, le=60)
+    training_fake_step_seconds: float = Field(default=0.2, ge=0.01, le=5)
     paddle_ocr_base_dir: Path = Path("../data/models/paddleocr")
     embedding_model_path: Path = Path("../data/models/embedding/bge-m3")
     embedding_device: Literal["auto", "cuda", "cpu"] = "auto"

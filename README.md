@@ -10,8 +10,9 @@
 > 拥有版权的 Agentic 原创材料；第三方依赖、模型与 Benchmark 不在该版权主张范围内，分别
 > 遵循其上游条款。详见 [LICENSE](LICENSE) 与 [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES.md)。
 
-> **当前版本：v1.3.0** — 智能体管理、会话版本固定与产品/科研分离。
-> 本周基础任务、日志与两版 README 已获最终审核。详见[版本说明](docs/releases/v1.3.0.md)与[发布下载](https://github.com/SevChu/RAG-Agent/releases/tag/v1.3.0)。
+> **预发布版本：v1.4.0-beta.1。** 科研侧新增数据审核、FakeTrainer、模拟 Adapter 与五步界面；没有真实权重。
+> 技术文档与日志已通过最终审核，见[版本说明](docs/releases/v1.4.0-beta.1.md)、[审阅记录](docs/releases/v1.4.0-beta.1-approval.md)与[预发布下载](https://github.com/SevChu/RAG-Agent/releases/tag/v1.4.0-beta.1)。
+> 已发布稳定版仍为 [v1.3.0](https://github.com/SevChu/RAG-Agent/releases/tag/v1.3.0)。
 
 > 历史版本 `v1.2.1` 公开 Week 6 Extra 的负向证据：最终拒绝
 > Day 2 检索候选、延后 Day 3 Completeness 候选，两者均不进入 profile。已发布的 NLI
@@ -204,7 +205,9 @@ flowchart LR
 - 后续依次建设 AgentProfile、多智能体配置、微调基础、真实微调、长上下文、资料空间记忆、
   人工金标工具与中英文支持。版本范围以[研发路线](docs/deliverables/week-06-to-11-roadmap.md)为准。
   第七周已记录[每日计划](docs/deliverables/week-07-plan.md)，Day 1 完成配置与迁移基础；
-  [设计决策](docs/design-decisions/agent-profile-versioning.md)说明版本和升级边界，Day 2 已完成[管理 API](docs/deliverables/week-07-day-02.md)，Day 3 已完成[会话固定版本与运行接入](docs/deliverables/week-07-day-03.md)，Day 4 已完成[管理界面与对话闭环](docs/deliverables/week-07-day-04.md)，可从侧栏“智能体管理”进入。Day 5 已完成[集成回归与候选准备](docs/deliverables/week-07-day-05.md)，[Day 4/5 本轮联合验收](docs/deliverables/week-07-day-04-05-acceptance.md)已通过，已补充[删除智能体](docs/deliverables/week-07-agent-deletion.md)；v1.3.0 已完成最终审核，见[版本说明](docs/releases/v1.3.0.md)。
+  [设计决策](docs/design-decisions/agent-profile-versioning.md)说明版本和升级边界，Day 2 已完成[管理 API](docs/deliverables/week-07-day-02.md)，Day 3 已完成[会话固定版本与运行接入](docs/deliverables/week-07-day-03.md)，Day 4 已完成[管理界面与对话闭环](docs/deliverables/week-07-day-04.md)，可从侧栏“智能体管理”进入。Day 5 已完成[集成回归与候选准备](docs/deliverables/week-07-day-05.md)，[Day 4/5 本轮联合验收](docs/deliverables/week-07-day-04-05-acceptance.md)已通过，已补充[删除智能体](docs/deliverables/week-07-agent-deletion.md)；v1.3.0 已于 2026-09-11 [正式发布](https://github.com/SevChu/RAG-Agent/releases/tag/v1.3.0)，见[版本说明](docs/releases/v1.3.0.md)。
+
+第八周已批准[五日计划](docs/deliverables/week-08-plan.md)，Day 1 [训练数据 Registry](docs/deliverables/week-08-day-01.md)与 Day 2 [模拟任务及副本演练](docs/deliverables/week-08-day-02.md)已验收；Day 3 [模拟 Adapter Registry](docs/deliverables/week-08-day-03.md)已验收。Day 4 [五步模拟微调界面](docs/deliverables/week-08-day-04.md)已验收；使用与复现见[界面工作流](docs/design-decisions/training-ui-workflow.md)。Day 5 已获准完成[正式库迁移、worker 启用与合成验收](docs/deliverables/week-08-day-05-formal-upgrade.md)。2026-09-13 用户确认本周功能与可视化验收通过；beta 版本元数据、发布审阅材料与候选验证已完成，见[审阅目录](docs/releases/v1.4.0-beta.1-approval.md)；本周已获最终发布批准，真实训练尚未实现。
 
 ## 开发与文档导航
 

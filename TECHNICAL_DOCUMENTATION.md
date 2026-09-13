@@ -9,3 +9,8 @@
 - 许可边界：[LICENSE](LICENSE) 与 [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES.md)。
 
 本文件保留原有文档入口路径；详细内容在上述文档中维护，避免多处版本说明不一致。
+
+
+当前预发布版本为 v1.4.0-beta.1，模拟训练平台、技术文档与工程日志已通过用户验收和发布审核。
+本周新增[训练平台说明](docs/technical/training-platform.md)、[升级恢复](docs/releases/v1.4.0-beta.1-upgrade.md)
+和[全部变更文档审阅目录](docs/releases/v1.4.0-beta.1-approval.md)。历史 1.0.0 基线保留原版本事实。

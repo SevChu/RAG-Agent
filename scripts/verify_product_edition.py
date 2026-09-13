@@ -14,7 +14,9 @@ from pathlib import Path
 
 class NoResearch(importlib.abc.MetaPathFinder):
     def find_spec(self, fullname, path=None, target=None):
-        if fullname == "app.evaluation" or fullname.startswith("app.evaluation."):
+        if fullname in {"app.evaluation", "app.training"} or fullname.startswith(
+            ("app.evaluation.", "app.training.")
+        ):
             raise AssertionError(f"product attempted research import: {fullname}")
         if fullname == "pyarrow" or fullname.startswith("pyarrow."):
             raise ModuleNotFoundError("PyArrow is unavailable in this product verification")
@@ -28,8 +30,9 @@ def main() -> int:
     args = parser.parse_args()
     source_root = Path(__file__).resolve().parents[1]
     product = args.product_root.resolve()
-    if (product / "backend/app/evaluation").exists():
-        parser.error("expected product archive without an evaluation directory")
+    if any((product / folder).exists() for folder in
+           ("backend/app/evaluation", "backend/app/training")):
+        parser.error("expected product archive without research directories")
     sys.meta_path.insert(0, NoResearch())
     sys.path.insert(0, str(product / "backend"))
     sys.path.append(str(source_root / "backend"))
@@ -67,7 +70,8 @@ def main() -> int:
         ]
     )
     assert not any(
-        name == "app.evaluation" or name.startswith("app.evaluation.") for name in sys.modules
+        name in {"app.evaluation", "app.training"}
+        or name.startswith(("app.evaluation.", "app.training.")) for name in sys.modules
     )
     assert "pyarrow" not in sys.modules
     print(

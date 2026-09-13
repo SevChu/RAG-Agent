@@ -23,7 +23,8 @@ Agentic/
 │  │  ├─ generation/            # 模型客户端、回答、总结、组卷
 │  │  ├─ external_search/       # DeepSeek Web Search
 │  │  ├─ token_usage/           # Token 事件统计
-│  │  └─ evaluation/            # 本地候选评测基础设施
+│  │  ├─ evaluation/            # 本地候选评测基础设施
+│  │  └─ training/              # 科研模拟训练：数据、任务、worker、产物
 │  ├─ migrations/               # Alembic 迁移
 │  ├─ evaluations/              # 版本化本地候选评测数据
 │  ├─ scripts/                  # 审计与评测 CLI
@@ -37,12 +38,12 @@ Agentic/
 │  │  ├─ stores/                # Pinia
 │  │  ├─ types/                 # API 类型
 │  │  ├─ utils/                 # 格式化工具及测试
-│  │  └─ views/                 # 六个主要页面（含智能体管理）
+│  │  └─ views/                 # 业务页面、智能体管理及 training 子页面
 │  ├─ package.json
 │  └─ package-lock.json
 ├─ data/                        # 本地运行数据，公开仓库只保留 .gitkeep
 └─ docs/
-   ├─ technical/                # 1.0.0 当前态技术文档
+   ├─ technical/                # 当前候选的技术文档与历史基线
    ├─ design-decisions/         # 跨周架构决策
    ├─ engineering-logs/         # 实施过程
    └─ deliverables/             # 每日/每周验收说明
@@ -56,7 +57,7 @@ Agentic/
 
 ```powershell
 cd D:\Agentic\backend
-uv sync --dev
+uv sync --frozen --group research --dev
 ```
 
 PyTorch 配置使用项目声明的 CUDA 12.8 索引。没有可用 CUDA 时，本地模型运行会回退 CPU，但依赖安装仍应遵守 lock 文件。不要在没有评估的情况下升级 Torch、PaddleOCR、PaddlePaddle、Sentence Transformers 或 Qdrant Client；这些版本与模型加载及本地数据格式关系密切。
@@ -85,6 +86,10 @@ cd D:\Agentic\backend
 → 20260803_03  conversations + messages
 → 20260810_04  token_usage_events
 → 20260907_05  agent_profiles + revisions + conversation binding
+→ 20260910_06  agent profile logical deletion
+→ 20260911_07  training datasets + immutable revisions + reviews
+→ 20260911_08  training runs + events + worker lease
+→ 20260911_09  simulated model adapters
 ```
 
 新增迁移：20260907_05（AgentProfile/revision + 会话可空绑定）。2026-09-08 已在用户授权后
@@ -282,7 +287,7 @@ cd D:\Agentic\backend
 
 ## 9. 公开 Benchmark 接入约束
 
-1.0.0 尚未下载公开数据。第五周后续按以下状态机推进：
+FiQA、RAGTruth、RAGBench 已在第五周获批并冻结。新增数据按以下状态机推进，既有批准不自动扩展到新用途：
 
 ```text
 candidate → approved → downloaded → verified → frozen
@@ -298,7 +303,7 @@ candidate → approved → downloaded → verified → frozen
 - corpus/query/qrels 或 question/context/answer/label 映射；
 - split 用途和污染防护。
 
-候选包括 BEIR SciFact、RGB refined、RAGBench、RAGTruth 和 IBM MTRAG，但当前均不视为已审批。
+其他候选和许可按注册表逐项核对；不能把新增训练用途视为沿用全部历史评测授权。
 
 ## 10. 经典基线顺序
 
@@ -356,3 +361,29 @@ Request.is_disconnected 验证两类 SSE 在 delta 前后中断及同版本重�
 frontend/e2e/server.py 默认启动 product 隔离服务 18004；设置 AGENTIC_UI_TEST_EDITION=research
 启动科研服务 18005。前端分别使用对应 API 与 41734/41735，运行 agent-profiles.cjs 和
 research-edition.cjs。输出位于 tmp/week07-editions-product-ui 与 research-ui，不使用业务库。
+
+
+## v1.4.0-beta.1 验证与候选身份
+
+Python 项目与 uv 根包版本为 `1.4.0b1`；前端、FastAPI/OpenAPI 和 Git Tag 使用
+`1.4.0-beta.1`。两者是同一预发布版本的 PEP 440 / SemVer 表示，依赖包版本和来源不变。
+包内 edition-manifest 的 application_version 取 Python 项目版本，label 使用对外版本。
+
+候选验证使用隔离 SQLite/训练目录，关闭自动索引、worker 默认启动和外部网络，明确禁用 .env
+加载；单个测试按夹具需要启用 Fake worker。禁止以正式库作为 pytest --basetemp 或演练库。
+训练定向回归为 `tests/test_training_*.py`、`tests/test_model_adapter*.py`；浏览器脚本、端口和
+合成数据边界见[界面工作流](../design-decisions/training-ui-workflow.md)。真实供应商不参与该回归。
+
+双包构建与产品导入隔离校验：
+
+```powershell
+python scripts/build_editions.py --edition both --label v1.4.0-beta.1 --output output/editions/beta-review
+python scripts/verify_product_edition.py <已解压产品包目录> --basetemp <全新测试目录>
+```
+
+构建拒绝覆盖旧 ZIP。先完成文档审阅稿，再生成候选清单、哈希与安全审查；批准后从实际发布提交
+重新构建，并核对除批准状态外无内容漂移。不重复运行封存 test，也不把 beta 标记为 stable/latest。
+
+
+本轮候选检查为前端确认弹窗 mock 补充类型；`e2e/**/*.cjs` 按 CommonJS 脚本允许 require，其余
+推荐规则保留。读取 Lint 结果时使用只读命令，不因 `npm run lint` 的 --fix 隐式改写文件。

@@ -62,3 +62,14 @@ scripts/verify_product_edition.py 使用实际解压的产品包启动应用，�
 
 本机开发者要求保留全部已实现的科研能力，通过忽略的 .env 设置 research，科研依赖
 和既有资产保留；共享默认与产品包仍为 product。该选择不提高 OS 权限或绕过应用约束。
+
+
+## v1.4.0-beta.1：训练能力分离补充
+
+产品包同时排除 `app/training`，不注册训练 API；完整仓库 product 模式返回 403。科研包包含
+训练源码与界面，共享模板仍默认 worker=false，不下载训练模型或数据。七张训练相关表和 07～09
+迁移随两版分发；撤销/停用取消使用共用 SQL 触发器，不要求产品导入训练模块。
+
+产品隔离验证同时阻断 app.evaluation、app.training 和 PyArrow 导入。当前训练端到端仅为 Fake，
+共用前端可能包含训练组件源码，隐藏入口不是源码访问控制。升级见
+[beta 升级说明](../releases/v1.4.0-beta.1-upgrade.md)，两版继续同一 Tag 与独立 README/manifest。

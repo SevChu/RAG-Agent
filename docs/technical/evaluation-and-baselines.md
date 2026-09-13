@@ -112,11 +112,11 @@ nDCG。所有任务还应记录 wall time、缓存状态、模型身份、硬件
 
 ## 6. 当前结论与下一研究入口
 
-- 检索下一候选：对 Dense Top-100 直接重排，在不降低 Recall@100 的前提下改善 nDCG@10。
+- Dense Top-100 直接重排已在 Week 6 Extra 的一次 FiQA test 后判为 reject，不进入 profile。
 - 幻觉候选：句级 DeBERTa NLI 已完成一次冻结 test，四项数值门通过并以 advisory profile
   冻结；但 span recall 下降且 test bootstrap CI 跨 0，不得替换 lexical response reference。
-- 综合评分下一候选：先优化 completeness，再验证域感知校准与非线性 28 维特征融合。
-- 产品侧下一入口：`AgentProfile`、逐智能体评测套件、训练数据治理、微调任务和 Adapter 注册表。
+- Completeness 两阶段候选在 Week 6 Extra 外层验证未通过，记录为 deferred，未执行其最终 test。
+- AgentProfile 和科研模拟训练平台已实现；第九周分别推进 Reranker 与 Scorer 真实训练和对照评测。客户评测套件仍未实现。
 
 公开集用于横向可比，自有人工金标集用于中文、拒答、证据充分性和真实资料空间场景。后者按
 50 条标注规范试标、200 条 pilot、800 条开发集、1,000 条封存 test、季度 200 条 shadow 的
@@ -138,3 +138,12 @@ nDCG。所有任务还应记录 wall time、缓存状态、模型身份、硬件
 本章仅属于研发/科研版。产品包不包含评测模块、研究脚本和 Benchmark 聚合结果，普通流程
 不需要任何评测集。科研安装使用 --group research，再按实验需要准备数据；本章冻结成绩
 不是客户部署的通用保证。见[科研安装说明](../editions/research.md)及[分离设计](../design-decisions/product-research-editions.md)。
+
+
+## 模拟产物与真实评测隔离
+
+FakeTrainer checksum 只验证模拟执行身份，不是质量指标；`not_evaluated` 不能通过界面标记或更名
+变成评测通过。本次 beta 不修改任何冻结 profile、历史 Benchmark 数值或 test 使用记录。
+Reranker 与 Scorer 分别准备数据、目标、基线与晋级门；Scorer 还要与现有评分方案比较并明确
+标签维度。训练 Registry 只接受 train/validation，不能重复使用已查看的 test 调参。
+真实 Trainer 的数据适配、评测、权重加载与运行回滚须另行实现和验收，见[路线图](../deliverables/week-06-to-11-roadmap.md)。

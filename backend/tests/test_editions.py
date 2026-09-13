@@ -161,6 +161,15 @@ def test_source_archives_exclude_runtime_data_and_set_capabilities(
         assert ".env" not in names and "backend/.env" not in names
         assert "backend/migrations/versions/20260910_06_soft_delete_agent_profiles.py" in names
         assert ("backend/app/evaluation/registry.json" in names) is (edition == "research")
+        assert ("backend/app/training/routes.py" in names) is (edition == "research")
+        assert ("backend/app/training/worker.py" in names) is (edition == "research")
+        assert ("backend/app/training/adapter_routes.py" in names) is (edition == "research")
+        assert "backend/app/models/model_adapter.py" in names
+        assert "backend/migrations/versions/20260911_09_model_adapters.py" in names
+        assert "backend/app/models/training_run.py" in names
+        assert "backend/migrations/versions/20260911_08_training_runs.py" in names
+        assert "backend/app/models/training_dataset.py" in names
+        assert "backend/migrations/versions/20260911_07_training_datasets.py" in names
         assert ("backend/scripts/manage_benchmarks.py" in names) is (edition == "research")
         if edition == "product":
             assert not any(name.startswith("benchmarks/") for name in names)

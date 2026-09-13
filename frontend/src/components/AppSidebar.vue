@@ -3,6 +3,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
+import { useEditionStore } from '@/stores/edition'
 import { toFriendlyApiError } from '@/api/client'
 import { useConversationsStore } from '@/stores/conversations'
 
@@ -16,6 +17,10 @@ const emit = defineEmits<{
   'update:mobileOpen': [value: boolean]
 }>()
 
+const edition = useEditionStore()
+onMounted(() => {
+  void edition.load().catch(() => undefined)
+})
 const route = useRoute()
 const router = useRouter()
 const conversationsStore = useConversationsStore()
@@ -133,6 +138,17 @@ async function deleteConversation(courseId: string, conversationId: string): Pro
     </RouterLink>
 
     <nav class="primary-navigation" aria-label="主要功能">
+      <RouterLink
+        v-if="edition.edition === 'research'"
+        to="/training"
+        class="sidebar-link"
+        :class="{ active: route.path.startsWith('/training') }"
+        aria-label="微调实验室"
+        title="微调实验室"
+        @click="closeMobile"
+        ><span class="nav-icon" aria-hidden="true">◇</span
+        ><span v-show="!collapsed">微调实验室</span></RouterLink
+      >
       <RouterLink
         to="/agents"
         class="sidebar-link"

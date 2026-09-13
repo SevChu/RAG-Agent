@@ -4,6 +4,31 @@
 
 ## [Unreleased]
 
+## [1.4.0-beta.1] - 2026-09-13
+
+### Added
+
+- 科研训练数据 Registry：不可变版本、追加审核、来源/许可/PII、train/validation 与去重校验。
+- FakeTrainer 任务、冻结来源、幂等提交、事件、取消/重试、单 worker 租约及失联恢复。
+- 模拟 Adapter Registry、manifest 完整性、来源链、兼容性、补登记、归档与目录核对。
+- 逐智能体五步模拟微调界面及产品/科研边界，07～09 共用增量迁移。
+
+### Changed
+
+- 版本元数据准备为 SemVer 1.4.0-beta.1 / PEP 440 1.4.0b1，第三方依赖版本和来源保持。
+- 完整更新当前技术说明、升级恢复、两版 README、第八周日志及 Reranker/Scorer 后续范围。
+
+### Fixed
+
+- 训练页面异步响应、取消/归档离页回调和提交版本竞争保护。
+- 发布检查补齐确认弹窗测试替身类型，并为 CommonJS 浏览器脚本配置准确的 Lint 范围，不改变运行功能。
+
+### Status
+
+- 第八周功能与正式合成验收已通过；仅有模拟产物，不含真实权重或质量改善声明。
+- 技术文档与重写日志已获用户最终审核，批准按 v1.4.0-beta.1 创建 GitHub prerelease；不替换 stable/latest。
+- 见[发布说明](docs/releases/v1.4.0-beta.1.md)与[审阅目录](docs/releases/v1.4.0-beta.1-approval.md)。
+
 ## [1.3.0] - 2026-09-11
 
 ### Added

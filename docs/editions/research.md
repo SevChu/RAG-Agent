@@ -4,7 +4,7 @@ Agentic 是基于 FastAPI、Vue 3、LangGraph 与本地检索组件的 RAG Agent
 研发/科研版在产品业务核心上提供离线评测模块、数据集管理、冻结 baseline profile、
 实验注册与聚合证据，面向应用开发、检索/评分方法复现及受控实验。
 
-当前应用版本为 **1.3.0**，对应已获最终审核的 v1.3.0 源码发行。产品与科研版共用仓库、迁移链和业务
+当前为 **1.4.0-beta.1 预发布版本**（Python 元数据 1.4.0b1），技术文档及工程日志已获最终发布批准。产品与科研版共用仓库、迁移链和业务
 接口；发行能力通过 `distribution.py` 固化，运行模式通过 `AGENTIC_EDITION` 选择。
 
 ## 架构与研究范围
@@ -20,7 +20,7 @@ Agentic 是基于 FastAPI、Vue 3、LangGraph 与本地检索组件的 RAG Agent
 `backend/app/evaluation/`、`backend/scripts/`、`backend/tests/`、`benchmarks/` 和研究文档随科研源码
 分发；原始数据集、逐样本预测、模型权重、业务库和本机配置均不进入发行包。
 
-当前不包含训练/微调执行平台、自动多智能体协作、客户 EvaluationSuite 或跨部署自动重评测。
+第八周开发已实现数据审核、五步界面、Fake Trainer 任务与模拟 Adapter；本机正式库升级和 worker 启用已获准完成，见[执行记录](../../docs/deliverables/week-08-day-05-formal-upgrade.md)。候选发布材料见[审阅目录](../../docs/releases/v1.4.0-beta.1-approval.md)。当前没有真实模型微调、Adapter 部署、自动多智能体协作、客户 EvaluationSuite 或跨部署自动重评测。
 架构细节见[技术总览](../../docs/technical/README.md)与[运行链路](../../docs/technical/agent-and-generation.md)。
 
 ## 快速上手：建立可复现的研发环境
@@ -78,7 +78,7 @@ LLM_AVAILABLE_MODELS=填写可用模型ID
 ### 3. Schema 迁移与服务启动
 
 对已有业务库操作前，备份 SQLite、上传目录和 Qdrant。两版共用 Alembic 迁移链，当前 head 为
-`20260910_06`；不要并发运行两个实例写同一 SQLite/Qdrant 目录。
+`20260911_09`；不要并发运行两个实例写同一 SQLite/Qdrant 目录。已有安装先停止写入并成组备份，详见[升级说明](../../docs/releases/v1.4.0-beta.1-upgrade.md)。
 
 ```powershell
 cd backend
@@ -150,9 +150,20 @@ uv run --no-sync mypy app scripts/measure_agent_runtime.py ../scripts/build_edit
 从仓库根目录生成同版本双源码发行包：
 
 ```powershell
-python scripts/build_editions.py --edition both --label v1.3.0
+python scripts/build_editions.py --edition both --label v1.4.0-beta.1
 ```
 
 每包生成自己的 README、默认模式和逐文件 SHA-256 manifest；已有同名 ZIP 会拒绝覆盖。
 构建前确认日志、版本、依赖锁与审批范围一致。源码和第三方材料的许可边界见
 [LICENSE](../../LICENSE)、[第三方声明](../../THIRD_PARTY_NOTICES.md)与[贡献规范](../../CONTRIBUTING.md)。
+
+
+## 模拟微调使用入口
+
+完成 09 迁移后，使用“微调实验室”登记合成 JSONL，审核后进入五步向导。worker 默认关闭；在确认
+备份、来源和写入范围后显式设置 TRAINING_WORKER_ENABLED=true 并重启，任务才开始执行。
+无需下载训练模型或安装 PEFT/量化依赖。参数只作模拟，产物始终不可部署。
+
+数据/任务/产物维护及常见故障见[训练平台](../../docs/technical/training-platform.md)；界面操作见
+[工作流](../../docs/design-decisions/training-ui-workflow.md)。第九周分别推进 Reranker 与 Scorer 的
+真实训练，先准备各自的数据、标签、目标与效果对照指导；生成大模型权重训练不在已规划范围内。

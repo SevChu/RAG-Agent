@@ -259,11 +259,11 @@ requested model
 
 ### AgentProfile
 
-未来应把系统提示、允许工具、资料空间、默认模型、上下文策略、评测套件和 Adapter 绑定到版本化 AgentProfile，而不是继续依赖一个全局设置页。
+AgentProfile 已版本化系统提示、工具、资料空间、模型路由、上下文策略和研究引用，并固定会话 revision。研究引用仅为 offline/advisory；客户评测套件和真实 Adapter 运行绑定未实现。
 
 ### 微调
 
-逐智能体微调界面需要在 AgentProfile 和数据版本稳定后接入，至少包含数据选择、训练参数、LoRA/QLoRA 作业、日志、指标、产物注册和回滚。1.0.0 不包含任何训练实现。
+v1.4.0-beta.1 已接入逐智能体五步界面、数据审核、模拟任务、事件和 Adapter 追踪。任务关联智能体不修改生成路由；FakeTrainer 不调用生成 API，不加载权重。真实 Reranker/Scorer 训练、评测、绑定和回滚属于第九周，见[训练平台](training-platform.md)。
 
 ### 评分算法
 

@@ -143,7 +143,7 @@ in [Configuration](docs/technical/configuration.md).
 
 ## Project Status
 
-- Current version: **v1.3.0** — versioned agent profiles and separate product/research source archives. See the [release notes](docs/releases/v1.3.0.md) and [downloads](https://github.com/SevChu/RAG-Agent/releases/tag/v1.3.0).
+- Prerelease version: **v1.4.0-beta.1**, approved after technical-document and engineering-log review. Dataset governance, FakeTrainer jobs, simulated adapter tracking and the five-step UI are implemented; no weights are trained. See [release notes](docs/releases/v1.4.0-beta.1.md) and [prerelease downloads](https://github.com/SevChu/RAG-Agent/releases/tag/v1.4.0-beta.1). The published stable release remains [v1.3.0](https://github.com/SevChu/RAG-Agent/releases/tag/v1.3.0).
 - Previous release: **v1.2.2** — a warm editorial interface with terracotta accents, serif headings, and the existing workflows and layout preserved. See the [release notes](docs/releases/v1.2.2.md).
 
 - Previous release: `v1.2.1` — Week 6 Extra rejection evidence. The Day 2 retrieval
@@ -320,9 +320,9 @@ For complete settings, storage, backups, and troubleshooting, see the
 |---|---|---|
 | `v1.2.0` | Evaluation governance and advisory NLI span profile | Released |
 | `v1.2.1` | Week 6 Extra evidence; no new profile | Released |
-| `v1.3.0` | Versioned AgentProfile and multi-agent configuration | Planned |
-| `v1.4.0-beta.1` | Training dataset, job, adapter registry, and fine-tuning UI foundation | Planned beta |
-| `v1.4.0` | First real scorer or reranker fine-tuning and rollback | Planned |
+| `v1.3.0` | Versioned AgentProfile and multi-agent configuration | Released 2026-09-11 |
+| `v1.4.0-beta.1` | Dataset, FakeTrainer jobs, simulated adapters and five-step UI | Implemented, accepted and approved for prerelease |
+| `v1.4.0` | Separate real reranker and scorer fine-tuning, evaluation and rollback | Planned |
 | `v1.5.0` | Dynamic long context, resource-space memory, and private gold-set tooling | Planned |
 | `v1.6.0` | Chinese/English internationalization and bilingual quality validation | Planned |
 
@@ -410,3 +410,10 @@ Both editions share this repository and release version, with separate source ar
 keep the complete checkout, set `AGENTIC_EDITION=research` in their ignored local `.env`, and use
 `uv sync --frozen --group research`. A product archive does not provide source access control over
 the full repository; it only limits the files and enabled features in that distribution.
+
+
+The beta uses Python version `1.4.0b1` and public/frontend version `1.4.0-beta.1`. Both editions share
+schema head `20260911_09`; the product archive excludes training/evaluation modules. The worker remains
+opt-in. Back up the training directory together with the database, uploads, Qdrant and private configuration.
+See [training architecture](docs/technical/training-platform.md) and [upgrade instructions](docs/releases/v1.4.0-beta.1-upgrade.md).
+Generation continues through inference APIs; generator weight fine-tuning is outside the planned scope.

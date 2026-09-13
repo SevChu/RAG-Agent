@@ -61,13 +61,13 @@ D:\Agentic\data\
 
 ### 4.1 一致备份原则
 
-完整业务状态由 SQLite、uploads 和 Qdrant 三部分组成。只备份 `app.db` 会丢失原文件或向量，只备份 Qdrant 也无法恢复资料空间和 Document 元数据。
+完整业务状态包含 SQLite、uploads 和 Qdrant；启用科研训练后还包含 TRAINING_DATA_DIR 中的数据版本与模拟产物，以及对应私有配置。只备份 `app.db` 会丢失原文件或向量，只备份 Qdrant 也无法恢复资料空间和 Document 元数据。
 
 推荐：
 
 1. 等待所有资料进入 `completed` 或 `failed`。
 2. 停止后端，释放 SQLite 和 Qdrant 文件锁。
-3. 把 `app.db`、`uploads` 和 `qdrant` 复制到同一个带时间戳的备份目录。
+3. 把 `app.db`、`uploads`、`qdrant` 和存在的训练目录成组备份，同时安全保存 .env 与代码/版本身份。
 4. 单独记录当前代码提交、Alembic revision、Collection 名和本地模型版本。
 5. 对备份生成哈希或使用校验工具。
 
@@ -88,7 +88,7 @@ Copy-Item D:\Agentic\data\qdrant $backupRoot -Recurse
 1. 停止后端。
 2. 先另行备份当前 data，避免不可逆覆盖。
 3. 确认备份的代码/迁移版本与当前应用兼容。
-4. 成组恢复 SQLite、uploads 和 Qdrant。
+4. 成组恢复 SQLite、uploads、Qdrant、训练目录和匹配配置；先保持 worker 关闭并核对训练文件与元数据。
 5. 运行 `alembic upgrade head`。
 6. 启动后端并执行一致性审计。
 7. 抽查资料引用和重新索引能力。
@@ -287,7 +287,7 @@ cd D:\Agentic\backend
 已执行清理的范围与统计见[存储与代码审计](storage-and-code-audit-2026-09-07.md)。
 
 
-## v1.3.0 候选迁移
+## v1.3.0 已发布迁移
 
 Week 7 新增迁移 20260907_05，原启动入口与端口不变；本机经批准已完成升级。
 其他安装须先停止写入并备份 SQLite、uploads 与 Qdrant，演练后执行 Alembic 升级，
@@ -295,3 +295,23 @@ Week 7 新增迁移 20260907_05，原启动入口与端口不变；本机经批�
 详见[v1.3.0 升级与恢复](../releases/v1.3.0-upgrade.md)及[Day 1 执行记录](../deliverables/week-07-day-01-database-upgrade.md)。
 
 2026-09-10 删除功能追加 20260910_06，本机已备份升级并恢复原后端；其他安装升级到 head 后重启，详见[补充报告](../deliverables/week-07-agent-deletion.md)。
+
+
+## v1.4.0-beta.1 升级与模拟 worker 运维
+
+当前候选 head 为 `20260911_09`；07/08/09 的数据、任务和产物表在两种发行中共用。正式维护
+使用一个后端进程，worker 开启时避免 `--reload` 导致维护期间反复重启；标准开发热重载不替代
+受控升级窗口。不要为验证迁移去修改正在运行的正式库，具体命令和恢复顺序见
+[beta 升级说明](../releases/v1.4.0-beta.1-upgrade.md)。
+
+备份前先完成/取消任务并停止后端。SQLite 使用一致备份接口或在确认停机及 WAL 状态后备份，不能
+在活动写入时只复制 app.db；uploads、Qdrant、训练目录也需在同一无写入窗口保存。上方基础复制
+示例仅覆盖基础业务文件，科研实例必须额外复制实际 TRAINING_DATA_DIR 和受保护的配置。
+
+queued 不动时依次检查迁移、research 能力、worker 配置、实例日志和事件；options 中 enabled 只
+说明配置，不证明活性。代码身份变化或来源撤销导致失败时先处理原因再重试，不能直接更新任务表。
+产物损坏时保留证据；storage-audit 不执行清理，归档也不删除文件。当前不会产生真实训练权重。
+
+本机 2026-09-13 正式升级结果作为历史证据保留，PID 和服务是否仍在线以现场检查为准；此次候选
+准备只改源码版本和文档，没有为更新版本显示而重启正式服务。新进程将读取 beta 版本，旧进程可能
+仍显示 1.3.0，这不代表迁移回退。发布前审查入口见[审批材料](../releases/v1.4.0-beta.1-approval.md)。

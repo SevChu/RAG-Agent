@@ -184,3 +184,43 @@ AGENTIC_EDITION=product|research，默认 product，独立于 APP_ENV。
 产品管理和生成不需要评测注册表或数据集；科研模式需完整科研源码与 research 依赖组。
 切换后重启后端；已有研究引用保留历史，不自动重新评测。
 详见[分离设计](../design-decisions/product-research-editions.md)。
+
+## 训练数据目录（v1.4.0-beta.1）
+
+`TRAINING_DATA_DIR` 默认为 `../data/training`，相对后端启动目录解析，仅科研数据 Registry 使用。使用独立本地目录，不指向已有上传目录、模型目录或系统目录；目录及祖先不能是符号链接/Windows junction。样本与数据库均需本地保留且不得进入 Git，改变目录不会自动迁移已有文件。
+
+该配置不启用 worker，也不下载依赖或模型。当前完整训练功能要求 09 迁移；新安装/旧库升级先按[升级说明](../releases/v1.4.0-beta.1-upgrade.md)准备备份和演练。数据契约及限额见[设计决策](../design-decisions/training-dataset-registry.md)。
+
+## 模拟训练后台
+
+| 配置 | 默认值 | 边界 |
+|---|---|---|
+| TRAINING_WORKER_ENABLED | false | 仅 research 模式显式启用；不会自动安装或下载任何资产 |
+| TRAINING_POLL_INTERVAL_SECONDS | 0.25 | 0.05～10 秒，队列轮询间隔 |
+| TRAINING_LEASE_SECONDS | 10 | 1～60 秒，心跳为该值的 1/3 |
+| TRAINING_FAKE_STEP_SECONDS | 0.2 | 0.01～5 秒，仅模拟检查点间隔 |
+
+正式使用前需审查数据库备份和 `20260910_06 → 20260911_07 → 20260911_08 → 20260911_09` 升级，再显式变更 .env 并重启；未迁移的实例保持开关关闭。共享模板仍默认 false，本机已批准启用不改变其他安装的默认值。中断恢复、单 worker 所有权和取消语义见[任务生命周期](../design-decisions/training-run-lifecycle.md)。
+
+
+## 模拟产物目录
+
+模拟 manifest 使用 `TRAINING_DATA_DIR/adapters/` 子目录，沿用数据根目录的隔离配置，不新增默认模型或 worker 开关。每个 manifest 最大 128 KiB；Registry 只接受 UUID 文件名，拒绝链接越界和硬链接。
+
+科研实例使用 Adapter API 或新成功任务自动登记前，需将其实际连接的数据库迁移至 `20260911_09`。本机已获准完成迁移，其他安装需核实各自数据库。启动开关不会替代迁移，也不会自动迁移。
+
+备份训练功能时，应同时保留数据库、训练 JSONL 与 adapters 子目录，并在无写入的窗口建立对应快照。本周接口不清理残留文件，不自动修复已登记但缺失/篡改的文件。补登记及目录核对语义见[Registry 设计](../design-decisions/simulated-adapter-registry.md)。
+
+
+## 界面与隔离验收
+
+科研版通过侧栏“微调实验室”或智能体页“模拟微调”进入；页面不会迁移数据库或启用 worker。实际连接的科研库需要 09 迁移和独立训练目录，后台默认关闭；本机已批准的状态见下方执行记录，不能据此启用其他实例。
+
+界面和浏览器复现见[模拟微调工作流](../design-decisions/training-ui-workflow.md)。验收脚本使用 `AGENTIC_TRAINING_UI_DIR` 选择仓库 tmp 下的全新合成目录，后端只监听 127.0.0.1:18084/18085；前端预览 15174/15175，通过各自进程的 VITE_API_BASE_URL 对应后端。此变量只供测试脚本使用，不是正式配置。测试服务器拒绝覆盖现有库，不读取 .env；本次临时后台已停止。
+
+
+## 2026-09-13：本机正式启用状态
+
+经用户批准，本机正式库已升级到 20260911_09，根 .env 仅新增 TRAINING_WORKER_ENABLED=true。research 模式、资源路径和原自动索引配置保留。正式 Fake worker 已完成唯一合成验收任务；当前本地后端 8000、前端 5173 保持运行。VITE_API_BASE_URL 的完整值为 http://127.0.0.1:8000/api，必须包含 /api。
+
+Day 1～4 的历史升级状态保留在每日报告，本文训练章节已统一为候选当前态。当前执行结果、备份和进程管理见[正式升级记录](../deliverables/week-08-day-05-formal-upgrade.md)。未配置系统开机自启，没有真实训练或 Adapter 部署。

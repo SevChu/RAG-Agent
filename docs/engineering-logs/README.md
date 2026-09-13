@@ -14,9 +14,9 @@
 | 第 4 周 | Agent、总结和出题 | 已完成 | 计划日 1～5、Token 统计及独立会话默认联网增量均已验收 | [week-04.md](week-04.md) |
 | 第 5 周 | 通用智能体迁移与公开 Benchmark 基线 | 已完成 | 计划日 1～5 已验收；`v1.1.0` 已发布，许可补丁为 `v1.1.1` | [week-05.md](week-05.md) |
 | 第 6 周 | 评分与检索算法优化 | 已完成 | Day 1～5 发布为 `v1.2.0`；Extra 两候选拒绝/延后并发布为 `v1.2.1` | [week-06.md](week-06.md) |
-| 第 7 周 | AgentProfile 与多智能体基础 | 本轮验收通过 | Day 4/5 验收通过，已补充删除；目标 v1.3.0 未发布 | [week-07.md](week-07.md) |
-| 第 8 周 | 微调平台基础 | 未开始 | 目标预发布 `v1.4.0-beta.1` | [第 6～11 周路线](../deliverables/week-06-to-11-roadmap.md) |
-| 第 9 周 | 首次真实微调 | 未开始 | 目标稳定版本 `v1.4.0` | [第 6～11 周路线](../deliverables/week-06-to-11-roadmap.md) |
+| 第 7 周 | AgentProfile 与多智能体基础 | 已完成并发布 | `v1.3.0` 于 2026-09-11 发布，提交 `15eb125` | [week-07.md](week-07.md) |
+| 第 8 周 | 微调平台基础 | 功能及全部文档已验收；已获 v1.4.0-beta.1 发布批准 | [五日计划](../deliverables/week-08-plan.md)；目标 `v1.4.0-beta.1` | [week-08.md](week-08.md) |
+| 第 9 周 | Reranker 与 Scorer 真实微调 | 未开始 | 两项分别训练与评测，目标稳定版本 `v1.4.0` | [第 6～11 周路线](../deliverables/week-06-to-11-roadmap.md) |
 | 第 10 周 | 动态长上下文与资料空间记忆 | 未开始 | `v1.5.0` 第一阶段 | [第 6～11 周路线](../deliverables/week-06-to-11-roadmap.md) |
 | 第 11 周 | 自有人工金标集基础 | 未开始 | `v1.5.0` 第二阶段 | [第 6～11 周路线](../deliverables/week-06-to-11-roadmap.md) |
 | 后续国际化里程碑 | 中英文产品支持 | 未开始 | 目标版本 `v1.6.0`；当前程序仍仅支持中文 | [第 6～11 周及后续路线](../deliverables/week-06-to-11-roadmap.md) |
@@ -73,7 +73,29 @@ Git 归属，不改变已发布 Benchmark 数值或版本历史；原始 M0 方�
 2026-09-11：Week 7 补充完成[产品/科研分离](../deliverables/week-07-edition-separation.md)，
 跨周边界见[设计决策](../design-decisions/product-research-editions.md)。
 
-第七周基础任务已于 2026-09-11 确认验收；当前进入[v1.3.0 日志/效果最终审批](../releases/v1.3.0-approval.md)。
+第七周基础任务已于 2026-09-11 确认验收，并完成[v1.3.0 日志/效果最终审批](../releases/v1.3.0-approval.md)及
+[GitHub 正式发布](https://github.com/SevChu/RAG-Agent/releases/tag/v1.3.0)。2026-09-13 已只读复核实际发布状态。
 
 2026-09-11 文档修订：第七周主日志已按第 5/6 周固定栏目重整，逐日事实和验证计数保留；
 本周新增产品/科研两份独立 README，修订后再次提交用户审批。
+
+2026-09-11：第八周 Day 1 已完成[训练数据 Registry](../deliverables/week-08-day-01.md)，跨周数据与审核规则见[设计决策](../design-decisions/training-dataset-registry.md)。正式数据库未迁移。
+
+2026-09-11：Day 1 获用户验收；Day 2 完成[任务与 Fake Trainer](../deliverables/week-08-day-02.md)，规则见[任务生命周期](../design-decisions/training-run-lifecycle.md)。正式数据库与 worker 开关未变更。
+
+2026-09-11：用户授权后完成[Day 2 正式数据副本演练](../deliverables/week-08-day-02-copy-rehearsal.md)，旧数据保留、迁移往返及 Fake worker 通过；正式库和开关保持不变。
+
+2026-09-11：Day 2（含副本演练）获用户验收；Day 3 完成[模拟 Adapter Registry](../deliverables/week-08-day-03.md)，规则见[产物一致性设计](../design-decisions/simulated-adapter-registry.md)。正式库保持不变。
+
+2026-09-12：Day 3 获用户验收；Day 4 完成[逐智能体五步界面与浏览器验收](../deliverables/week-08-day-04.md)，正式库与 worker 开关保持不变，Day 5 尚未启动。
+
+2026-09-13：Day 4 获用户验收；Day 5 进入[正式环境准备与审查](../deliverables/week-08-day-05.md)，新副本演练通过，正式迁移和 worker 启用尚未执行。
+
+2026-09-13：用户批准后完成[正式 06→09 升级、worker 启用及唯一合成验收](../deliverables/week-08-day-05-formal-upgrade.md)，服务保持运行；候选与发布材料待后续。
+
+
+2026-09-13：用户确认第八周功能与 Fake Trainer 可视化验收通过；[周总结](week-08.md)记录功能完成与候选发布收尾的区别。同步更正第七周发布状态，保留此前逐日审批记录作为历史。
+
+
+2026-09-13：按用户要求完成 [v1.4.0-beta.1 发布审阅材料](../releases/v1.4.0-beta.1-approval.md)，
+补齐当前技术文档、升级恢复和第八周发布日志；候选回归与实际双包验证通过，等待审阅后再发布。

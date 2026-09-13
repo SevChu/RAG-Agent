@@ -1,6 +1,6 @@
 # Agentic 技术文档
 
-本目录描述 Agentic 1.3.0 的**当前实现**。逐周工程日志用于解释系统如何演进，本目录则用于回答“系统现在是什么、如何运行、模块如何协作、接口如何使用、哪里仍有限制”。若历史计划与当前代码、许可或数据库迁移不一致，以当前代码、根目录 `LICENSE`、`THIRD_PARTY_NOTICES.md`、数据库迁移和本目录为准。
+本目录描述 Agentic 1.4.0-beta.1 预发布版本的**当前实现**。逐周工程日志用于解释系统如何演进，本目录则用于回答“系统现在是什么、如何运行、模块如何协作、接口如何使用、哪里仍有限制”。若历史计划与当前代码、许可或数据库迁移不一致，以当前代码、根目录 `LICENSE`、`THIRD_PARTY_NOTICES.md`、数据库迁移和本目录为准。
 
 ## 文档适用对象
 
@@ -51,14 +51,16 @@
 21. [逐周工程日志](../engineering-logs/README.md)
 
 
-开发中 v1.3.0：[第七周计划](../deliverables/week-07-plan.md)、
-[Day 1 模型与迁移](../deliverables/week-07-day-01.md)、
-[AgentProfile 设计决策](../design-decisions/agent-profile-versioning.md)。Day 2 已完成[配置管理 API](../deliverables/week-07-day-02.md)，Day 3 已完成会话运行接入，Day 4 已完成[管理界面与对话闭环](../deliverables/week-07-day-04.md)，Day 5 已完成[集成回归与候选准备](../deliverables/week-07-day-05.md)，本轮用户验收已通过；2026-09-10 已补充[删除智能体](../deliverables/week-07-agent-deletion.md)。升级与兼容见 [v1.3.0 升级说明](../releases/v1.3.0-upgrade.md)，未发布范围见 [Release Notes 草稿](../releases/v1.3.0.md)。
+当前候选：[v1.4.0-beta.1 发布说明](../releases/v1.4.0-beta.1.md)、
+[文档审阅与发布审批](../releases/v1.4.0-beta.1-approval.md)、
+[升级与恢复](../releases/v1.4.0-beta.1-upgrade.md)、[模拟微调平台](training-platform.md)。
+`v1.3.0` 已于 2026-09-11 正式发布；本周技术文档及日志复审均已通过，用户已批准发布。
 
 ## 文档地图
 
 | 文件 | 主要问题 |
 |---|---|
+| [training-platform.md](training-platform.md) | 数据、任务、模拟产物和界面如何协作，怎样恢复与验收？ |
 | [architecture.md](architecture.md) | 系统由哪些组件组成，数据和请求如何流动？ |
 | [configuration.md](configuration.md) | 每个环境变量是什么意思，如何切换模型？ |
 | [api-reference.md](api-reference.md) | 后端提供哪些 REST/SSE 接口和错误码？ |
@@ -72,7 +74,7 @@
 
 ## 当前实现摘要
 
-| 维度 | 当前状态（1.3.0） |
+| 维度 | 当前状态（1.4.0-beta.1 候选） |
 |---|---|
 | 产品形态 | 本地单用户、资料驱动的通用智能体实验平台 |
 | 界面语言 | 当前仅中文；英文界面、提示词、错误信息与双语质量验证规划于后续 `v1.6.0` |
@@ -86,7 +88,7 @@
 | 会话 | 快速对话和资料空间对话分别持久化 |
 | 可观测性 | 文档处理进度、引用元数据、检索诊断、Token 累计 |
 | 评测 | FiQA、RAGTruth、RAGBench 已获批并完成冻结基线；机器 profile 1.0.0 可校验加载 |
-| 微调 | 规划中；当前没有训练任务或微调界面 |
+| 微调 | 科研侧数据审核、Fake Trainer、模拟 Adapter 与五步界面已验收；没有真实权重或运行绑定 |
 
 ## 事实来源优先级
 
@@ -114,7 +116,7 @@
 这种兼容是明确的 1.0.0 设计边界，不代表产品仍局限于课程学习。后续只有在提供数据库迁移、API 兼容层和前端回归后，才应重命名内部领域对象。
 
 第七周 Day 3 已完成[会话版本固定与运行接入](../deliverables/week-07-day-03.md)；
-当前应用元数据已为 1.3.0，本周基础任务已验收，日志与效果的最终推送审批已通过，记录见[审批材料](../releases/v1.3.0-approval.md)。
+v1.3.0 已发布，其历史审批见[审批材料](../releases/v1.3.0-approval.md)。当前 beta 的审批单独管理。
 
 2026-09-11 当前态：普通产品流程不需要 Benchmark，默认 product；科研模块按版本和模式分离。
 参见[产品安装](../editions/product.md)、[科研安装](../editions/research.md)、

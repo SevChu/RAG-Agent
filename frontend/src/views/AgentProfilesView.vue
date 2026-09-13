@@ -358,6 +358,13 @@ async function page(delta: number): Promise<void> {
           ><button :disabled="busy" @click="toggle(profile)">
             {{ profile.enabled ? '停用' : '启用' }}
           </button>
+          <button
+            v-if="options?.edition === 'research'"
+            :disabled="busy || !profile.enabled"
+            @click="router.push({ path: '/training/new', query: { agent: profile.id } })"
+          >
+            模拟微调
+          </button>
           <button class="agent-delete" :disabled="busy" @click="remove(profile)">删除</button>
           <button
             :disabled="busy || !profile.enabled"

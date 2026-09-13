@@ -36,7 +36,7 @@
 
 ## 2. 接口总览
 
-当前工作区 OpenAPI 包含 26 个路径，其中 7 个新增路径属于v1.3.0 智能体管理能力；应用版本为 1.3.0，最终推送审批已通过。
+当前候选 OpenAPI 版本为 `1.4.0-beta.1`；完整科研 OpenAPI 共 47 个路径、63 个 HTTP 操作，其中训练数据 10、任务 8、Adapter 7，共 25 个训练操作。产品包不注册这些路由；具体路径与 DTO 以目标包的 OpenAPI 为准，候选清单见[审阅材料](../releases/v1.4.0-beta.1-approval.md)。
 
 ### 智能体配置（Week 7 Day 2）
 
@@ -498,3 +498,115 @@ GET /api/agent-profiles/options 新增 edition=product|research。产品模式 e
 不会打开研究注册表；科研模式返回冻结引用选项。产品新建时非空研究引用返回 400；编辑只能
 保留原引用或清空，不能添加/替换。历史、启停、恢复和运行不需要评测资源；复制省去研究引用。
 两版业务接口、会话绑定及迁移链相同，无需为每个智能体安装 Benchmark。
+
+## 16. 训练数据 Registry（科研模式）
+
+前缀 `/api/training-datasets`。仅研究能力可用；完整仓库的 product 模式返回 403（FastAPI detail），不包含训练模块的产品发行包不注册路由。数据表由 `20260911_07` 创建，完整 beta 需升级至 `20260911_09`；本机正式迁移已获准完成。
+
+| 方法 | 路径（相对前缀） | 输入/用途 |
+|---|---|---|
+| POST | `/validate` | multipart：manifest JSON 字符串、file；仅校验，不写数据库或训练目录 |
+| POST | 空路径 | JSON `{name}`；创建数据集身份，row_version=1 |
+| GET | 空路径 | 数据集列表，limit 1～100，offset ≥0 |
+| GET | `/{dataset_id}` | 身份详情及最新 row_version |
+| POST | `/{dataset_id}/revisions` | multipart：manifest、file、expected_row_version；返回新 revision |
+| GET | `/{dataset_id}/revisions` | 版本列表，支持 limit/offset |
+| GET | `/{dataset_id}/revisions/{revision_id}` | 冻结 manifest、哈希、校验摘要、当前审核状态 |
+| POST | `/{dataset_id}/revisions/{revision_id}/reviews` | JSON：expected_row_version、status、reviewer、note |
+| GET | `/{dataset_id}/revisions/{revision_id}/reviews` | 按序号分页返回追加审核记录 |
+| GET | `/{dataset_id}/revisions/{revision_id}/eligibility` | 必填 query：agent_profile_id；重新核验资格，不创建任务 |
+
+最小 manifest（仅合成示例）：
+
+```json
+{
+  "schema_version": 1,
+  "target": "reranker",
+  "source": "自行编写的合成示例",
+  "license_id": "synthetic-owned",
+  "license_notes": "作者允许用于本地测试",
+  "training_allowed": true,
+  "pii_status": "clean",
+  "pii_notes": "合成文本，经复核无个人信息",
+  "source_course_ids": []
+}
+```
+
+对应 JSONL 至少包含独立的 train 和 validation 样本：
+
+```jsonl
+{"id":"a","source_id":"fruit","group_id":"fruit","split":"train","query":"苹果的颜色","document":"成熟苹果可能呈红色。","relevance":1}
+{"id":"b","source_id":"planet","group_id":"planet","split":"validation","query":"行星的公转","document":"天体沿轨道围绕恒星运动。","relevance":1}
+```
+
+scorer 将 document/relevance 替换为 response/evidence/score；evidence 是非空字符串数组，score 为 0～1 有限数值。上传文件名不作存储路径。未知字段、test/别名、空 split、重复 JSON key、非法标签被拒绝；完整限额及审核/去重规则见[数据契约](../design-decisions/training-dataset-registry.md)。
+
+创建 revision 后状态为 draft；依次送 pending_review，再由明确审核操作 approved/rejected；approved 可转 revoked。每次成功导入或审核均增加数据集 row_version，客户端应重新获取详情；过期版本或非法状态迁移返回 409，内容不合格为 400，超限为 413，路径身份错误为 404，参数形状错误为 422。
+
+eligibility 返回 eligible、reasons 和可用时的 report。它只是当前检查结果；创建/领取/完成任务继续执行服务端资格门。数据获准不代表已经批准真实训练或模型下载；模拟任务和 UI 已实现，真实部署绑定尚未实现。
+
+## 17. 模拟训练任务
+
+科研模式前缀 `/api/training-runs`，新增 8 个操作；需要 `20260911_08`。完整 beta 需 09；以下 API 已通过隔离及正式合成验收。
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/options` | fake-only 能力、模拟步数上限、配置的 worker 开关/检查点/租约时间 |
+| POST | `/estimate` | 校验 RunCreate 参数，返回模拟估算；不核验数据资格、不创建任务 |
+| POST | 空路径 | 提交任务，201；幂等重放仍返回同一 run，201 |
+| GET | 空路径 | limit/offset 分页，可用 agent_profile_id 过滤 |
+| GET | `/{run_id}` | 状态、进度、起止时间、来源摘要、模拟结果 |
+| GET | `/{run_id}/events` | after=已见序号，limit 1～100；按序号增序返回 |
+| POST | `/{run_id}/cancel` | 幂等取消；queued 直接 cancelled，running 先 cancelling；终态保持不变 |
+| POST | `/{run_id}/retry` | `{idempotency_key}`，201；仅失败/取消/中断，创建新 run，记录 retry_of |
+
+RunCreate 示例（UUID 必须来自已审核数据和启用中的智能体）：
+
+```json
+{
+  "idempotency_key": "synthetic-run-0001",
+  "agent_profile_id": "智能体 UUID",
+  "expected_agent_revision_id": "用户复核的智能体版本 UUID",
+  "dataset_id": "数据集 UUID",
+  "dataset_revision_id": "已批准版本 UUID",
+  "target": "reranker",
+  "base_model": "fake-reranker-v1",
+  "base_model_revision": "fake-1",
+  "trainer": "fake-v1",
+  "parameters": {
+    "method": "lora", "rank": 8, "alpha": 16, "dropout": 0.05,
+    "learning_rate": 0.0002, "batch_size": 4, "accumulation_steps": 1,
+    "epochs": 3, "max_length": 512, "seed": 42
+  },
+  "simulation_steps": 20
+}
+```
+
+Day 4 增加可选 `expected_agent_revision_id`（UUID 或 null）。UI 始终发送已复核版本；创建事务发现版本不符返回 409，不产生任务。省略/null 保持固定创建时当前版本的旧语义。同键同请求重放仍优先返回原任务；更换期望版本属于不同请求，需新幂等键。重试保留原任务来源版本，无数据库迁移。
+
+target 为 scorer 时必须选择 fake-scorer-v1。未知字段、真实模型/Trainer、故障注入参数、非法数字返回 422；同键异参或非法重试返回 409；资格检查不通过返回 400。请求体上限 64 KiB。查询不存在 run 返回 404；产品模式 403/产品包不注册路由。
+
+响应 source 不包含冻结系统提示、幂等键或 worker token；result 仅在模拟成功后存在，包含 artifact_kind=simulated、deployable=false、evaluation_status=not_evaluated、trainer 和 simulation_checksum。日志不返回异常原文。参数、取消竞争和租约恢复的完整语义见[任务生命周期](../design-decisions/training-run-lifecycle.md)。
+
+默认后台关闭，提交后为 queued。启用后台需要完成迁移并设置 TRAINING_WORKER_ENABLED=true 后重启后端；本机已获准启用，其他实例仍需独立确认迁移与配置。不得将 worker_enabled 配置值、模拟成功或 checksum 当作真实训练/评测通过。
+
+
+## 18. 模拟 Adapter
+
+以下 7 个操作仅科研模式可用，产品包不注册路由；完整开发仓库切换 product 返回 403。POST 请求体限制 64 KiB。详细语义见[Registry 设计](../design-decisions/simulated-adapter-registry.md)。
+
+| 方法/路径 | 用途 |
+|---|---|
+| GET /api/model-adapters | 列表；limit 1～100、offset、agent_profile_id、include_archived（默认 false） |
+| GET /api/model-adapters/storage-audit | 有界文件核对；limit/offset；不删除文件 |
+| POST /api/model-adapters/from-run/{run_id} | 成功任务幂等补登记；返回 200；不重新训练 |
+| GET /api/model-adapters/{adapter_id} | 来源 manifest、完整性、归档时间和模拟标识 |
+| GET /api/model-adapters/{adapter_id}/lineage | 当前及前驱；limit 1～100，next_predecessor_id 继续查询 |
+| POST /api/model-adapters/{adapter_id}/archive | 幂等逻辑归档，保留文件和历史 |
+| POST /api/model-adapters/{adapter_id}/compatibility | 参数/模型/目标/schema 匹配检查，始终不可部署 |
+
+Day 2 创建任务请求增加可选 `predecessor_adapter_id`（UUID 或 null，默认 null），只记录兼容前驱关系，不续训或加载权重。新成功任务自动登记唯一 Adapter；Day 2 历史成功任务可通过 from-run 补登记。
+
+兼容请求字段：target、base_model、base_model_revision、dataset_schema_version、parameters（与 RunCreate 的 LoRA/QLoRA 参数结构和范围一致）。返回 contract_compatible、deployable=false 和 reasons；完整匹配仍含 SIMULATED_NOT_DEPLOYABLE 与 NOT_EVALUATED。不存在产物/任务返回 404，不满足登记或前驱条件、文件损坏返回 400，并发数据库冲突返回 409，契约不合法返回 422。
+
+Adapter 的 manifest 不返回系统提示、样本、worker token 或幂等键。integrity=valid 只代表模拟 manifest 与 Registry 一致，不代表源数据仍获准使用或模型可部署。没有启用到智能体或真实训练的 HTTP 操作。

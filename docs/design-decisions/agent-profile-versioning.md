@@ -129,3 +129,10 @@ Day 1 开发阶段仅在隔离合成数据库及其 SQLite backup 副本演练�
 列表默认排除；身份、唯一名称、revision 和会话绑定仍保留。详情和版本只读，写入/复制/恢复
 及生成被拒绝；无回收站或硬删除。首次删除需要 expected_row_version，重复删除幂等。
 此决策扩展最初仅停用的管理能力，不撤销不可变版本与外键规则。
+
+
+## v1.4.0-beta.1：模拟任务关联
+
+训练任务固定 AgentProfile revision/config hash 和数据来源；五步界面提交 expected_agent_revision_id，
+创建事务检查其是否仍是当前版本。任务关联不修改配置或旧会话，也不启用 Adapter。停用/删除与训练
+取消通过共享迁移规则衔接，历史任务和产物保留。真实 Adapter 绑定新 revision 与回滚属于第九周。

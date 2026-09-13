@@ -66,3 +66,13 @@ npm run build
 研究特性由 research 模式显式启用，新增研究专用依赖放入 research 组。分发规则改变后需验证
 产品包物理缺少研究目录仍能运行。开发环境使用 uv sync --frozen --group research，普通安装
 使用 --no-dev。不得把业务数据、模型或原始评测集加入源码包。
+
+
+## 训练平台与 beta 发布文档
+
+本版本只允许 FakeTrainer；真实训练、模型下载和官方 test 需另行审查。训练测试使用独立数据库、
+训练目录及合成数据，不加载私有 .env，不请求真实模型。任务来源和产物 manifest 不得手工改写。
+
+本周变更的技术文档必须列入[发布审阅目录](docs/releases/v1.4.0-beta.1-approval.md)，包括新增、
+修改及配置模板；用户审阅通过前不执行 release commit、Tag、推送或 GitHub Release。候选包不带
+数据库、模型、原始数据、私有配置或测试输出；哈希清单绑定实际审阅内容，审阅后实质变更需重新说明。

@@ -101,7 +101,9 @@ def source_files(root: Path, edition: str) -> list[Path]:
             if safe_file(path, root)
             and not (
                 edition == "product"
-                and path.relative_to(root).as_posix().startswith("backend/app/evaluation/")
+                and path.relative_to(root).as_posix().startswith(
+                    ("backend/app/evaluation/", "backend/app/training/")
+                )
             )
         }
     )
@@ -171,7 +173,7 @@ def build(root: Path, destination: Path, edition: str, label: str) -> Path:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--edition", choices=("product", "research", "both"), default="both")
-    parser.add_argument("--label", default="v1.3.0-candidate")
+    parser.add_argument("--label", default="v1.4.0-beta.1")
     parser.add_argument("--output", type=Path, default=ROOT / "output/editions")
     args = parser.parse_args()
     selected = ("product", "research") if args.edition == "both" else (args.edition,)
