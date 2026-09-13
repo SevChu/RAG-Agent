@@ -15,7 +15,7 @@
 | 第 5 周 | 通用智能体迁移与公开 Benchmark 基线 | 已完成 | 计划日 1～5 已验收；`v1.1.0` 已发布，许可补丁为 `v1.1.1` | [week-05.md](week-05.md) |
 | 第 6 周 | 评分与检索算法优化 | 已完成 | Day 1～5 发布为 `v1.2.0`；Extra 两候选拒绝/延后并发布为 `v1.2.1` | [week-06.md](week-06.md) |
 | 第 7 周 | AgentProfile 与多智能体基础 | 已完成并发布 | `v1.3.0` 于 2026-09-11 发布，提交 `15eb125` | [week-07.md](week-07.md) |
-| 第 8 周 | 微调平台基础 | 功能及全部文档已验收；已获 v1.4.0-beta.1 发布批准 | [五日计划](../deliverables/week-08-plan.md)；目标 `v1.4.0-beta.1` | [week-08.md](week-08.md) |
+| 第 8 周 | 微调平台基础 | 已完成并发布预发布版 v1.4.0-beta.1（2026-09-13） | [五日计划](../deliverables/week-08-plan.md)；目标 `v1.4.0-beta.1` | [week-08.md](week-08.md) |
 | 第 9 周 | Reranker 与 Scorer 真实微调 | 未开始 | 两项分别训练与评测，目标稳定版本 `v1.4.0` | [第 6～11 周路线](../deliverables/week-06-to-11-roadmap.md) |
 | 第 10 周 | 动态长上下文与资料空间记忆 | 未开始 | `v1.5.0` 第一阶段 | [第 6～11 周路线](../deliverables/week-06-to-11-roadmap.md) |
 | 第 11 周 | 自有人工金标集基础 | 未开始 | `v1.5.0` 第二阶段 | [第 6～11 周路线](../deliverables/week-06-to-11-roadmap.md) |
@@ -99,3 +99,8 @@ Git 归属，不改变已发布 Benchmark 数值或版本历史；原始 M0 方�
 
 2026-09-13：按用户要求完成 [v1.4.0-beta.1 发布审阅材料](../releases/v1.4.0-beta.1-approval.md)，
 补齐当前技术文档、升级恢复和第八周发布日志；候选回归与实际双包验证通过，等待审阅后再发布。
+
+
+2026-09-13：日志复审及最终发布获批后，完成 [v1.4.0-beta.1 GitHub 预发布](https://github.com/SevChu/RAG-Agent/releases/tag/v1.4.0-beta.1)；
+Tag 指向 `dac057d9d877ae7d2e969b7059757ea3d8193610`，两个源码包及 SHA256SUMS.txt 已上传并核对远端 SHA-256。
+Latest 仍为 v1.3.0；后续状态记录提交不移动发布标签，详见[第八周日志](week-08.md)。

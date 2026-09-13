@@ -5,7 +5,7 @@
 - 上位路线：[第 6～11 周研发路线](week-06-to-11-roadmap.md)。
 - 开发基线：本地 `v1.3.0` Tag 指向 `15eb125`；迁移链终点为 `20260910_06`。
 - 按 5 个计划日推进，计划日不等于自然日；实际日期和结果写入[第八周日志](../engineering-logs/week-08.md)。
-- 当前状态：2026-09-13 用户确认本周功能及 Fake Trainer 可视化验收通过；正式数据库已获准迁移至 09，worker 启用及合成验收完成，见[执行记录](week-08-day-05-formal-upgrade.md)。周总结见[工程日志](../engineering-logs/week-08.md)；Day 5 的 beta 版本元数据、Release Notes、技术文档与候选验证已完成，[文档及日志复审](../releases/v1.4.0-beta.1-approval.md)已通过，用户已批准本周预发布版本。
+- 当前状态：2026-09-13 用户确认本周功能及 Fake Trainer 可视化验收通过；正式数据库已获准迁移至 09，worker 启用及合成验收完成，见[执行记录](week-08-day-05-formal-upgrade.md)。周总结见[工程日志](../engineering-logs/week-08.md)；Day 5 的 beta 版本元数据、Release Notes、技术文档与候选验证已完成，[文档及日志复审](../releases/v1.4.0-beta.1-approval.md)已通过，用户授权后于 2026-09-13 完成 v1.4.0-beta.1 GitHub 预发布；实际记录见周日志。
 
 ## 本周目标与范围
 

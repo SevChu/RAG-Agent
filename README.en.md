@@ -321,7 +321,7 @@ For complete settings, storage, backups, and troubleshooting, see the
 | `v1.2.0` | Evaluation governance and advisory NLI span profile | Released |
 | `v1.2.1` | Week 6 Extra evidence; no new profile | Released |
 | `v1.3.0` | Versioned AgentProfile and multi-agent configuration | Released 2026-09-11 |
-| `v1.4.0-beta.1` | Dataset, FakeTrainer jobs, simulated adapters and five-step UI | Implemented, accepted and approved for prerelease |
+| `v1.4.0-beta.1` | Dataset, FakeTrainer jobs, simulated adapters and five-step UI | Prerelease published 2026-09-13 |
 | `v1.4.0` | Separate real reranker and scorer fine-tuning, evaluation and rollback | Planned |
 | `v1.5.0` | Dynamic long context, resource-space memory, and private gold-set tooling | Planned |
 | `v1.6.0` | Chinese/English internationalization and bilingual quality validation | Planned |

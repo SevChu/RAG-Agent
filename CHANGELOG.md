@@ -26,7 +26,7 @@
 ### Status
 
 - 第八周功能与正式合成验收已通过；仅有模拟产物，不含真实权重或质量改善声明。
-- 技术文档与重写日志已获用户最终审核，批准按 v1.4.0-beta.1 创建 GitHub prerelease；不替换 stable/latest。
+- 技术文档与重写日志获用户最终审核后，v1.4.0-beta.1 已于 2026-09-13 发布为 GitHub prerelease；Latest 仍为 v1.3.0。
 - 见[发布说明](docs/releases/v1.4.0-beta.1.md)与[审阅目录](docs/releases/v1.4.0-beta.1-approval.md)。
 
 ## [1.3.0] - 2026-09-11
